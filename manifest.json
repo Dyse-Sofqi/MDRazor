@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "MDRazor",
+	"name": "MDRazor",
 	"version": "1.0.0",
 	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "MDRazor - Enhanced markdown editing for Obsidian.",
+	"author": "Sofqi",
+	"authorUrl": "https://github.com/Dyse-Sofqi",
+	"fundingUrl": "https://github.com/Dyse-Sofqi/ziping/blob/main/zanshang.jpg",
 	"isDesktopOnly": false
 }
