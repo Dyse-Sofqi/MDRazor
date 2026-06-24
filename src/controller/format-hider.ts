@@ -1,5 +1,5 @@
 /**
- * MDRazor — 隐藏样式模块
+ * MDRazor — 隐藏样式模块（Controller）
  *
  * 在 Obsidian 实时预览模式下，通过 CodeMirror 6 装饰隐藏 Markdown
  * 格式化标记符号（**、*、==、~~、`）。
@@ -7,36 +7,11 @@
  * ── 架构 ──
  *
  * 本模块导出：
- *   - `formattingConfig` — 模块级可变配置，由 main.ts 在设置变更时写入，
+ *   - `formattingConfig` — 模块级可变配置，由 controller/main.ts 在设置变更时写入，
  *     ViewPlugin 在每一帧更新时读取。
  *   - `createFormatHiderExtension()` — 工厂函数，返回一个 `Prec.high`
  *     CM6 扩展，它（a）为格式化标记提供 replace 装饰，（b）在鼠标点击后
  *     修正光标位置。
- *
- * ── 工作原理 ──
- *
- * Obsidian 的实时预览使用基于 HyperMD 的 Lezer 语法。每个格式化标记
- * 是一个独立的语法树节点，其名称包含 `formatting-<style>` 模式。
- * 关键的节点类型有：
- *
- *   格式     │ 节点名称（包含）          │ 标记长度
- *   ─────────┼───────────────────────────┼────────────
- *   加粗     │ formatting-strong         │ 2 (** / __)
- *   斜体     │ formatting-em             │ 1 (* / _)
- *   高亮     │ formatting-highlight      │ 2 (==)
- *   删除线   │ formatting-strikethrough  │ 2 (~~)
- *   行内代码 │ formatting-code...inline  │ 可变长度 (` / `` / ```)
- *
- * 每次更新时，`buildDecorations()` 遍历语法树，对标记区间应用
- * `Decoration.replace({})`。replace 装饰指示 CM6 不渲染这些区间
- * —— 字符仍在文档模型中（因此光标逻辑正常工作），但在 DOM 中不可见。
- *
- * ── 光标修正 ──
- *
- * 由于标记被隐藏，鼠标点击样式文本的视觉边界时，光标可能落在
- * 起始标记和内容之间（或内容和结束标记之间）。`adjustCursor()` 方法
- * 通过检查点击位置附近的装饰集来检测这种情况，并将光标推出隐藏标记
- * 之外，让用户感知到符合预期的光标位置。
  */
 
 import {
@@ -46,9 +21,9 @@ import {
 	DecorationSet,
 	EditorView,
 } from '@codemirror/view';
-import { RangeSetBuilder, Prec } from '@codemirror/state';
+import { Prec, RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { MDRazorSettings, DEFAULT_SETTINGS } from './settings';
+import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
 
 /**
  * 模块级可变配置对象。

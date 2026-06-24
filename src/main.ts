@@ -1,94 +1,12 @@
 /**
- * MDRazor — 插件入口
+ * MDRazor — Plugin entry point
  *
- * 本模块是整个插件的薄编排层，职责仅限于：
- *   1. 通过 Obsidian Plugin API 加载/保存设置
- *   2. 注册设置面板（UI）
- *   3. 注册各个功能模块贡献的 CodeMirror 6 扩展
+ * Thin re-export for esbuild bundling.
+ * Obsidian loads main.js and expects the default export to be the Plugin class.
  *
- * 每个功能模块（format-hider.ts、list-enhancer.ts 等）暴露：
- *   - create*Extension() 工厂函数 → 返回 CM6 Extension（在此注册）
- *   - 模块级配置对象（在此同步）
- *
- * 这种解耦方式意味着功能模块从不导入 Plugin 或处理 Obsidian 生命周期，
- * 它们完全基于 CM6 原生 API 运作。
+ * Architecture: MVC
+ *   - model/     Data structures & shared state
+ *   - view/      Settings UI
+ *   - controller/ Plugin lifecycle & CM6 extensions
  */
-
-import { Plugin } from 'obsidian';
-import {
-	DEFAULT_SETTINGS,
-	MDRazorSettings,
-	MDRazorSettingTab,
-} from './settings';
-import { formattingConfig, createFormatHiderExtension } from './format-hider';
-import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
-
-/**
- * 主插件类。
- *
- * `settings` 属性持有用户偏好的权威副本。
- * 每次加载或保存后，`syncConfig()` 将值传播到每个功能模块的模块级配置对象，
- * 使（无状态的）CM6 扩展始终能读取到最新值，无需持有对此类的引用。
- */
-export default class MDRazorPlugin extends Plugin {
-	settings!: MDRazorSettings;
-
-	async onload() {
-		await this.loadSettings();
-
-		// 注册设置面板（Obsidian PluginSettingTab）
-		this.addSettingTab(new MDRazorSettingTab(this.app, this));
-
-		// 注册每个功能模块的 CodeMirror 6 扩展。
-		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
-		this.registerEditorExtension(createFormatHiderExtension());
-		this.registerEditorExtension(createListEnhancerExtension());
-	}
-
-	onunload() {
-		// 清理工作由 Obsidian 自动完成：
-		//   - registerEditorExtension 注册的扩展在卸载时自动分离
-		//   - addSettingTab 注册的设置面板自动移除
-	}
-
-	/**
-	 * 从磁盘加载设置，与默认值合并，然后同步到功能模块。
-	 */
-	async loadSettings() {
-		const rawData = (await this.loadData()) as Record<string, unknown> | null;
-		if (rawData) {
-			// Migration: enhancedListMarkers → enterSoftBreak
-			if ('enhancedListMarkers' in rawData && !('enterSoftBreak' in rawData)) {
-				rawData.enterSoftBreak = rawData.enhancedListMarkers;
-			}
-		}
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			rawData as Partial<MDRazorSettings>,
-		);
-		this.syncConfig();
-	}
-
-	/**
-	 * 将当前设置持久化到磁盘，然后同步到功能模块，
-	 * 使 CM6 扩展立即生效（无需重新加载插件）。
-	 */
-	async saveSettings() {
-		await this.saveData(this.settings);
-		this.syncConfig();
-	}
-
-	/**
-	 * 将设置传播到每个功能模块的可变配置对象。
-	 *
-	 * 为什么使用模块级配置？CM6 ViewPlugin 实例生命周期很长，
-	 * 且与 Obsidian 插件生命周期解耦。通过写入 ViewPlugin 在每次
-	 * update() 时读取的普通可变对象，我们避免了设置变更时需要
-	 * 重建或重新注册扩展。
-	 */
-	private syncConfig() {
-		Object.assign(formattingConfig, this.settings);
-		Object.assign(listEnhancerConfig, this.settings);
-	}
-}
+export { default } from './controller/main';
