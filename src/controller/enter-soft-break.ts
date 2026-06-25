@@ -109,11 +109,13 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 							const currIndent = leadingMatch ? leadingMatch[0] : '';
 							if (currIndent.length === 0) {
 								// Top level → clear list format
+								// If prev line also empty, include it in deletion
+								const clearFrom = prevLine.from;
 								event.preventDefault();
 								event.stopImmediatePropagation();
 								view.dispatch({
-									changes: { from: line.from, to: line.to, insert: '' },
-									selection: { anchor: line.from },
+									changes: { from: clearFrom, to: line.to, insert: '' },
+									selection: { anchor: clearFrom },
 									userEvent: 'input',
 								});
 								return;
