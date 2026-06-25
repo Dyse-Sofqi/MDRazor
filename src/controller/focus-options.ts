@@ -255,7 +255,16 @@ function computeFoldRanges(
 				}
 			}
 		} else {
-			foldTo = doc.length;
+			// Last subtree: scan forward through continuation lines.
+			// Stop at blank lines so non-list content stays unfolded.
+			let scanPos = lastChildLine.to + 1;
+			while (scanPos < doc.length) {
+				const scanLine = doc.lineAt(scanPos);
+				if (scanLine.text.trim() === "") break;
+				if (listLineNumbers.has(scanLine.number)) break;
+				foldTo = scanLine.to;
+				scanPos = doc.lineAt(scanLine.to + 1).from;
+			}
 		}
 
 		if (foldTo <= lastFoldTo) continue;

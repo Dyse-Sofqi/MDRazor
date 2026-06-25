@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-mdrazor",
-	"version": "1.0.0",
+	"version": "1.4.3",
 	"description": "MDRazor - An Obsidian plugin for enhanced markdown editing",
 	"main": "main.js",
 	"type": "module",
