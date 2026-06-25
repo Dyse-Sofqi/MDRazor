@@ -11,6 +11,11 @@
  *     ViewPlugin 在每一帧更新时读取。
  *   - `createWhitespaceExtension()` — 工厂函数，返回一个 CM6 ViewPlugin，
  *     通过 Decoration.replace/widget 替换空白字符的视觉呈现。
+ *
+ * ── 兼容性 ──
+ *
+ * formatting-list 节点内的空白字符不受影响（保留原始空格），
+ * 以免 Decoration.replace 干扰列一体化的光标位置映射。
  */
 
 import {
@@ -80,6 +85,8 @@ class WhitespaceWidget extends WidgetType {
  *   - 硬换行（HardBreak 节点，即 Shift+Enter 产生的 <br>）→ ↓ (U+2193)
  *   - 普通段落回车 → ↵ (U+21B5)
  *
+ * 注意：formatting-list 节点内的空白保留原样，不替换。
+ *
  * @param view 当前的 CodeMirror EditorView
  * @returns 覆盖所有待替换空白字符的 DecorationSet，或 Decoration.none
  */
@@ -103,6 +110,28 @@ function buildDecorations(view: EditorView): DecorationSet {
 		},
 	});
 
+	// 收集 formatting-list 节点范围（列一体化需要原始空格进行光标定位）
+	const listMarkerRanges: Array<{ from: number; to: number }> = [];
+	tree.iterate({
+		enter(node) {
+			if (node.type.name.includes('formatting-list')) {
+				listMarkerRanges.push({ from: node.from, to: node.to });
+			}
+		},
+	});
+
+	/**
+	 * 检查某位置是否落在列表标记范围内。
+	 * 列表标记内的空格/制表符保持原样，避免 Decoration.replace
+	 * 干扰列一体化的光标位置映射。
+	 */
+	function isInListMarker(pos: number): boolean {
+		for (const r of listMarkerRanges) {
+			if (pos >= r.from && pos < r.to) return true;
+		}
+		return false;
+	}
+
 	// 仅扫描可见区域
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
@@ -125,6 +154,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 			for (let i = startOffset; i < endOffset; i++) {
 				const ch = text[i];
 				const pos = line.from + i;
+
+				// 跳过列表标记内的空白（兼容列一体化光标定位）
+				if (isInListMarker(pos)) continue;
 
 				if (ch === ' ') {
 					builder.add(
@@ -177,8 +209,8 @@ const whitespaceViewPlugin = ViewPlugin.fromClass(
 		}
 
 		update(update: ViewUpdate) {
-			// 文档变更、视口滚动、选区变化时均需重新计算
-			if (update.docChanged || update.viewportChanged || update.selectionSet) {
+			// 文档变更或视口滚动时重新计算（不含 selectionSet，避免干扰列一体化光标修正）
+			if (update.docChanged || update.viewportChanged) {
 				this.decorations = buildDecorations(update.view);
 			}
 		}
