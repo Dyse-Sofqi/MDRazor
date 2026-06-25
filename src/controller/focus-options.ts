@@ -198,6 +198,12 @@ function computeFoldRanges(
 	const sorted = [...foldSet].sort((a, b) => a - b);
 	let lastFoldTo = -1;
 
+	// 预构建列表行号集合，用于续行检测
+	const listLineNumbers = new Set<number>();
+	for (const item of items) {
+		if (item) listLineNumbers.add(item.lineNumber);
+	}
+
 	for (const idx of sorted) {
 		if (idx < 0 || idx >= items.length) continue;
 		if (!hasDescendants(items, idx)) continue;
@@ -208,15 +214,32 @@ function computeFoldRanges(
 		if (line.to <= lastFoldTo) continue;
 
 		const subtreeEnd = subtreeEndIndex(items, idx);
-		// Fold from parent line end to last child line end,
-		// not beyond the subtree — don't fold content/paragraphs
-		// between the subtree and the next item.
 		const lastChildIdx = subtreeEnd - 1;
 		if (lastChildIdx < 0 || lastChildIdx >= items.length) continue;
 		const lastChild = items[lastChildIdx];
 		if (!lastChild) continue;
 		const lastChildLine = doc.lineAt(lastChild.markerFrom);
-		const foldTo = lastChildLine.to;
+		let foldTo = lastChildLine.to;
+
+		// 扫描续行：从 lastChild 下一行开始，将非列表内容行（软换行续行）纳入折叠范围。
+		// 遇列表行或 nextBoundary 时停止，不覆盖子列表项的独立折叠。
+		if (subtreeEnd < items.length) {
+			const nextItem = items[subtreeEnd];
+			if (!nextItem) continue;
+			const nextBoundary = doc.lineAt(nextItem.markerFrom).from;
+			let scanPos = lastChildLine.to + 1;
+			while (scanPos < nextBoundary) {
+				const scanLine = doc.lineAt(scanPos);
+				if (!listLineNumbers.has(scanLine.number)) {
+					foldTo = scanLine.to;
+					scanPos = doc.lineAt(scanLine.to + 1).from;
+				} else {
+					break;
+				}
+			}
+		} else {
+			foldTo = doc.length;
+		}
 
 		if (foldTo <= lastFoldTo) continue;
 
