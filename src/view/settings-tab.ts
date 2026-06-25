@@ -95,6 +95,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(hideSection)
+			.setName('隐藏转义符号')
+			.setDesc('在实时预览中隐藏 \\ 转义符号')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.hideEscapeFormatting)
+					.onChange(async (value) => {
+						this.plugin.settings.hideEscapeFormatting = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(hideSection)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>

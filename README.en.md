@@ -21,7 +21,7 @@ Currently provides **format marker hiding** and **list enhancements** — two ma
 
 #### ✂️ Format Marker Hiding
 
-Hide markers for **bold**, *italic*, ==highlight==, ~~strikethrough~~, `inline code` (`**`, `*`, `==`, `~~`, `` ` ``). Markers reappear when the cursor enters the range. Cleaner live preview, zero distraction.
+Hide markers for **bold**, *italic*, ==highlight==, ~~strikethrough~~, \escape character, `inline code` (`**`, `*`, `==`, `~~`, `` ` ``,\\). Markers reappear when the cursor enters the range. Cleaner live preview, zero distraction.
 
 - Each format can be toggled independently
 - Clicking near the boundary of formatted content places the cursor outside the markers, preventing accidental format entry
@@ -55,7 +55,7 @@ Only the focus chain (itself + ancestors + descendants) stays visible. Deeply ne
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
-- **Style Hiding** — 6 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Space Visualization**
+- **Style Hiding** — 7 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Space Visualization**
 - **List Enhancements** — 3 toggles: List Integration, Enter Soft Break, Focus Option
 
 ### Development Progress
@@ -69,6 +69,21 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Space visualization
 
 ### Changelog
+
+**v1.4.7** (2026-06-26)
+
+- New: Hide escape marker (`\`) — hides backslash escape characters in live preview, enabled by default, with cursor repulsion on click
+
+**v1.4.6** (2026-06-26)
+
+- Fix: Whitespace visualization lint error — use `view.dom.ownerDocument` instead of `document`
+
+**v1.4.5** (2026-06-26)
+
+- New: English README (README.en.md)
+- New: Badges + language switcher
+- New: Sponsorship section
+- Fix: Manifest plugin id changed to lowercase (`md-razor`)
 
 **v1.4.3** (2026-06-25)
 

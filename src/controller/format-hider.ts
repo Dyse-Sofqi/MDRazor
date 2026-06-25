@@ -2,7 +2,7 @@
  * MDRazor — 隐藏样式模块（Controller）
  *
  * 在 Obsidian 实时预览模式下，通过 CodeMirror 6 装饰隐藏 Markdown
- * 格式化标记符号（**、*、==、~~、`）。
+ * 格式化标记符号（**、*、==、~~、`）以及转义符号（\）。
  *
  * ── 架构 ──
  *
@@ -84,22 +84,34 @@ function buildDecorations(view: EditorView): DecorationSet {
 				const match = text.match(/^`+/);
 				markerLen = match ? match[0].length : 1;
 			}
+			// 转义符号：\ → 1 字符
+			else if (
+				formattingConfig.hideEscapeFormatting &&
+				(typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape'))
+			) {
+				markerLen = 1;
+			}
 
 			// ── 对起始和结束标记应用 replace 装饰 ──
 
 			if (markerLen > 0) {
+				const isEscape = typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape');
+
 				// 起始标记：从节点开始到内容起始
 				builder.add(
 					node.from,
 					node.from + markerLen,
 					Decoration.replace({ markerType: 'open' }),
 				);
-				// 结束标记：从内容结束到节点结束
-				builder.add(
-					node.to - markerLen,
-					node.to,
-					Decoration.replace({ markerType: 'close' }),
-				);
+				// 结束标记：从内容结束到节点结束。
+				// 转义符号仅隐藏 \，不隐藏被转义的字符，因此跳过结束标记。
+				if (!isEscape) {
+					builder.add(
+						node.to - markerLen,
+						node.to,
+						Decoration.replace({ markerType: 'close' }),
+					);
+				}
 			}
 		},
 	});

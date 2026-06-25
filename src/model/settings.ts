@@ -19,6 +19,7 @@ export interface MDRazorSettings {
 	hideHighlightFormatting: boolean;
 	hideStrikethroughFormatting: boolean;
 	hideCodeFormatting: boolean;
+	hideEscapeFormatting: boolean;
 
 	// ── 列表增强 (list-enhancer.ts) ──
 	listIntegration: boolean;
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHighlightFormatting: true,
 	hideStrikethroughFormatting: true,
 	hideCodeFormatting: true,
+	hideEscapeFormatting: true,
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,
