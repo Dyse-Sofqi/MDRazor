@@ -95,8 +95,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(hideSection)
-			.setName('空白符号可视化')
-			.setDesc('以半透明标记显示不可见空白符号：空格→·  制表符→→  回车→↵  软回车→↓')
+			.setName('空格可视化')
+			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.showWhitespace)

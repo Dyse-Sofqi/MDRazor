@@ -14,11 +14,11 @@
  * 它们完全基于 CM6 原生 API 运作。
  */
 
-import { Plugin } from 'obsidian';
+import { MarkdownView, Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
 import { formattingConfig, createFormatHiderExtension } from './format-hider';
-import { whitespaceConfig, createWhitespaceExtension } from './whitespace-visible';
+import { spaceConfig, createSpaceVisualizationExtension } from './whitespace-visible';
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
 
 /**
@@ -40,7 +40,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册每个功能模块的 CodeMirror 6 扩展。
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
 		this.registerEditorExtension(createFormatHiderExtension());
-		this.registerEditorExtension(createWhitespaceExtension());
+		this.registerEditorExtension(createSpaceVisualizationExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
 	}
 
@@ -76,6 +76,23 @@ export default class MDRazorPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 		this.syncConfig();
+		this.repaintAllEditors();
+	}
+
+	/**
+	 * 强制所有打开的编辑器刷新装饰。
+	 *
+	 * 发送空事务到每个 CM6 EditorView，触发 ViewPlugin.update()，
+	 * 使其从共享配置对象重新读取并重建装饰集。
+	 * 这样设置开关可即时生效，无需重启 Obsidian。
+	 */
+	private repaintAllEditors() {
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				const cm6 = (leaf.view.editor as any).cm;
+				if (cm6) cm6.dispatch({});
+			}
+		});
 	}
 
 	/**
@@ -88,7 +105,7 @@ export default class MDRazorPlugin extends Plugin {
 	 */
 	private syncConfig() {
 		Object.assign(formattingConfig, this.settings);
-		Object.assign(whitespaceConfig, this.settings);
+		Object.assign(spaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
 	}
 }
