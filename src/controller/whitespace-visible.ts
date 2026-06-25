@@ -84,12 +84,8 @@ class WhitespaceWidget extends WidgetType {
  *   - 不换行空格 → ° (U+00B0)
  *
  * 行末标记：
- *   - 段内软换行（Shift+Enter，同行内连续）→ ↓ (U+2193)
- *   - 段落结束（Enter 换段）→ ↵ (U+21B5)
- *
- * 软/硬回车通过 Paragraph 节点范围判断：
- *   连续两行同属一个 Paragraph → 段内软换行（↓）
- *   当前行为 Paragraph 最后一行 → 段落结束（↵）
+ *   - 段内软换行（下一行非空）→ ↓ (U+2193)
+ *   - 段落结束（下一行为空行）→ ↵ (U+21B5)
  *
  * 以下位置保持原样不替换：
  *   - 行首缩进空白（兼容缩进参考线）
@@ -105,40 +101,18 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	const builder = new RangeSetBuilder<Decoration>();
 	const doc = view.state.doc;
-
-	// ═══════════════════════════════════════════════════════════════════════
-	// 语法树预处理
-	// ═══════════════════════════════════════════════════════════════════════
-
 	const tree = syntaxTree(view.state);
-
-	// 收集 Paragraph 节点范围（用于区分段内软换行 vs 段落结束）
-	const paragraphRanges: Array<{ from: number; to: number }> = [];
-	tree.iterate({
-		enter(node) {
-			if (node.type.name === 'Paragraph') {
-				paragraphRanges.push({ from: node.from, to: node.to });
-			}
-		},
-	});
 
 	/**
 	 * 判断第 lineNum 行后的换行是段内软换行（↓）还是段落结束（↵）。
 	 *
-	 * 原理：如果 lineNum 和 lineNum + 1 两行都落在同一个 Paragraph
-	 * 节点内，那么它们之间的换行是段内软换行（Shift+Enter 行为）。
-	 * 否则是段落结束（Enter 行为）。
+	 * 原理：下一行是空行 → 段落结束（↵）；下一行非空 → 段内续行（↓）。
+	 * 不依赖语法树节点名称，兼容 HyperMD 下各种块级元素。
 	 */
 	function isSoftBreak(lineNum: number): boolean {
 		if (lineNum >= doc.lines) return false;
-		const line = doc.line(lineNum);
 		const nextLine = doc.line(lineNum + 1);
-		for (const r of paragraphRanges) {
-			if (line.from >= r.from && line.to <= r.to) {
-				return nextLine.from >= r.from && nextLine.to <= r.to;
-			}
-		}
-		return false;
+		return nextLine.text.trim().length > 0;
 	}
 
 	// 收集 formatting-list 节点范围（列一体化需要原始空格进行光标定位）
@@ -212,8 +186,11 @@ function buildDecorations(view: EditorView): DecorationSet {
 				}
 			}
 
-			// ── 行末标记（跳过文档最后一行） ──
+			// ── 行末标记（跳过文档最后一行和空行） ──
 			if (lineNum < doc.lines) {
+				// 空行本身不标记
+				if (text.trim().length === 0) continue;
+
 				const soft = isSoftBreak(lineNum);
 				const symbol = soft ? '↓' : '↵';
 				const cls = soft ? 'mdrazor-ws-softbreak' : 'mdrazor-ws-hardbreak';
