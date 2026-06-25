@@ -20,6 +20,9 @@ export interface MDRazorSettings {
 	hideStrikethroughFormatting: boolean;
 	hideCodeFormatting: boolean;
 
+	// ── 空白符号可视化 (whitespace-visible.ts) ──
+	showWhitespace: boolean;
+
 	// ── 列表增强 (list-enhancer.ts) ──
 	listIntegration: boolean;
 	enterSoftBreak: boolean;
@@ -32,6 +35,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHighlightFormatting: true,
 	hideStrikethroughFormatting: true,
 	hideCodeFormatting: true,
+	showWhitespace: false,
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,

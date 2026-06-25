@@ -18,6 +18,7 @@ import { Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
 import { formattingConfig, createFormatHiderExtension } from './format-hider';
+import { whitespaceConfig, createWhitespaceExtension } from './whitespace-visible';
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
 
 /**
@@ -39,6 +40,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册每个功能模块的 CodeMirror 6 扩展。
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
 		this.registerEditorExtension(createFormatHiderExtension());
+		this.registerEditorExtension(createWhitespaceExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
 	}
 
@@ -86,6 +88,7 @@ export default class MDRazorPlugin extends Plugin {
 	 */
 	private syncConfig() {
 		Object.assign(formattingConfig, this.settings);
+		Object.assign(whitespaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
 	}
 }

@@ -13,6 +13,31 @@
 	background: none !important;
 }
 
+/* ── 空白符号可视化 ──
+ * 半透明标记替换不可见空白字符
+ */
+.mdrazor-ws-char {
+	color: var(--text-muted);
+	opacity: 0.35;
+	font-family: inherit;
+	font-size: 0.85em;
+	display: inline-block;
+	text-align: center;
+}
+
+/* 制表符稍宽，视觉上更易辨识 */
+.mdrazor-ws-tab {
+	min-width: 1.2em;
+}
+
+/* 行末标记紧贴行尾 */
+.mdrazor-ws-hardbreak,
+.mdrazor-ws-softbreak {
+	opacity: 0.3;
+	font-size: 0.75em;
+	margin-inline-start: 1px;
+}
+
 /* ── 软换行续行隐藏折叠符号 ──
  * 列表项软换行后，子项折叠符号不应出现在续行上，仅首行保留。
  * :has(.cm-formatting-list) 选中含列表符号的行（首行），取反即续行。
