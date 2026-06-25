@@ -25,12 +25,12 @@ import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
 export const spaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
 class SpaceWidget extends WidgetType {
-	toDOM(): HTMLElement {
-		// eslint-disable-next-line obsidianmd/prefer-active-doc
-		const span = document.createElement('span');
-		span.className = 'mdrazor-space-char';
-		span.textContent = '·';
-		return span;
+		toDOM(view?: EditorView): HTMLElement {
+			const doc = view?.dom.ownerDocument ?? document;
+			const span = doc.createElement('span');
+			span.className = 'mdrazor-space-char';
+			span.textContent = '·';
+			return span;
 	}
 
 	eq(other: SpaceWidget): boolean {
