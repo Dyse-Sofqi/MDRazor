@@ -150,12 +150,12 @@ export function createFormatHiderExtension() {
 						if (adjusted === pos) continue;
 
 						const view = update.view;
-						const self = this; // 保留实例引用，微任务中读取最新装饰集
+						// 微任务中已使用 this（箭头函数捕获上层作用域）
 						queueMicrotask(() => {
 							// 重新检查：微任务执行时装饰集可能已被 rebuild（设置变更等）。
 							// 如果装饰集变了（例如标记不再隐藏），跳到标记外的修正就不需要了。
 							const curPos = view.state.selection.main.head;
-							const curAdjusted = self.adjustCursor(curPos);
+							const curAdjusted = this.adjustCursor(curPos);
 							if (curAdjusted === curPos) return;
 
 							view.dispatch({

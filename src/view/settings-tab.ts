@@ -5,7 +5,7 @@
  * 純 UI 層，不包含資料定義或業務邏輯。
  */
 
-import { ExtraButtonComponent, PluginSettingTab, Setting } from 'obsidian';
+import { App, ExtraButtonComponent, PluginSettingTab, Setting } from 'obsidian';
 import type MDRazorPlugin from '../controller/main';
 
 /**
@@ -19,7 +19,7 @@ import type MDRazorPlugin from '../controller/main';
 export class MDRazorSettingTab extends PluginSettingTab {
 	plugin: MDRazorPlugin;
 
-	constructor(app: any, plugin: MDRazorPlugin) {
+	constructor(app: App, plugin: MDRazorPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}

@@ -311,7 +311,7 @@ const focusViewPlugin = ViewPlugin.fromClass(
 
 		constructor(view: EditorView) {
 			if (listEnhancerConfig.listFocusOption) {
-				requestAnimationFrame(() => {
+				window.requestAnimationFrame(() => {
 					this.recomputeFolds(view);
 				});
 			}

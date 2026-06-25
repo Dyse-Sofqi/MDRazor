@@ -15,6 +15,7 @@
  */
 
 import { MarkdownView, Plugin } from 'obsidian';
+import { EditorView } from '@codemirror/view';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
 import { formattingConfig, createFormatHiderExtension } from './format-hider';
@@ -89,7 +90,7 @@ export default class MDRazorPlugin extends Plugin {
 	private repaintAllEditors() {
 		this.app.workspace.iterateAllLeaves((leaf) => {
 			if (leaf.view instanceof MarkdownView) {
-				const cm6 = (leaf.view.editor as any).cm;
+				const cm6 = (leaf.view.editor as unknown as { cm: EditorView }).cm;
 				if (cm6) cm6.dispatch({});
 			}
 		});
