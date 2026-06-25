@@ -1,8 +1,7 @@
 /**
  * MDRazor - 聚焦模式模块（Controller）
  *
- * 光标进入列表项时，展开其所有后代并折叠所有非直属内容（兄弟、父兄弟等），
- * 仅保持聚焦链（自身 + 祖先 + 后代）可见。
+ * 光标进入列表项时，展开其自身、祖先和后代列表项，折叠其余有子项的列表项。
  *
  * 深度检测使用缩进宽度（而非语法树层级），
  * 因为 HyperMD 将所有 formatting-list 节点扁平化在 Document 下。
@@ -161,9 +160,12 @@ function computeFoldRanges(
 		if (line.to <= lastFoldTo) continue;
 
 		const subtreeEnd = subtreeEndIndex(items, idx);
-		const foldTo = subtreeEnd < items.length
-			? items[subtreeEnd]!.markerFrom
-			: doc.length;
+		// Fold from parent line end to last child line end,
+		// not beyond the subtree — don't fold content/paragraphs
+		// between the subtree and the next item.
+		const lastChildIdx = subtreeEnd - 1;
+		const lastChildLine = doc.lineAt(items[lastChildIdx]!.markerFrom);
+		const foldTo = lastChildLine.to;
 
 		if (foldTo <= lastFoldTo) continue;
 
@@ -186,9 +188,8 @@ const focusFoldService = foldService.of((state, pos) => {
 
 	for (let i = 0; i < items.length; i++) {
 		const end = subtreeEndIndex(items, i);
-		const endPos = end < items.length
-			? items[end]!.markerFrom
-			: state.doc.length;
+		const lastChildLine = state.doc.lineAt(items[end - 1]!.markerFrom);
+		const endPos = lastChildLine.to;
 
 		if (pos >= items[i]!.markerFrom && pos < endPos) {
 			if (!hasDescendants(items, i)) return null;
