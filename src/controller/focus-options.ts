@@ -50,10 +50,13 @@ function buildListItems(state: EditorState): ListItemInfo[] {
 	const items: ListItemInfo[] = [];
 	const doc = state.doc;
 	const tabSize = 4;
+	const docLen = doc.length;
 
 	syntaxTree(state).iterate({
 		enter(node) {
 			if (!node.type.name.includes('formatting-list')) return;
+			// 防御：语法树节点位置可能超出文档范围（增量解析边界情况）
+			if (node.from < 0 || node.from > docLen) return;
 
 			const line = doc.lineAt(node.from);
 			const indent = getIndentWidth(line.text, tabSize);
@@ -71,17 +74,23 @@ function buildListItems(state: EditorState): ListItemInfo[] {
 }
 
 function subtreeEndIndex(items: ListItemInfo[], i: number): number {
-	const depth = items[i]!.depth;
+	const self = items[i];
+	if (!self) return items.length;
+	const depth = self.depth;
 	for (let j = i + 1; j < items.length; j++) {
-		if (items[j]!.depth <= depth) return j;
+		const sibling = items[j];
+		if (sibling && sibling.depth <= depth) return j;
 	}
 	return items.length;
 }
 
 function hasDescendants(items: ListItemInfo[], i: number): boolean {
+	const self = items[i];
+	if (!self) return false;
 	const end = subtreeEndIndex(items, i);
-	for (let j = i + 1; j < end; j++) {
-		if (items[j]!.depth > items[i]!.depth) return true;
+	for (let j = i + 1; j < end && j < items.length; j++) {
+		const sibling = items[j];
+		if (sibling && sibling.depth > self.depth) return true;
 	}
 	return false;
 }
@@ -99,13 +108,15 @@ function computeFoldIndices(
 	let focusedIdx = -1;
 	let bestDepth = -1;
 	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+		if (!item) continue;
 		const end = subtreeEndIndex(items, i);
 		const endPos = end < items.length
-			? items[end]!.markerFrom
+			? items[end]?.markerFrom ?? Number.MAX_SAFE_INTEGER
 			: Number.MAX_SAFE_INTEGER;
-		if (cursorPos >= items[i]!.markerFrom && cursorPos < endPos) {
-			if (items[i]!.depth > bestDepth) {
-				bestDepth = items[i]!.depth;
+		if (cursorPos >= item.markerFrom && cursorPos < endPos) {
+			if (item.depth > bestDepth) {
+				bestDepth = item.depth;
 				focusedIdx = i;
 			}
 		}
@@ -116,18 +127,24 @@ function computeFoldIndices(
 	const unfoldSet = new Set<number>();
 	unfoldSet.add(focusedIdx);
 
-	let currentDepth = items[focusedIdx]!.depth;
+	const focusedItem = items[focusedIdx];
+	if (!focusedItem) return new Set();
+	let currentDepth = focusedItem.depth;
 	for (let i = focusedIdx - 1; i >= 0; i--) {
-		if (items[i]!.depth < currentDepth
+		const ancestor = items[i];
+		if (!ancestor) continue;
+		if (ancestor.depth < currentDepth
 			&& subtreeEndIndex(items, i) > focusedIdx) {
 			unfoldSet.add(i);
-			currentDepth = items[i]!.depth;
+			currentDepth = ancestor.depth;
 		}
 	}
 
 	const focusedEnd = subtreeEndIndex(items, focusedIdx);
 	for (let j = focusedIdx + 1; j < focusedEnd; j++) {
-		if (items[j]!.depth > items[focusedIdx]!.depth) {
+		const descendant = items[j];
+		const cmp = items[focusedIdx];
+		if (descendant && cmp && descendant.depth > cmp.depth) {
 			unfoldSet.add(j);
 		}
 	}
@@ -154,9 +171,12 @@ function computeFoldRanges(
 	let lastFoldTo = -1;
 
 	for (const idx of sorted) {
+		if (idx < 0 || idx >= items.length) continue;
 		if (!hasDescendants(items, idx)) continue;
 
-		const line = doc.lineAt(items[idx]!.markerFrom);
+		const item = items[idx];
+		if (!item) continue;
+		const line = doc.lineAt(item.markerFrom);
 		if (line.to <= lastFoldTo) continue;
 
 		const subtreeEnd = subtreeEndIndex(items, idx);
@@ -164,7 +184,10 @@ function computeFoldRanges(
 		// not beyond the subtree — don't fold content/paragraphs
 		// between the subtree and the next item.
 		const lastChildIdx = subtreeEnd - 1;
-		const lastChildLine = doc.lineAt(items[lastChildIdx]!.markerFrom);
+		if (lastChildIdx < 0 || lastChildIdx >= items.length) continue;
+		const lastChild = items[lastChildIdx];
+		if (!lastChild) continue;
+		const lastChildLine = doc.lineAt(lastChild.markerFrom);
 		const foldTo = lastChildLine.to;
 
 		if (foldTo <= lastFoldTo) continue;
@@ -187,14 +210,21 @@ const focusFoldService = foldService.of((state, pos) => {
 	if (items.length === 0) return null;
 
 	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+		if (!item) continue;
+
 		const end = subtreeEndIndex(items, i);
-		const lastChildLine = state.doc.lineAt(items[end - 1]!.markerFrom);
+		const lastChildIdx = end - 1;
+		if (lastChildIdx < 0 || lastChildIdx >= items.length) continue;
+		const lastChild = items[lastChildIdx];
+		if (!lastChild) continue;
+		const lastChildLine = state.doc.lineAt(lastChild.markerFrom);
 		const endPos = lastChildLine.to;
 
-		if (pos >= items[i]!.markerFrom && pos < endPos) {
+		if (pos >= item.markerFrom && pos < endPos) {
 			if (!hasDescendants(items, i)) return null;
 
-			const line = state.doc.lineAt(items[i]!.markerFrom);
+			const line = state.doc.lineAt(item.markerFrom);
 			return { from: line.to, to: endPos };
 		}
 	}
