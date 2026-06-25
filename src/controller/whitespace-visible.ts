@@ -16,6 +16,8 @@
  *
  * formatting-list 节点内的空白字符不受影响（保留原始空格），
  * 以免 Decoration.replace 干扰列一体化的光标位置映射。
+ *
+ * 行首缩进空白（空格/制表符）同样保留原样，以免干扰编辑器的缩进参考线。
  */
 
 import {
@@ -82,10 +84,16 @@ class WhitespaceWidget extends WidgetType {
  *   - 不换行空格 → ° (U+00B0)
  *
  * 行末标记：
- *   - 硬换行（HardBreak 节点，即 Shift+Enter 产生的 <br>）→ ↓ (U+2193)
- *   - 普通段落回车 → ↵ (U+21B5)
+ *   - 段内软换行（Shift+Enter，同行内连续）→ ↓ (U+2193)
+ *   - 段落结束（Enter 换段）→ ↵ (U+21B5)
  *
- * 注意：formatting-list 节点内的空白保留原样，不替换。
+ * 软/硬回车通过 Paragraph 节点范围判断：
+ *   连续两行同属一个 Paragraph → 段内软换行（↓）
+ *   当前行为 Paragraph 最后一行 → 段落结束（↵）
+ *
+ * 以下位置保持原样不替换：
+ *   - 行首缩进空白（兼容缩进参考线）
+ *   - formatting-list 节点内的空白（兼容列一体化光标定位）
  *
  * @param view 当前的 CodeMirror EditorView
  * @returns 覆盖所有待替换空白字符的 DecorationSet，或 Decoration.none
@@ -97,18 +105,41 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	const builder = new RangeSetBuilder<Decoration>();
 	const doc = view.state.doc;
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// 语法树预处理
+	// ═══════════════════════════════════════════════════════════════════════
+
 	const tree = syntaxTree(view.state);
 
-	// 收集包含 HardBreak 的行号（软回车 → 显示 ↓）
-	const hardBreakLines = new Set<number>();
+	// 收集 Paragraph 节点范围（用于区分段内软换行 vs 段落结束）
+	const paragraphRanges: Array<{ from: number; to: number }> = [];
 	tree.iterate({
 		enter(node) {
-			if (node.type.name.includes('HardBreak')) {
-				const line = doc.lineAt(node.from);
-				hardBreakLines.add(line.number);
+			if (node.type.name === 'Paragraph') {
+				paragraphRanges.push({ from: node.from, to: node.to });
 			}
 		},
 	});
+
+	/**
+	 * 判断第 lineNum 行后的换行是段内软换行（↓）还是段落结束（↵）。
+	 *
+	 * 原理：如果 lineNum 和 lineNum + 1 两行都落在同一个 Paragraph
+	 * 节点内，那么它们之间的换行是段内软换行（Shift+Enter 行为）。
+	 * 否则是段落结束（Enter 行为）。
+	 */
+	function isSoftBreak(lineNum: number): boolean {
+		if (lineNum >= doc.lines) return false;
+		const line = doc.line(lineNum);
+		const nextLine = doc.line(lineNum + 1);
+		for (const r of paragraphRanges) {
+			if (line.from >= r.from && line.to <= r.to) {
+				return nextLine.from >= r.from && nextLine.to <= r.to;
+			}
+		}
+		return false;
+	}
 
 	// 收集 formatting-list 节点范围（列一体化需要原始空格进行光标定位）
 	const listMarkerRanges: Array<{ from: number; to: number }> = [];
@@ -122,8 +153,6 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	/**
 	 * 检查某位置是否落在列表标记范围内。
-	 * 列表标记内的空格/制表符保持原样，避免 Decoration.replace
-	 * 干扰列一体化的光标位置映射。
 	 */
 	function isInListMarker(pos: number): boolean {
 		for (const r of listMarkerRanges) {
@@ -132,7 +161,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 		return false;
 	}
 
-	// 仅扫描可见区域
+	// ═══════════════════════════════════════════════════════════════════════
+	// 可见区域扫描
+	// ═══════════════════════════════════════════════════════════════════════
+
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
 
@@ -147,6 +179,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 			const text = line.text;
 
+			// 行首缩进结束位置（缩进空白保留原样，兼容编辑器缩进参考线）
+			const firstNonWs = text.search(/\S/);
+			const indentEnd = firstNonWs === -1 ? text.length : firstNonWs;
+
 			// ── 逐字符处理空格/制表符/不换行空格 ──
 			const startOffset = lineFrom - line.from;
 			const endOffset = lineTo - line.from;
@@ -155,8 +191,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 				const ch = text[i];
 				const pos = line.from + i;
 
-				// 跳过列表标记内的空白（兼容列一体化光标定位）
-				if (isInListMarker(pos)) continue;
+				// 跳过缩进空白和列表标记内的空白
+				if (i < indentEnd || isInListMarker(pos)) continue;
 
 				if (ch === ' ') {
 					builder.add(
@@ -178,9 +214,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 			// ── 行末标记（跳过文档最后一行） ──
 			if (lineNum < doc.lines) {
-				const isSoft = hardBreakLines.has(lineNum);
-				const symbol = isSoft ? '↓' : '↵';
-				const cls = isSoft ? 'mdrazor-ws-softbreak' : 'mdrazor-ws-hardbreak';
+				const soft = isSoftBreak(lineNum);
+				const symbol = soft ? '↓' : '↵';
+				const cls = soft ? 'mdrazor-ws-softbreak' : 'mdrazor-ws-hardbreak';
 
 				builder.add(
 					line.to, line.to,
@@ -209,7 +245,6 @@ const whitespaceViewPlugin = ViewPlugin.fromClass(
 		}
 
 		update(update: ViewUpdate) {
-			// 文档变更或视口滚动时重新计算（不含 selectionSet，避免干扰列一体化光标修正）
 			if (update.docChanged || update.viewportChanged) {
 				this.decorations = buildDecorations(update.view);
 			}
