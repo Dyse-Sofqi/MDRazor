@@ -334,6 +334,7 @@ const focusViewPlugin = ViewPlugin.fromClass(
 	class {
 		private lastPos: number = -1;
 		private currentRanges: Array<{ from: number; to: number }> = [];
+		private lastEnabled: boolean = listEnhancerConfig.listFocusOption;
 
 		constructor(view: EditorView) {
 			if (listEnhancerConfig.listFocusOption) {
@@ -356,6 +357,8 @@ const focusViewPlugin = ViewPlugin.fromClass(
 			}
 
 			const enabled = listEnhancerConfig.listFocusOption;
+			const enabledChanged = enabled !== this.lastEnabled;
+			this.lastEnabled = enabled;
 
 			if (!enabled) {
 				const oldRanges = this.currentRanges;
@@ -368,7 +371,7 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				return;
 			}
 
-			if (!update.selectionSet) return;
+			if (!update.selectionSet && !enabledChanged) return;
 
 			const sel = update.state.selection.main;
 			const pos = sel.head;
