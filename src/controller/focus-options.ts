@@ -44,6 +44,77 @@ function getIndentWidth(text: string, tabSize: number): number {
 	return width;
 }
 
+/** 行是否为结构性边界（标题、水平线等），列表/折叠范围不应跨越。 */
+function isStructuralBoundary(lineText: string): boolean {
+	const trimmed = lineText.trimStart();
+	// ATX 标题（可带最多 3 个空格缩进）
+	if (/^#{1,6}\s/.test(trimmed)) return true;
+	// 水平线：---, ***, ___, * * *, 等
+	if (/^[-*_]{3,}\s*$/.test(trimmed)) return true;
+	return false;
+}
+
+/**
+ * 两个列表项之间是否存在空行或结构性边界。
+ * 仅当 next 不是 prev 的子项时才检测 —— 父子之间永不分割为不同块。
+ */
+function hasBlankOrBoundaryBetween(
+	prev: ListItemInfo,
+	next: ListItemInfo,
+	doc: EditorState['doc'],
+): boolean {
+	// next 是 prev 的直接子项（更深缩进）→ 同一块，不检测
+	if (next.depth > prev.depth) return false;
+
+	const prevLine = doc.lineAt(prev.markerFrom);
+	const nextLine = doc.lineAt(next.markerFrom);
+
+	for (let ln = prevLine.number + 1; ln < nextLine.number; ln++) {
+		const line = doc.line(ln);
+		if (line.text.trim() === '') return true;
+		if (isStructuralBoundary(line.text)) return true;
+	}
+	return false;
+}
+
+/**
+ * 返回与 targetIdx 属于同一"列表块"的所有项的索引集合。
+ * 块边界由空行或结构性边界定义。
+ */
+function getBlock(
+	items: ListItemInfo[],
+	targetIdx: number,
+	doc: EditorState['doc'],
+): Set<number> {
+	const block = new Set<number>();
+
+	// 向前扫描块起始
+	let start = targetIdx;
+	for (let i = targetIdx; i > 0; i--) {
+		const prev = items[i - 1];
+		const curr = items[i];
+		if (!prev || !curr) break;
+		if (hasBlankOrBoundaryBetween(prev, curr, doc)) break;
+		start = i - 1;
+	}
+
+	// 向后扫描块结束
+	let end = targetIdx;
+	for (let i = targetIdx; i < items.length - 1; i++) {
+		const curr = items[i];
+		const next = items[i + 1];
+		if (!curr || !next) break;
+		if (hasBlankOrBoundaryBetween(curr, next, doc)) break;
+		end = i + 1;
+	}
+
+	for (let i = start; i <= end; i++) {
+		block.add(i);
+	}
+
+	return block;
+}
+
 function buildListItems(state: EditorState): ListItemInfo[] {
 	if (!listEnhancerConfig.listFocusOption) return [];
 
@@ -157,6 +228,7 @@ function computeFoldIndices(
 				const text = l.text;
 				if (text.trim() === '') break;
 				if (/^\s*[-*+>]/.test(text) || /^\s*\d+[.)]/.test(text)) break;
+				if (isStructuralBoundary(text)) break;
 				endPos = l.to;
 			}
 		}
@@ -169,6 +241,12 @@ function computeFoldIndices(
 	}
 
 	if (focusedIdx === -1) return new Set();
+
+	// 光标位于空行或结构性边界上 → 不聚焦任何列表，全部展开
+	const cursorLine = doc.lineAt(cursorPos);
+	if (cursorLine.text.trim() === '' || isStructuralBoundary(cursorLine.text)) {
+		return new Set();
+	}
 
 	const unfoldSet = new Set<number>();
 	unfoldSet.add(focusedIdx);
@@ -194,9 +272,12 @@ function computeFoldIndices(
 		}
 	}
 
+	// 仅折叠与聚焦项属于同一"列表块"的项。
+	// 空行或结构性边界（标题、水平线）分隔的独立列表不受影响。
+	const focusedBlock = getBlock(items, focusedIdx, doc);
 	const foldSet = new Set<number>();
 	for (let i = 0; i < items.length; i++) {
-		if (!unfoldSet.has(i)) foldSet.add(i);
+		if (!unfoldSet.has(i) && focusedBlock.has(i)) foldSet.add(i);
 	}
 
 	return foldSet;
@@ -247,6 +328,8 @@ function computeFoldRanges(
 			let scanPos = lastChildLine.to + 1;
 			while (scanPos < nextBoundary) {
 				const scanLine = doc.lineAt(scanPos);
+				if (scanLine.text.trim() === "") break;
+				if (isStructuralBoundary(scanLine.text)) break;
 				if (!listLineNumbers.has(scanLine.number)) {
 					foldTo = scanLine.to;
 					scanPos = doc.lineAt(scanLine.to + 1).from;
@@ -256,12 +339,14 @@ function computeFoldRanges(
 			}
 		} else {
 			// Last subtree: scan forward through continuation lines.
-			// Stop at blank lines so non-list content stays unfolded.
+			// Stop at blank lines or structural boundaries so
+			// non-list content stays unfolded.
 			let scanPos = lastChildLine.to + 1;
 			while (scanPos < doc.length) {
 				const scanLine = doc.lineAt(scanPos);
 				if (scanLine.text.trim() === "") break;
 				if (listLineNumbers.has(scanLine.number)) break;
+				if (isStructuralBoundary(scanLine.text)) break;
 				foldTo = scanLine.to;
 				scanPos = doc.lineAt(scanLine.to + 1).from;
 			}
