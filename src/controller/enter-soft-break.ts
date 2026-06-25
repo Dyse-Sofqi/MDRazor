@@ -8,6 +8,7 @@
  * 当 `enterSoftBreak` 启用且光标位于列表项内时：
  *   1. Feature 1：插入软换行（\n + 缩进）而非创建新列表项
  *   2. Feature 2：空白续行升级为同级列表项
+ *   3. Feature 3：空白列表项（上级也空）回车 → 提升层级；一级项清除格式
  */
 
 import { EditorView, ViewPlugin } from '@codemirror/view';
@@ -95,6 +96,50 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 							userEvent: 'input',
 						});
 						return;
+					}
+				}
+
+				// ── Feature 3：空白列表项回车 → 提升层级 ──
+				if (isFirstLine && line.number > 1) {
+					const afterMarker = line.text.slice(lastMarker.to - line.from);
+					if (afterMarker.trim().length === 0) {
+						const prevLine = view.state.doc.line(line.number - 1);
+						const prevLineText = prevLine.text.trim();
+						if (/^[-*+]\s*$/.test(prevLineText) || /^\d+[.)]\s*$/.test(prevLineText)) {
+							const currIndent = leadingMatch ? leadingMatch[0] : '';
+							if (currIndent.length === 0) {
+								// Top level → clear list format
+								event.preventDefault();
+								event.stopImmediatePropagation();
+								view.dispatch({
+									changes: { from: line.from, to: line.to, insert: '' },
+									selection: { anchor: line.from },
+									userEvent: 'input',
+								});
+								return;
+							}
+							// Find parent indent level
+							let parentIndent = '';
+							for (let j = line.number - 1; j >= 1; j--) {
+								const cl = view.state.doc.line(j);
+								const clMatch = /^[ \t]*/.exec(cl.text);
+								if (!clMatch) continue;
+								if (clMatch[0].length < currIndent.length
+									&& /^[ \t]*[-*+]/.test(cl.text)) {
+									parentIndent = clMatch[0];
+									break;
+								}
+							}
+							const promoted = (parentIndent || '') + markerText;
+							event.preventDefault();
+							event.stopImmediatePropagation();
+							view.dispatch({
+								changes: { from: line.from, to: line.to, insert: promoted },
+								selection: { anchor: line.from + promoted.length },
+								userEvent: 'input',
+							});
+							return;
+						}
 					}
 				}
 
