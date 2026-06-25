@@ -102,10 +102,10 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 				// ── Feature 3：空白列表项回车 → 提升层级 ──
 				if (isFirstLine && line.number > 1) {
 					const afterMarker = line.text.slice(lastMarker.to - line.from);
-					if (afterMarker.trim().length === 0) {
+					if (afterMarker.replace(/^\[.\]\s*/, '').trim().length === 0) {
 						const prevLine = view.state.doc.line(line.number - 1);
 						const prevLineText = prevLine.text.trim();
-						if (/^[-*+]\s*$/.test(prevLineText) || /^\d+[.)]\s*$/.test(prevLineText)) {
+						if (/^[-*+]\s*(\[.\]\s*)?$/.test(prevLineText) || /^\d+[.)]\s*(\[.\]\s*)?$/.test(prevLineText)) {
 							const currIndent = leadingMatch ? leadingMatch[0] : '';
 							if (currIndent.length === 0) {
 								// Top level → clear list format
@@ -125,12 +125,12 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 								const clMatch = /^[ \t]*/.exec(cl.text);
 								if (!clMatch) continue;
 								if (clMatch[0].length < currIndent.length
-									&& /^[ \t]*[-*+]/.test(cl.text)) {
+									&& (/^[ \t]*[-*+]/.test(cl.text) || /^[ \t]*\d+[.)]/.test(cl.text))) {
 									parentIndent = clMatch[0];
 									break;
 								}
 							}
-							const promoted = (parentIndent || '') + markerText;
+							const promoted = parentIndent + markerText;
 							event.preventDefault();
 							event.stopImmediatePropagation();
 							view.dispatch({
