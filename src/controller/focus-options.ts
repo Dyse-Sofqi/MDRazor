@@ -15,7 +15,7 @@
  */
 
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { syntaxTree, foldEffect, unfoldEffect, foldService } from '@codemirror/language';
 import { listEnhancerConfig } from '../model/shared';
 
@@ -229,36 +229,50 @@ function computeFoldRanges(
 
 // ═══════════════════════════════════════════════════════════════════════════
 // foldService — 注册可折叠范围供 gutter/收缩使用
+//
+// CM6 按行调用 foldService, pos = 行首。对每一行，查找该行上的列表项：
+//   - 有子孙 → 返回折叠范围（用户可点击折叠/展开）
+//   - 无子孙 → 返回 null，由默认缩进服务处理
+//   - 非列表行 → 返回 null，默认服务处理
+//
+// Prec.high 确保优先于 Obsidian 默认缩进 fold service 被查询。
+// 用行号映射直接定位项，避免 markerFrom 偏移不匹配（缩进空格）导致
+// 误识别为上级项 → 折叠箭头错误显示在子级行上。
 // ═══════════════════════════════════════════════════════════════════════════
 
-const focusFoldService = foldService.of((state, pos) => {
+const focusFoldService = Prec.high(foldService.of((state, pos) => {
 	if (!listEnhancerConfig.listFocusOption) return null;
 
 	const items = buildListItems(state);
 	if (items.length === 0) return null;
 
+	// 行号 → items 索引映射
+	const lineMap = new Map<number, number>();
 	for (let i = 0; i < items.length; i++) {
 		const item = items[i];
 		if (!item) continue;
-
-		const end = subtreeEndIndex(items, i);
-		const lastChildIdx = end - 1;
-		if (lastChildIdx < 0 || lastChildIdx >= items.length) continue;
-		const lastChild = items[lastChildIdx];
-		if (!lastChild) continue;
-		const lastChildLine = state.doc.lineAt(lastChild.markerFrom);
-		const endPos = lastChildLine.to;
-
-		if (pos >= item.markerFrom && pos < endPos) {
-			if (!hasDescendants(items, i)) return null;
-
-			const line = state.doc.lineAt(item.markerFrom);
-			return { from: line.to, to: endPos };
-		}
+		lineMap.set(item.lineNumber, i);
 	}
 
-	return null;
-});
+	const line = state.doc.lineAt(pos);
+	const itemIdx = lineMap.get(line.number);
+	if (itemIdx === undefined) return null;
+
+	if (!hasDescendants(items, itemIdx)) {
+		// 无后代列表项：返回 null。默认缩进服务不会对其提供折叠范围
+		// （无更深缩进的行跟在后面 → indentRangeFinder 返回 null），
+		// 箭头自然不出现。
+		return null;
+	}
+
+	const end = subtreeEndIndex(items, itemIdx);
+	const lastChildIdx = end - 1;
+	if (lastChildIdx < 0 || lastChildIdx >= items.length) return null;
+	const lastChild = items[lastChildIdx];
+	if (!lastChild) return null;
+	const lastChildLine = state.doc.lineAt(lastChild.markerFrom);
+	return { from: line.to, to: lastChildLine.to };
+}));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ViewPlugin — 光标追踪，通过 foldEffect 折叠/展开
