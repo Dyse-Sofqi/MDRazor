@@ -1,6 +1,14 @@
+<div align="center">
+
 # MDRazor
 
-> **Markdown Razor** — A Obsidian plugin for enhanced markdown editing, designed to refine your writing experience with precision like a razor.
+**Markdown Razor** — Obsidian 插件，像剃刀一样精准打磨你的 Markdown 编辑体验。
+
+[![GitHub Release](https://img.shields.io/github/v/release/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%2342b883)](https://github.com/Dyse-Sofqi/MDRazor/releases) [![License](https://img.shields.io/github/license/Dyse-Sofqi/MDRazor?style=flat-square&color=%2342b883)](LICENSE) [![Obsidian Min App](https://img.shields.io/badge/Obsidian-%5E1.0.0-%234a7ec1?style=flat-square&logo=obsidian&logoColor=%234a7ec1)](https://obsidian.md) [![GitHub Stars](https://img.shields.io/github/stars/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%23e4b341)](https://github.com/Dyse-Sofqi/MDRazor)
+
+[🇨🇳 中文](README.md) · [🇬🇧 English](README.en.md)
+
+</div>
 
 ---
 
@@ -34,7 +42,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ##### 回车软换行（Enter Soft Break）
 
-- 在列表项内按 Enter 仅插入换行、缩进及两个空格（`Shift+Enter` 行为），不新建列表项。
+- 在列表项内按 Enter 仅插入换行、缩进及两个空格（等效原生`Shift+Enter` 行为），不新建列表项。
 - 需要新建列表项时，再按一次 Enter 即可，也就是连续回车新建列表项。
 - 适合多行列表项。
 
@@ -108,6 +116,12 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - Built on [Obsidian API](https://github.com/obsidianmd/obsidian-api)
 - Uses CodeMirror 6 (`ViewPlugin`, `Decoration`, `syntaxTree`, `domEventHandlers`) for editor-level manipulation
 - Modular architecture: each feature resides in its own source file under `src/`
+
+## 赞助
+
+如果这个插件对你有帮助，欢迎扫码赞助 ❤️
+
+![赞助](https://github.com/Dyse-Sofqi/MDRazor/blob/main/zanshang.jpg)
 
 ## License
 
