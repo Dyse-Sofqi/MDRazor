@@ -47,10 +47,17 @@ function getIndentWidth(text: string, tabSize: number): number {
 function buildListItems(state: EditorState): ListItemInfo[] {
 	if (!listEnhancerConfig.listFocusOption) return [];
 
-	const items: ListItemInfo[] = [];
 	const doc = state.doc;
 	const tabSize = 4;
 	const docLen = doc.length;
+
+	// 第一阶段：收集原始项及其绝对缩进
+	const rawItems: Array<{
+		markerFrom: number;
+		markerTo: number;
+		indent: number;
+		lineNumber: number;
+	}> = [];
 
 	syntaxTree(state).iterate({
 		enter(node) {
@@ -61,14 +68,36 @@ function buildListItems(state: EditorState): ListItemInfo[] {
 			const line = doc.lineAt(node.from);
 			const indent = getIndentWidth(line.text, tabSize);
 
-			items.push({
+			rawItems.push({
 				markerFrom: node.from,
 				markerTo: node.to,
-				depth: Math.round(indent / tabSize),
+				indent,
 				lineNumber: line.number,
 			});
 		},
 	});
+
+	// 第二阶段：用缩进栈确定真实深度。
+	// 栈维护当前祖先链的缩进值，栈大小 = 当前项的深度。
+	// 遍历时弹出所有缩进 >= 当前项的项（同层/更深层兄弟），
+	// 剩余的栈顶就是父级缩进，剩下的栈长就是深度。
+	const items: ListItemInfo[] = [];
+	const stack: number[] = [];
+
+	for (const raw of rawItems) {
+		while (stack.length > 0 && stack[stack.length - 1]! >= raw.indent) {
+			stack.pop();
+		}
+		const depth = stack.length;
+		stack.push(raw.indent);
+
+		items.push({
+			markerFrom: raw.markerFrom,
+			markerTo: raw.markerTo,
+			depth,
+			lineNumber: raw.lineNumber,
+		});
+	}
 
 	return items;
 }
@@ -143,8 +172,7 @@ function computeFoldIndices(
 	const focusedEnd = subtreeEndIndex(items, focusedIdx);
 	for (let j = focusedIdx + 1; j < focusedEnd; j++) {
 		const descendant = items[j];
-		const cmp = items[focusedIdx];
-		if (descendant && cmp && descendant.depth > cmp.depth) {
+		if (descendant && descendant.depth > focusedItem.depth) {
 			unfoldSet.add(j);
 		}
 	}
