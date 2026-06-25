@@ -31,6 +31,7 @@
 }
 
 /* 行末标记紧贴行尾 */
+.mdrazor-ws-paragraph,
 .mdrazor-ws-hardbreak,
 .mdrazor-ws-softbreak {
 	opacity: 0.3;

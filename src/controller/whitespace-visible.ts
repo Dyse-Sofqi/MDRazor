@@ -2,7 +2,7 @@
  * MDRazor — 空白符号可视化模块（Controller）
  *
  * 在实时预览中将看不见但占据空间的空白符号以半透明标记展现：
- *   空格 → ·  制表符 → →  软回车 → ↓  回车 → ↵  不换行空格 → °
+ *   空格 → ·  制表符 → →  软回车 → ↓  硬回车 → ↵  段落结束 → ¶
  *
  * ── 架构 ──
  *
@@ -32,22 +32,12 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
 
-/**
- * 模块级可变配置对象。
- *
- * 插件在每次 `saveSettings()` 时写入此对象。ViewPlugin 在每次
- * `update()` 时读取 —— 无需重新注册扩展即可使开关立即生效。
- */
 export const whitespaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Widget — 替换空白字符的内联元素
+// Widget
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * 每个空白字符/标记替换为一个 WhitespaceWidget 实例，
- * 其在 DOM 中按 CSS 类名区分符号类型。
- */
 class WhitespaceWidget extends WidgetType {
 	constructor(
 		readonly symbol: string,
@@ -73,26 +63,15 @@ class WhitespaceWidget extends WidgetType {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * 为当前视口中所有可见空白字符构建 DecorationSet。
+ * 行末换行有三类：
  *
- * 遍历 view.visibleRanges —— 仅处理用户当下能看到的行，
- * 避免对整个文档做全量扫描。
- *
- * 对每行逐字符检测：
- *   - 空格 → · (U+00B7)
- *   - 制表符 → → (U+2192)
- *   - 不换行空格 → ° (U+00B0)
- *
- * 行末标记：
- *   - 段内软换行（下一行非空）→ ↓ (U+2193)
- *   - 段落结束（下一行为空行）→ ↵ (U+21B5)
+ *   ↓ 软回车 — 段内续行（下一行是非空无列表标记的内容）
+ *   ↵ 硬回车 — 新块级元素（下一行是列表项、标题等）
+ *   ¶ 段落结束 — 后面有空行（再下一行开始新段落）
  *
  * 以下位置保持原样不替换：
  *   - 行首缩进空白（兼容缩进参考线）
  *   - formatting-list 节点内的空白（兼容列一体化光标定位）
- *
- * @param view 当前的 CodeMirror EditorView
- * @returns 覆盖所有待替换空白字符的 DecorationSet，或 Decoration.none
  */
 function buildDecorations(view: EditorView): DecorationSet {
 	if (!whitespaceConfig.showWhitespace) {
@@ -104,18 +83,18 @@ function buildDecorations(view: EditorView): DecorationSet {
 	const tree = syntaxTree(view.state);
 
 	/**
-	 * 判断第 lineNum 行后的换行是段内软换行（↓）还是段落结束（↵）。
-	 *
-	 * 原理：下一行是空行 → 段落结束（↵）；下一行非空 → 段内续行（↓）。
-	 * 不依赖语法树节点名称，兼容 HyperMD 下各种块级元素。
+	 * 判断第 lineNum 行后的换行类型。
 	 */
-	function isSoftBreak(lineNum: number): boolean {
-		if (lineNum >= doc.lines) return false;
-		const nextLine = doc.line(lineNum + 1);
-		return nextLine.text.trim().length > 0;
+	function breakType(lineNum: number): 'soft' | 'hard' | 'para' {
+		if (lineNum >= doc.lines) return 'para';
+		const nextText = doc.line(lineNum + 1).text;
+
+		if (nextText.trim().length === 0) return 'para';                          // 空行
+		if (/^\s*(?:[-*+]|\d+[.)]|\[[ x\]])[\s]/.test(nextText)) return 'hard';  // 新列表项
+		return 'soft';                                                             // 续行
 	}
 
-	// 收集 formatting-list 节点范围（列一体化需要原始空格进行光标定位）
+	// 收集 formatting-list 节点范围（列一体化白名单）
 	const listMarkerRanges: Array<{ from: number; to: number }> = [];
 	tree.iterate({
 		enter(node) {
@@ -125,9 +104,6 @@ function buildDecorations(view: EditorView): DecorationSet {
 		},
 	});
 
-	/**
-	 * 检查某位置是否落在列表标记范围内。
-	 */
 	function isInListMarker(pos: number): boolean {
 		for (const r of listMarkerRanges) {
 			if (pos >= r.from && pos < r.to) return true;
@@ -153,7 +129,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 			const text = line.text;
 
-			// 行首缩进结束位置（缩进空白保留原样，兼容编辑器缩进参考线）
+			// 行首缩进结束位置
 			const firstNonWs = text.search(/\S/);
 			const indentEnd = firstNonWs === -1 ? text.length : firstNonWs;
 
@@ -165,43 +141,47 @@ function buildDecorations(view: EditorView): DecorationSet {
 				const ch = text[i];
 				const pos = line.from + i;
 
-				// 跳过缩进空白和列表标记内的空白
 				if (i < indentEnd || isInListMarker(pos)) continue;
 
 				if (ch === ' ') {
-					builder.add(
-						pos, pos + 1,
-						Decoration.replace({ widget: new WhitespaceWidget('·', 'mdrazor-ws-space') }),
-					);
+					builder.add(pos, pos + 1, Decoration.replace({
+						widget: new WhitespaceWidget('·', 'mdrazor-ws-space'),
+					}));
 				} else if (ch === '\t') {
-					builder.add(
-						pos, pos + 1,
-						Decoration.replace({ widget: new WhitespaceWidget('→', 'mdrazor-ws-tab') }),
-					);
+					builder.add(pos, pos + 1, Decoration.replace({
+						widget: new WhitespaceWidget('→', 'mdrazor-ws-tab'),
+					}));
 				} else if (ch === ' ') {
-					builder.add(
-						pos, pos + 1,
-						Decoration.replace({ widget: new WhitespaceWidget('°', 'mdrazor-ws-nbsp') }),
-					);
+					builder.add(pos, pos + 1, Decoration.replace({
+						widget: new WhitespaceWidget('°', 'mdrazor-ws-nbsp'),
+					}));
 				}
 			}
 
 			// ── 行末标记（跳过文档最后一行和空行） ──
 			if (lineNum < doc.lines) {
-				// 空行本身不标记
 				if (text.trim().length === 0) continue;
 
-				const soft = isSoftBreak(lineNum);
-				const symbol = soft ? '↓' : '↵';
-				const cls = soft ? 'mdrazor-ws-softbreak' : 'mdrazor-ws-hardbreak';
-
-				builder.add(
-					line.to, line.to,
-					Decoration.widget({
-						widget: new WhitespaceWidget(symbol, cls),
-						side: 1,
-					}),
-				);
+				switch (breakType(lineNum)) {
+					case 'soft':
+						builder.add(line.to, line.to, Decoration.widget({
+							widget: new WhitespaceWidget('↓', 'mdrazor-ws-softbreak'),
+							side: 1,
+						}));
+						break;
+					case 'hard':
+						builder.add(line.to, line.to, Decoration.widget({
+							widget: new WhitespaceWidget('↵', 'mdrazor-ws-hardbreak'),
+							side: 1,
+						}));
+						break;
+					case 'para':
+						builder.add(line.to, line.to, Decoration.widget({
+							widget: new WhitespaceWidget('¶', 'mdrazor-ws-paragraph'),
+							side: 1,
+						}));
+						break;
+				}
 			}
 		}
 	}
@@ -236,9 +216,6 @@ const whitespaceViewPlugin = ViewPlugin.fromClass(
 // 工厂函数
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * 创建空白符号可视化的 CM6 扩展。
- */
 export function createWhitespaceExtension() {
 	return whitespaceViewPlugin;
 }
