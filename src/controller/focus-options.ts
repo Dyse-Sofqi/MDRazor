@@ -131,6 +131,7 @@ function hasDescendants(items: ListItemInfo[], i: number): boolean {
 function computeFoldIndices(
 	items: ListItemInfo[],
 	cursorPos: number,
+	doc: EditorState['doc'],
 ): Set<number> {
 	if (items.length === 0) return new Set();
 
@@ -140,9 +141,25 @@ function computeFoldIndices(
 		const item = items[i];
 		if (!item) continue;
 		const end = subtreeEndIndex(items, i);
-		const endPos = end < items.length
-			? items[end]?.markerFrom ?? Number.MAX_SAFE_INTEGER
-			: Number.MAX_SAFE_INTEGER;
+		let endPos: number;
+		if (end < items.length) {
+			endPos = items[end]?.markerFrom ?? Number.MAX_SAFE_INTEGER;
+		} else {
+			// No next sibling: bound to end of last descendant content.
+			// Scan forward through continuation lines (non-blank, non-marker)
+			// so cursor after the list does not match.
+			const lastDesc = items[end - 1];
+			if (!lastDesc) continue;
+			const lastLine = doc.lineAt(lastDesc.markerFrom);
+			endPos = lastLine.to;
+			for (let ln = lastLine.number + 1; ln <= doc.lines; ln++) {
+				const l = doc.line(ln);
+				const text = l.text;
+				if (text.trim() === '') break;
+				if (/^\s*[-*+>]/.test(text) || /^\s*\d+[.)]/.test(text)) break;
+				endPos = l.to;
+			}
+		}
 		if (cursorPos >= item.markerFrom && cursorPos < endPos) {
 			if (item.depth > bestDepth) {
 				bestDepth = item.depth;
@@ -368,7 +385,7 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				return;
 			}
 
-			const foldSet = computeFoldIndices(items, cmView.state.selection.main.head);
+			const foldSet = computeFoldIndices(items, cmView.state.selection.main.head, cmView.state.doc);
 			const newRanges = computeFoldRanges(items, foldSet, cmView.state.doc);
 
 			this.applyFolds(cmView, newRanges);
