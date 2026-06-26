@@ -70,6 +70,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**v1.5.0** (2026-06-27)
+
+- Fix: Focus mode cursor at end of last list item incorrectly treated as outside list
+
 **v1.4.7** (2026-06-26)
 
 - New: Hide escape marker (`\`) — hides backslash escape characters in live preview, enabled by default, with cursor repulsion on click
