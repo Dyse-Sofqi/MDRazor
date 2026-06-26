@@ -232,7 +232,7 @@ function computeFoldIndices(
 				endPos = l.to;
 			}
 		}
-		if (cursorPos >= item.markerFrom && cursorPos < endPos) {
+		if (cursorPos >= item.markerFrom && cursorPos <= endPos) {
 			if (item.depth > bestDepth) {
 				bestDepth = item.depth;
 				focusedIdx = i;
