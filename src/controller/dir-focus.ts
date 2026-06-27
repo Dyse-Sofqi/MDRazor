@@ -1,0 +1,300 @@
+/**
+ * MDRazor — Directory Focus
+ *
+ * Click folder name in file explorer: expand entire descendant tree plus
+ * ancestor chain, collapse all siblings/parent-siblings/grandparent-siblings.
+ *
+ * Uses capture-phase click intercept on the file-explorer container to block
+ * Obsidian's native React handler, then batch-applies collapse states via
+ * each FileItem's setCollapsed() method.
+ */
+
+import { type App, TFolder, type Plugin } from 'obsidian';
+
+/* ------------------------------------------------------------------ */
+/*  Core algorithm                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface CollapseState {
+	[path: string]: boolean; // true = collapsed, false = expanded
+}
+
+/** Build ancestor chain from folder up to root (exclusive). */
+function getAncestors(folder: TFolder): TFolder[] {
+	const chain: TFolder[] = [];
+	let p = folder.parent;
+	while (p && !p.isRoot()) {
+		chain.unshift(p);
+		p = p.parent;
+	}
+	return chain;
+}
+
+/** Collect all descendant folders recursively. */
+function getDescendants(folder: TFolder): TFolder[] {
+	const result: TFolder[] = [];
+	function walk(f: TFolder): void {
+		for (const child of f.children) {
+			if (child instanceof TFolder) {
+				result.push(child);
+				walk(child);
+			}
+		}
+	}
+	walk(folder);
+	return result;
+}
+
+/**
+ * Get all visible folder paths from the file-explorer view's fileItems.
+ * Checks each FileItem's .file property directly instead of using
+ * vault.getFolderByPath() (which requires Obsidian v1.5.7+).
+ */
+function getAllFolderPaths(view: any): string[] {
+	const items = view?.fileItems;
+	if (!items) return [];
+	if (items instanceof Map) {
+		return Array.from(items.keys()).filter((path: string) => {
+			const item = items.get(path);
+			return item?.file instanceof TFolder;
+		});
+	}
+	// Fallback: record-like object (older Obsidian versions)
+	return Object.keys(items).filter((path: string) => {
+		const item = items[path];
+		return item?.file instanceof TFolder;
+	});
+}
+
+/**
+ * Compute target collapse states for ALL folders.
+ *
+ * keepExpanded = ancestors + clicked + descendants
+ * Inside keepExpanded → expanded (false)
+ * Outside keepExpanded → collapsed (true)
+ * Clicked folder → always expanded (false)
+ */
+export function computeCollapseStates(
+	clicked: TFolder,
+	allPaths: string[],
+): CollapseState {
+	const ancestors = getAncestors(clicked);
+	const descendants = getDescendants(clicked);
+
+	const keepExpanded = new Set<string>();
+	for (const f of ancestors) keepExpanded.add(f.path);
+	keepExpanded.add(clicked.path);
+	for (const f of descendants) keepExpanded.add(f.path);
+
+	const states: CollapseState = {};
+	for (const path of allPaths) {
+		states[path] = path === clicked.path ? false : !keepExpanded.has(path);
+	}
+	return states;
+}
+
+/* ------------------------------------------------------------------ */
+/*  State application via RAF-batched FileItem.setCollapsed()          */
+/* ------------------------------------------------------------------ */
+
+let currentBatchId = 0;
+
+/**
+ * Apply collapse states via each FileItem's setCollapsed() method,
+ * batched across RAF frames (10 per frame) to avoid blocking the main thread.
+ *
+ * - batchId counter cancels stale batches on rapid clicks
+ * - Saves & restores scrollTop to prevent scrollbar jump
+ * - Calls view.requestUpdate?.() after final batch for defensive refresh
+ */
+export function applyStates(
+	view: any,
+	states: CollapseState,
+	containerEl?: HTMLElement,
+): void {
+	const batchId = ++currentBatchId;
+	const entries = Object.entries(states);
+	if (entries.length === 0) return;
+
+	const items = view?.fileItems;
+	const savedScrollTop = containerEl?.scrollTop ?? 0;
+
+	let i = 0;
+	function batch(): void {
+		if (batchId !== currentBatchId) return; // stale — discard
+		const chunk = entries.slice(i, i + 10);
+		for (const [path, collapsed] of chunk) {
+			// setCollapsed lives on the FileItem, not on the view
+			const item = items?.get?.(path) ?? items?.[path];
+			if (item?.setCollapsed) {
+				try {
+					item.setCollapsed(collapsed);
+				} catch { /* skip unsupported items */ }
+			}
+		}
+		i += 10;
+		if (i >= entries.length) {
+			view?.requestUpdate?.();
+			if (containerEl) containerEl.scrollTop = savedScrollTop;
+			return;
+		}
+		window.requestAnimationFrame(batch);
+	}
+	window.requestAnimationFrame(batch);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Full focus processing pipeline                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Execute directory focus for a clicked folder.
+ *
+ * 1. Get all folder paths from fileItems
+ * 2. Compute target collapse states
+ * 3. Apply states in RAF batches (with scroll preservation)
+ *
+ * @param view  File-explorer view (from workspace leaf)
+ */
+export function processFocus(
+	view: any,
+	clicked: TFolder,
+	containerEl?: HTMLElement,
+): void {
+	const allPaths = getAllFolderPaths(view);
+	if (allPaths.length === 0) return;
+
+	const states = computeCollapseStates(clicked, allPaths);
+	applyStates(view, states, containerEl);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Lifecycle: capture-phase click handler on file-explorer DOM        */
+/* ------------------------------------------------------------------ */
+
+/** Return true if the click target is inside the collapse chevron. */
+function isChevronClick(e: MouseEvent): boolean {
+	const target = e.target as HTMLElement;
+	// Obsidian v1.6+ uses .tree-item-icon.collapse-icon (replaced .nav-folder-collapse-indicator)
+	return !!target.closest('.tree-item-icon.collapse-icon');
+}
+
+/** Bound handler ref (for cleanup on layout-change). */
+let currentHandler: ((e: MouseEvent) => void) | null = null;
+
+/** The current containerEl (for scrollTop access in processFocus). */
+let currentContainerEl: HTMLElement | null = null;
+
+/**
+ * Attach a capture-phase click handler to the file-explorer container.
+ * Previously attached handler (if any) is removed first to prevent leaks.
+ */
+export function attachHandler(
+	containerEl: HTMLElement,
+	app: App,
+	enabled: () => boolean,
+	view: any,
+): void {
+	if (currentHandler) {
+		containerEl.removeEventListener('click', currentHandler, true);
+	}
+
+	currentContainerEl = containerEl;
+
+	currentHandler = (e: MouseEvent) => {
+		if (!enabled()) return;
+
+		const el = (e.target as HTMLElement).closest('.nav-folder-title');
+		if (!el || isChevronClick(e)) return;
+
+		// Walk ancestor chain to find data-path attribute
+		// (Obsidian may place it on .nav-folder or .tree-item depending on version)
+		let path: string | null = null;
+		let node: Element | null = el;
+		while (node) {
+			path = node.getAttribute('data-path');
+			if (path) break;
+			node = node.parentElement;
+		}
+		if (!path) return;
+
+		// Folder lookup: prefer fileItems (version-agnostic), fallback to vault API
+		const folder = view?.fileItems?.get?.(path)?.file ?? app.vault.getAbstractFileByPath?.(path);
+		if (!(folder instanceof TFolder)) return;
+
+		// Stop propagation only AFTER confirming we can handle this click
+		e.stopPropagation();
+		e.stopImmediatePropagation();
+
+		window.requestAnimationFrame(() =>
+			processFocus(view, folder, currentContainerEl ?? undefined),
+		);
+	};
+
+	containerEl.addEventListener('click', currentHandler, true);
+}
+
+/** Remove the currently attached handler (if any). */
+export function detachHandler(containerEl: HTMLElement): void {
+	if (currentHandler) {
+		containerEl.removeEventListener('click', currentHandler, true);
+		currentHandler = null;
+		currentContainerEl = null;
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public entry point                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Set up directory focus feature.
+ *
+ * - Finds file-explorer leaf on layout-ready
+ * - Retries x3 with 500ms delay if leaf not found (security mode / deferred load)
+ * - On retry exhaustion, sets handler refs to null (cleanup)
+ * - Attaches capture-phase click handler
+ * - Re-attaches on layout-change (sidebar recreate)
+ * - Plugin.registerEvent() ensures cleanup on unload
+ */
+export function registerDirFocus(plugin: Plugin, enabled: () => boolean): void {
+	const { app } = plugin;
+	let containerEl: HTMLElement | null = null;
+
+	const findAndAttach = (): boolean => {
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		if (!leaves.length) return false;
+
+		const leaf = leaves[0];
+		if (!leaf) return false;
+		containerEl = leaf.view.containerEl;
+		attachHandler(containerEl, app, enabled, leaf.view);
+		return true;
+	};
+
+	app.workspace.onLayoutReady(() => {
+		const found = findAndAttach();
+
+		if (!found) {
+			let retries = 0;
+			const interval = window.setInterval(() => {
+				if (containerEl) { window.clearInterval(interval); return; }
+				if (retries++ >= 3) {
+					window.clearInterval(interval);
+					currentHandler = null;
+					currentContainerEl = null;
+					return;
+				}
+				if (findAndAttach()) window.clearInterval(interval);
+			}, 500);
+		}
+	});
+
+	plugin.registerEvent(
+		(app.workspace as any).on('layout-change', () => {
+			if (containerEl) detachHandler(containerEl);
+			containerEl = null;
+			findAndAttach();
+		}),
+	);
+}

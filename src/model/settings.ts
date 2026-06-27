@@ -25,6 +25,7 @@ export interface MDRazorSettings {
 	listIntegration: boolean;
 	enterSoftBreak: boolean;
 	listFocusOption: boolean;
+	dirFocusOption: boolean;
 
 	// ── 空格可视化 (whitespace-visible.ts) ──
 	showWhitespace: boolean;
@@ -40,5 +41,6 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,
+	dirFocusOption: true,
 	showWhitespace: false,
 };

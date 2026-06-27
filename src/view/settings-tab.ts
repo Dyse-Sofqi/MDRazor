@@ -159,6 +159,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(listSection)
+			.setName('目录聚焦')
+			.setDesc('点击文件列表的文件夹时，展开该文件夹的所有子孙文件夹，折叠其余无关文件夹（同级、父同级、祖父同级等）')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.dirFocusOption)
+					.onChange(async (value) => {
+						this.plugin.settings.dirFocusOption = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 
 	/**

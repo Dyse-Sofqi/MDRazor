@@ -21,6 +21,7 @@ import { MDRazorSettingTab } from '../view/settings-tab';
 import { formattingConfig, createFormatHiderExtension } from './format-hider';
 import { spaceConfig, createSpaceVisualizationExtension } from './whitespace-visible';
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
+import { registerDirFocus } from './dir-focus';
 
 /**
  * 主插件类。
@@ -43,6 +44,9 @@ export default class MDRazorPlugin extends Plugin {
 		this.registerEditorExtension(createFormatHiderExtension());
 		this.registerEditorExtension(createSpaceVisualizationExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
+
+		// 注册目录聚焦（非 CM6 扩展 — 直接操作文件列表 DOM）
+		registerDirFocus(this, () => this.settings.dirFocusOption);
 	}
 
 	onunload() {
