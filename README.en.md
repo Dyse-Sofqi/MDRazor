@@ -15,7 +15,7 @@
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **format marker hiding** and **list enhancements** — two major feature modules, with more in development.
+Currently provides **format marker hiding**, **list enhancements**, and **directory focus** — three major feature modules, with more in development.
 
 ### Features
 
@@ -51,12 +51,21 @@ Treats list markers (`-`, `1.`, `*`) as atomic units: cursor navigation skips th
 When the cursor enters a list item, automatically expand all its descendants and collapse all non-directly-related content (siblings, parent siblings, etc.).
 Only the focus chain (itself + ancestors + descendants) stays visible. Deeply nested list navigation no longer overwhelming.
 
+#### 📂 Directory Focus
+
+Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure.
+
+- Triggered by clicking the folder name (not the collapse chevron)
+- The chevron still works independently for normal single-level toggle
+- Can be toggled independently in settings
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 7 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Space Visualization**
 - **List Enhancements** — 3 toggles: List Integration, Enter Soft Break, Focus Option
+- **Directory Focus** — 1 toggle: Directory Focus
 
 ### Development Progress
 
@@ -67,8 +76,14 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Collapsible settings panel
 - [x] Focus option
 - [x] Space visualization
+- [x] Directory focus
 
 ### Changelog
+
+**v1.6.0** (2026-06-27)
+
+- New: Directory focus — click folder name in file explorer to expand descendants + ancestor chain, collapse unrelated branches
+- Fix: Chevron detection uses `.tree-item-icon.collapse-icon`, compatible with Obsidian v1.12+
 
 **v1.5.0** (2026-06-27)
 

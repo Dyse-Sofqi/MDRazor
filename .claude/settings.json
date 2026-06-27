@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Read(//f/_Workspace/Plugin-Test/.obsidian/themes/Blue Topaz/**)",
+      "Bash(grep -o 'nav-folder-collapse-indicator\\\\|tree-item-icon\\\\|collapse-icon\\\\|tree-item-self\\\\|nav-folder-title' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | sort | uniq -c | sort -rn)",
+      "Read(//f/_Frame/Obsidian/resources/**)",
+      "Bash(grep -o 'nav-folder-collapse-indicator\\\\|tree-item-icon\\\\|tree-item-self\\\\|nav-folder-title' \"F:/_Frame/Obsidian/resources/app.asar\" 2>/dev/null | sort | uniq -c | sort -rn)",
+      "Bash(grep -a -oP 'nav-folder-\\(?:title|collapse-indicator\\)' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -5; echo \"---\"; grep -a -oP 'tree-item-self' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -5; echo \"---\"; grep -a -oP 'tree-item-icon' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -5; echo \"---\"; grep -a -oP 'collapse-icon' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -5)",
+      "Bash(strings \"F:/_Frame/Obsidian/resources/obsidian.asar\" | grep -i \"collapse\" | head -30)",
+      "Bash(grep -a -oP '.{0,60}collapse.{0,60}' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -40)",
+      "Bash(grep -a -oP '.{0,80}tree-item.{0,80}' \"F:/_Frame/Obsidian/resources/obsidian.asar\" 2>/dev/null | head -20)",
+      "Bash(node -e 'var fs=require\\(\"fs\"\\);var p=\"F:/_Frame/Obsidian/resources/obsidian.asar\";var b=fs.readFileSync\\(p\\);var sizes=[91924,91928,91932];sizes.forEach\\(function\\(hsize\\){try{var s=b.toString\\(\"utf8\",16,16+hsize\\);var j=JSON.parse\\(s\\);var f=j.files;var k=Object.keys\\(f\\);console.log\\(\"OK with size=\"+hsize+\" total files=\"+k.length\\);console.log\\(\"First 40 files:\"\\);k.slice\\(0,40\\).forEach\\(function\\(v\\){console.log\\(\"  \"+v\\)}\\)}catch\\(e\\){console.log\\(\"FAIL size=\"+hsize+\" err=\"+e.message.slice\\(0,50\\)\\)}}\\)')",
+      "Bash(node -e ' *)",
+      "Bash(node -e 'var fs=require\\(\"fs\"\\);var p=\"F:/_Frame/Obsidian/resources/obsidian.asar\";var b=fs.readFileSync\\(p\\);var hsize=91924;var header=JSON.parse\\(b.toString\\(\"utf8\",16,16+hsize\\)\\);var dataOffset=16+hsize;var appjs=header.files[\"app.js\"];var fbuf=b.slice\\(dataOffset+parseInt\\(appjs.offset\\),dataOffset+parseInt\\(appjs.offset\\)+appjs.size\\);var content=fbuf.toString\\(\"utf8\"\\);var idx=content.indexOf\\(\"tree-item nav-folder\"\\);console.log\\(\"==Folder title structure==\"\\);console.log\\(content.substring\\(Math.max\\(0,idx-200\\),idx+400\\)\\)')",
+      "Bash(node -e 'var fs=require\\(\"fs\"\\);var p=\"F:/_Frame/Obsidian/resources/obsidian.asar\";var b=fs.readFileSync\\(p\\);var hsize=91924;var header=JSON.parse\\(b.toString\\(\"utf8\",16,16+hsize\\)\\);var dataOffset=16+hsize;var appjs=header.files[\"app.js\"];var fbuf=b.slice\\(dataOffset+parseInt\\(appjs.offset\\),dataOffset+parseInt\\(appjs.offset\\)+appjs.size\\);var content=fbuf.toString\\(\"utf8\"\\);var idx=content.indexOf\\(\"tree-item-icon collapse-icon\"\\);console.log\\(\"==Collapse icon creation==\"\\);console.log\\(content.substring\\(Math.max\\(0,idx-50\\),idx+300\\)\\)')"
+    ]
+  }
+}
