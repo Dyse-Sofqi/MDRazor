@@ -9,7 +9,23 @@
  * each FileItem's setCollapsed() method.
  */
 
-import { type App, TFolder, type Plugin } from 'obsidian';
+import { type App, TFolder, type Plugin, type TFile } from 'obsidian';
+
+/* ------------------------------------------------------------------ */
+/*  Internal type helpers (file-explorer API not in public types)       */
+/* ------------------------------------------------------------------ */
+
+/** Minimal shape of a single file-item in the file-explorer view. */
+interface FileExplorerItem {
+	file: TFolder | TFile;
+	setCollapsed(collapsed: boolean): void;
+}
+
+/** Minimal shape of the file-explorer view's internal API surface. */
+interface FileExplorerView {
+	fileItems: Map<string, FileExplorerItem> | Record<string, FileExplorerItem>;
+	requestUpdate?: () => void;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Core algorithm                                                     */
@@ -50,9 +66,8 @@ function getDescendants(folder: TFolder): TFolder[] {
  * Checks each FileItem's .file property directly instead of using
  * vault.getFolderByPath() (which requires Obsidian v1.5.7+).
  */
-function getAllFolderPaths(view: any): string[] {
-	const items = view?.fileItems;
-	if (!items) return [];
+function getAllFolderPaths(view: FileExplorerView): string[] {
+	const items = view.fileItems;
 	if (items instanceof Map) {
 		return Array.from(items.keys()).filter((path: string) => {
 			const item = items.get(path);
@@ -108,7 +123,7 @@ let currentBatchId = 0;
  * - Calls view.requestUpdate?.() after final batch for defensive refresh
  */
 export function applyStates(
-	view: any,
+	view: FileExplorerView,
 	states: CollapseState,
 	containerEl?: HTMLElement,
 ): void {
@@ -116,7 +131,7 @@ export function applyStates(
 	const entries = Object.entries(states);
 	if (entries.length === 0) return;
 
-	const items = view?.fileItems;
+	const items = view.fileItems;
 	const savedScrollTop = containerEl?.scrollTop ?? 0;
 
 	let i = 0;
@@ -125,7 +140,7 @@ export function applyStates(
 		const chunk = entries.slice(i, i + 10);
 		for (const [path, collapsed] of chunk) {
 			// setCollapsed lives on the FileItem, not on the view
-			const item = items?.get?.(path) ?? items?.[path];
+			const item = items instanceof Map ? items.get(path) : items[path];
 			if (item?.setCollapsed) {
 				try {
 					item.setCollapsed(collapsed);
@@ -134,7 +149,7 @@ export function applyStates(
 		}
 		i += 10;
 		if (i >= entries.length) {
-			view?.requestUpdate?.();
+			view.requestUpdate?.();
 			if (containerEl) containerEl.scrollTop = savedScrollTop;
 			return;
 		}
@@ -157,7 +172,7 @@ export function applyStates(
  * @param view  File-explorer view (from workspace leaf)
  */
 export function processFocus(
-	view: any,
+	view: FileExplorerView,
 	clicked: TFolder,
 	containerEl?: HTMLElement,
 ): void {
@@ -193,7 +208,7 @@ export function attachHandler(
 	containerEl: HTMLElement,
 	app: App,
 	enabled: () => boolean,
-	view: any,
+	view: FileExplorerView,
 ): void {
 	if (currentHandler) {
 		containerEl.removeEventListener('click', currentHandler, true);
@@ -219,7 +234,9 @@ export function attachHandler(
 		if (!path) return;
 
 		// Folder lookup: prefer fileItems (version-agnostic), fallback to vault API
-		const folder = view?.fileItems?.get?.(path)?.file ?? app.vault.getAbstractFileByPath?.(path);
+		const items = view.fileItems;
+		const item = items instanceof Map ? items.get(path) : items[path];
+		const folder = item?.file ?? app.vault.getAbstractFileByPath(path);
 		if (!(folder instanceof TFolder)) return;
 
 		// Stop propagation only AFTER confirming we can handle this click
@@ -268,7 +285,7 @@ export function registerDirFocus(plugin: Plugin, enabled: () => boolean): void {
 		const leaf = leaves[0];
 		if (!leaf) return false;
 		containerEl = leaf.view.containerEl;
-		attachHandler(containerEl, app, enabled, leaf.view);
+		attachHandler(containerEl, app, enabled, leaf.view as unknown as FileExplorerView);
 		return true;
 	};
 
@@ -291,7 +308,7 @@ export function registerDirFocus(plugin: Plugin, enabled: () => boolean): void {
 	});
 
 	plugin.registerEvent(
-		(app.workspace as any).on('layout-change', () => {
+		app.workspace.on('layout-change', () => {
 			if (containerEl) detachHandler(containerEl);
 			containerEl = null;
 			findAndAttach();

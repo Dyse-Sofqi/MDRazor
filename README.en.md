@@ -80,6 +80,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**v1.6.1** (2026-06-27)
+
+- Fix: Eliminated ESLint `any` type errors — replaced with local interface definitions for type safety
+
 **v1.6.0** (2026-06-27)
 
 - New: Directory focus — click folder name in file explorer to expand descendants + ancestor chain, collapse unrelated branches
