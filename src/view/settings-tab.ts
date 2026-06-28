@@ -107,6 +107,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(hideSection)
+			.setName('隐藏标题符号')
+			.setDesc('在实时预览中隐藏 # 标题标记符号')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.hideHeadingFormatting)
+					.onChange(async (value) => {
+						this.plugin.settings.hideHeadingFormatting = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(hideSection)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>

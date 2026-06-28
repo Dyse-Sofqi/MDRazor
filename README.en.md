@@ -63,7 +63,7 @@ Click a folder name in the file explorer to automatically expand its entire desc
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
-- **Style Hiding** — 7 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Space Visualization**
+- **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Heading**, **Space Visualization**
 - **List Enhancements** — 3 toggles: List Integration, Enter Soft Break, Focus Option
 - **Directory Focus** — 1 toggle: Directory Focus
 
@@ -79,6 +79,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Directory focus
 
 ### Changelog
+
+**v1.7.0** (2026-06-29)
+
+- New: Hide heading markers — hides `#` heading markers (H1–H6) in live preview; standalone `#` without trailing space is not hidden; cursor repulsion on click moves cursor to the left of the marker
+- New: Heading marker toggle added to format hiding settings panel
 
 **v1.6.1** (2026-06-27)
 

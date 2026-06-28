@@ -97,11 +97,28 @@ function buildDecorations(view: EditorView): DecorationSet {
 			) {
 				markerLen = 1;
 			}
+			// 标题：# → 1-6 字符（可变长度）。
+			// # 后必须有空格才算有效标题格式。空格可能在 node 内或 node 后。
+			else if (
+				formattingConfig.hideHeadingFormatting &&
+				(typeName.includes('formatting-header') || typeName.includes('formatting-heading') || typeName.includes('HeadingMark') || typeName.includes('HeaderMark'))
+			) {
+				const text = view.state.doc.sliceString(node.from, node.to);
+				const headingMatch = text.match(/^(#+)\s?$/);
+				if (headingMatch) {
+					const spaceInside = text.endsWith(' ');
+					const spaceAfter = !spaceInside && view.state.doc.sliceString(node.to, node.to + 1) === ' ';
+					if (spaceInside || spaceAfter) {
+						markerLen = headingMatch[1]!.length + 1;
+					}
+				}
+			}
 
 			// ── 对起始和结束标记应用 replace 装饰 ──
 
 			if (markerLen > 0) {
 				const isEscape = typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape');
+				const isHeading = typeName.includes('formatting-header') || typeName.includes('formatting-heading') || typeName.includes('HeadingMark') || typeName.includes('HeaderMark');
 
 				// 起始标记：从节点开始到内容起始
 				builder.add(
@@ -110,8 +127,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 					Decoration.replace({ markerType: 'open' }),
 				);
 				// 结束标记：从内容结束到节点结束。
-				// 转义符号仅隐藏 \，不隐藏被转义的字符，因此跳过结束标记。
-				if (!isEscape) {
+				// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
+				if (!isEscape && !isHeading) {
 					builder.add(
 						node.to - markerLen,
 						node.to,
