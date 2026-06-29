@@ -21,10 +21,11 @@ Currently provides **format marker hiding**, **list enhancements**, and **direct
 
 #### ✂️ Format Marker Hiding
 
-Hide markers for **bold**, *italic*, ==highlight==, ~~strikethrough~~, \escape character, `inline code` (`**`, `*`, `==`, `~~`, `` ` ``,\\). Markers reappear when the cursor enters the range. Cleaner live preview, zero distraction.
+Hide markers for **bold**, *italic*, ==highlight==, ~~strikethrough~~, \escape character, `inline code`, and `#` heading markers. Markers reappear when the cursor enters the range. Cleaner live preview, zero distraction.
 
 - Each format can be toggled independently
 - Clicking near the boundary of formatted content places the cursor outside the markers, preventing accidental format entry
+- Supports heading markers (`#`) — standalone `#` without trailing space is not hidden
 - Since markers are hidden, cursor movement distance can be inferred from the cursor blink trail
 
 #### 👁️ Space Visualization
@@ -53,9 +54,10 @@ Only the focus chain (itself + ancestors + descendants) stays visible. Deeply ne
 
 #### 📂 Directory Focus
 
-Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure.
+Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain,
+while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure.
 
-- Triggered by clicking the folder name (not the collapse chevron)
+- Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state
 - The chevron still works independently for normal single-level toggle
 - Can be toggled independently in settings
 
@@ -64,8 +66,7 @@ Click a folder name in the file explorer to automatically expand its entire desc
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Heading**, **Space Visualization**
-- **List Enhancements** — 3 toggles: List Integration, Enter Soft Break, Focus Option
-- **Directory Focus** — 1 toggle: Directory Focus
+- **List Enhancements** — 4 toggles: List Integration, Enter Soft Break, Focus Option, **Directory Focus**
 
 ### Development Progress
 
@@ -79,6 +80,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Directory focus
 
 ### Changelog
+
+**v1.7.1** (2026-06-30)
+
+- Enhancement: Directory focus — first click focuses a folder, second click on the same folder toggles its collapse state. Added `focusedFolderPath` to track the current focused directory; toggling avoids re-expanding the entire tree
+- Optimization: Directory focus chevron click remains independent for normal single-level collapse/expand
 
 **v1.7.0** (2026-06-29)
 
