@@ -201,6 +201,12 @@ let currentHandler: ((e: MouseEvent) => void) | null = null;
 let currentContainerEl: HTMLElement | null = null;
 
 /**
+ * Tracks the currently focused folder path for
+ * first-click-focus, second-click-toggle behavior.
+ */
+let focusedFolderPath: string | null = null;
+
+/**
  * Attach a capture-phase click handler to the file-explorer container.
  * Previously attached handler (if any) is removed first to prevent leaks.
  */
@@ -243,9 +249,19 @@ export function attachHandler(
 		e.stopPropagation();
 		e.stopImmediatePropagation();
 
-		window.requestAnimationFrame(() =>
-			processFocus(view, folder, currentContainerEl ?? undefined),
-		);
+		// ── First-click focuses, second-click toggles collapse ──
+		if (path === focusedFolderPath) {
+			// Same folder: just toggle its own collapse state; keep focus
+			const navFolderEl = el.closest('.nav-folder');
+			const isCollapsed = navFolderEl?.classList.contains('is-collapsed') ?? false;
+			window.requestAnimationFrame(() => item?.setCollapsed(!isCollapsed));
+		} else {
+			// Different folder (or first ever click): run full focus
+			focusedFolderPath = path;
+			window.requestAnimationFrame(() =>
+				processFocus(view, folder, currentContainerEl ?? undefined),
+			);
+		}
 	};
 
 	containerEl.addEventListener('click', currentHandler, true);
@@ -257,6 +273,7 @@ export function detachHandler(containerEl: HTMLElement): void {
 		containerEl.removeEventListener('click', currentHandler, true);
 		currentHandler = null;
 		currentContainerEl = null;
+		focusedFolderPath = null;
 	}
 }
 
