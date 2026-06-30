@@ -22,6 +22,7 @@ import { formattingConfig, createFormatHiderExtension } from './format-hider';
 import { spaceConfig, createSpaceVisualizationExtension } from './whitespace-visible';
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
 import { registerDirFocus } from './dir-focus';
+import { registerDirFileCount } from './dir-file-count';
 
 /**
  * 主插件类。
@@ -47,6 +48,9 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册目录聚焦（非 CM6 扩展 — 直接操作文件列表 DOM）
 		registerDirFocus(this, () => this.settings.dirFocusOption);
+
+		// 注册目录文件数量显示
+		registerDirFileCount(this, () => this.settings.showDirFileCount);
 	}
 
 	onunload() {

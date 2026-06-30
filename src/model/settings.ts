@@ -27,6 +27,7 @@ export interface MDRazorSettings {
 	enterSoftBreak: boolean;
 	listFocusOption: boolean;
 	dirFocusOption: boolean;
+	showDirFileCount: boolean;
 
 	// ── 空格可视化 (whitespace-visible.ts) ──
 	showWhitespace: boolean;
@@ -44,5 +45,6 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	enterSoftBreak: true,
 	listFocusOption: true,
 	dirFocusOption: true,
+	showDirFileCount: true,
 	showWhitespace: false,
 };

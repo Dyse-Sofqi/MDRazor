@@ -61,12 +61,21 @@ while collapsing all unrelated branches (siblings, parent siblings, grandparent 
 - The chevron still works independently for normal single-level toggle
 - Can be toggled independently in settings
 
+#### 🔢 Directory File Count
+
+Displays the count of direct children (sub-folders + files) right-aligned on each folder title in the file explorer. Does NOT recurse into sub-folders.
+Counts update in real-time as files are created or deleted.
+
+- Live updates via Obsidian vault events, debounced at 200ms
+- Font size matches the folder name
+- Can be toggled independently in settings
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Heading**, **Space Visualization**
-- **List Enhancements** — 4 toggles: List Integration, Enter Soft Break, Focus Option, **Directory Focus**
+- **List Enhancements** — 5 toggles: List Integration, Enter Soft Break, Focus Option, Directory Focus, **Directory File Count**
 
 ### Development Progress
 
@@ -80,6 +89,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Directory focus
 
 ### Changelog
+
+**1.8.0** (2026-07-01)
+
+- New: Directory file count — displays direct child count (sub-folders + files) right-aligned on each folder title in the file explorer. Live updates via vault events, debounced at 200ms
 
 **v1.7.1** (2026-06-30)
 

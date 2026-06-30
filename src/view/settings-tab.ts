@@ -183,8 +183,19 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
-	}
 
+		new Setting(listSection)
+			.setName('显示目录文件数量')
+			.setDesc('统计文件夹内子文件夹和子文件的数量，在文件夹右侧对齐显示')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.showDirFileCount)
+					.onChange(async (value) => {
+						this.plugin.settings.showDirFileCount = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+	}
 	/**
 	 * 创建一个可折叠的设置区域。
 	 *
