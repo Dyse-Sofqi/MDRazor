@@ -4,6 +4,8 @@
  * Show file/folder count badge on each folder in the file explorer.
  * Counts direct children only (sub-folders + files, excluding files inside sub-folders).
  * The count is displayed right-aligned on the folder title, before the collapse icon.
+ *
+ * CSS lives in styles.css (Obsidian loads it for us — no runtime <style> injection).
  */
 
 import { App, Plugin, TFolder } from 'obsidian';
@@ -15,55 +17,10 @@ import { listEnhancerConfig } from '../model/shared';
 
 const BADGE_CLASS = 'mdr-dir-file-count';
 
-const STYLES = [
-	'.mdr-dir-file-count {',
-	'	margin-left: auto;',
-	'	margin-right: 4px;',
-	'	font-size: inherit;',
-	'	color: var(--text-muted);',
-	'	opacity: 0.8;',
-	'	pointer-events: none;',
-	'	user-select: none;',
-	'	white-space: nowrap;',
-	'}',
-	'.nav-folder-title {',
-	'	display: flex !important;',
-	'	align-items: center;',
-	'}',
-	'.nav-folder-title-content {',
-	'	flex: 1 1 auto;',
-	'	min-width: 0;',
-	'}',
-].join('\n');
-
-/* ------------------------------------------------------------------ */
-/*  Style injection / removal                                          */
-/* ------------------------------------------------------------------ */
-
-let styleEl: HTMLStyleElement | null = null;
-
-function injectStyles(): void {
-	if (styleEl) return;
-	styleEl = document.createElement('style');
-	styleEl.textContent = STYLES;
-	document.head.appendChild(styleEl);
-}
-
-function removeStyles(): void {
-	if (styleEl) {
-		styleEl.remove();
-		styleEl = null;
-	}
-}
-
 /* ------------------------------------------------------------------ */
 /*  Badge DOM management                                               */
 /* ------------------------------------------------------------------ */
 
-/**
- * Count direct children of a folder (sub-folders + files).
- * Does NOT recurse into sub-folders.
- */
 function getDirectChildCount(folder: TFolder): number {
 	return folder.children.length;
 }
@@ -127,18 +84,16 @@ function updateCounts(app: App, containerEl: HTMLElement): void {
 /**
  * Register the directory file-count feature.
  *
- * - Injects CSS styles once
  * - Finds the file-explorer leaf on layout-ready (with retry)
  * - Re-attaches on layout-change (sidebar recreate)
  * - Listens to vault create/delete events to keep counts live
- * - Cleans up badges and styles on plugin unload
+ * - Removes badges on plugin unload
  */
 export function registerDirFileCount(
 	plugin: Plugin,
 	enabled: () => boolean,
 ): void {
 	const { app } = plugin;
-	injectStyles();
 
 	let containerEl: HTMLElement | null = null;
 
@@ -211,7 +166,6 @@ export function registerDirFileCount(
 	/* ---- cleanup on unload ---- */
 
 	plugin.register(() => {
-		removeStyles();
 		if (containerEl) removeAllBadges(containerEl);
 	});
 }

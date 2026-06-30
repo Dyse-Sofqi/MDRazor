@@ -90,6 +90,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.8.1** (2026-07-01)
+
+- Fix: Directory file count style injection moved to `styles.css` — complies with Obsidian security policy (runtime `<style>` creation blocked)
+
 **1.8.0** (2026-07-01)
 
 - New: Directory file count — displays direct child count (sub-folders + files) right-aligned on each folder title in the file explorer. Live updates via vault events, debounced at 200ms

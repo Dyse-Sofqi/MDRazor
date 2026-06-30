@@ -27,3 +27,24 @@
 .markdown-source-view.mod-cm6 .HyperMD-list-line:not(:has(.cm-formatting-list)) .collapse-indicator {
 	display: none !important;
 }
+
+/* ── 目录文件计数 ── */
+.mdr-dir-file-count {
+	margin-left: auto;
+	margin-right: 4px;
+	font-size: inherit;
+	color: var(--text-muted);
+	opacity: 0.8;
+	pointer-events: none;
+	-webkit-user-select: none;
+	user-select: none;
+	white-space: nowrap;
+}
+.nav-folder-title {
+	display: flex !important;
+	align-items: center;
+}
+.nav-folder-title-content {
+	flex: 1 1 auto;
+	min-width: 0;
+}
