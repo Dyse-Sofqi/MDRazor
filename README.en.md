@@ -2,7 +2,7 @@
 
 # MDRazor
 
-**Markdown Razor** — An Obsidian plugin for enhanced markdown editing, designed to refine your writing experience with precision like a razor.
+Designed to refine your writing experience with precision like a razor.
 
 [![GitHub Release](https://img.shields.io/github/v/release/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%2342b883)](https://github.com/Dyse-Sofqi/MDRazor/releases) [![License](https://img.shields.io/github/license/Dyse-Sofqi/MDRazor?style=flat-square&color=%2342b883)](LICENSE) [![Obsidian Min App](https://img.shields.io/badge/Obsidian-%5E1.0.0-%234a7ec1?style=flat-square&logo=obsidian&logoColor=%234a7ec1)](https://obsidian.md) [![GitHub Stars](https://img.shields.io/github/stars/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%23e4b341)](https://github.com/Dyse-Sofqi/MDRazor)
 
@@ -70,12 +70,19 @@ Counts update in real-time as files are created or deleted.
 - Font size matches the folder name
 - Can be toggled independently in settings
 
+#### 📑 Tab Enhancer
+
+Click a file in the file explorer: if a tab for that file already exists, switch to it; otherwise open a new tab. Prevents duplicate tabs for more efficient file navigation.
+
+- Can be toggled independently in settings
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Heading**, **Space Visualization**
 - **List Enhancements** — 5 toggles: List Integration, Enter Soft Break, Focus Option, Directory Focus, **Directory File Count**
+- **Tab Enhancer** — 1 toggle: Default New Tab Open
 
 ### Development Progress
 
@@ -88,7 +95,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - [x] Space visualization
 - [x] Directory focus
 
+- [x] Tab enhancer (click file → switch to existing tab or open new)
+
 ### Changelog
+
+**1.8.2** (2026-07-01)
+
+- New: Tab enhancer — click a file in the file explorer: if an existing tab is found, switch to it; otherwise open a new tab. Prevents duplicate tabs, more efficient file navigation
 
 **1.8.1** (2026-07-01)
 

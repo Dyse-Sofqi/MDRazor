@@ -1,9 +1,9 @@
 {
 	"id": "md-razor",
 	"name": "MDRazor",
-	"version": "1.8.1",
+	"version": "1.8.2",
 	"minAppVersion": "1.0.0",
-	"description": "MDRazor - Enhanced markdown editing: hide formatting markers, list enhancement with soft-break.",
+	"description": "Enhanced markdown editing: hide formatting markers, list enhancement with soft-break.",
 	"author": "Sofqi",
 	"authorUrl": "https://github.com/Dyse-Sofqi",
 	"fundingUrl": "https://github.com/Dyse-Sofqi/ziping/blob/main/zanshang.jpg",

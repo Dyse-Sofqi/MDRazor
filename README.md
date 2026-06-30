@@ -2,7 +2,7 @@
 
 # MDRazor
 
-**Markdown Razor** — Obsidian 插件，像剃刀一样精准打磨你的 Markdown 编辑体验。
+像剃刀一样精准打磨你的 Markdown 编辑体验。
 
 [![GitHub Release](https://img.shields.io/github/v/release/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%2342b883)](https://github.com/Dyse-Sofqi/MDRazor/releases) [![License](https://img.shields.io/github/license/Dyse-Sofqi/MDRazor?style=flat-square&color=%2342b883)](LICENSE) [![Obsidian Min App](https://img.shields.io/badge/Obsidian-%5E1.0.0-%234a7ec1?style=flat-square&logo=obsidian&logoColor=%234a7ec1)](https://obsidian.md) [![GitHub Stars](https://img.shields.io/github/stars/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%23e4b341)](https://github.com/Dyse-Sofqi/MDRazor)
 
@@ -69,14 +69,25 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - 字体大小与文件夹名称一致
 - 可在设置面板中独立开关
 
+#### 📑 标签页增强
+
+单击文件目录中的文件时，若标签页已存在则跳转到该标签页，否则打开新标签页。避免重复标签页，文件导航更高效。
+
+- 可在设置面板中独立开关
+
 ### 设置
 
 在 Obsidian 设置 → 第三方插件 → MDRazor 中配置：
 
 - **隐藏样式** — 8 个开关：加粗、斜体、高亮、删除线、行内代码、**转义符号**、**标题符号**、**空格可视化**
 - **列表增强** — 5 个开关：列一体化、回车软换行、聚焦选项、目录聚焦、目录文件计数
+- **标签页增强** — 1 个开关：默认新标签页打开
 
 ### 版本历史
+
+**1.8.2** (2026-07-01)
+
+- 新增：标签页增强 — 单击文件目录中的文件时，若标签页已存在则跳转，否则打开新标签页展示该文件。避免重复标签页，文件导航更高效
 
 **1.8.1** (2026-07-01)
 

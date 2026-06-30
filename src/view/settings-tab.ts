@@ -195,7 +195,26 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		// ═══════════════════════════════════════════
+		// 标签页增强 配置区
+		// ═══════════════════════════════════════════
+
+		const tabSection = this.createCollapsibleSection(containerEl, '标签页增强', true);
+
+		new Setting(tabSection)
+			.setName('默认新标签页打开')
+			.setDesc('单击文件目录中的文件时，若标签页已存在则跳转，否则打开新标签页')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.tabEnhancerDefaultOpen)
+					.onChange(async (value) => {
+						this.plugin.settings.tabEnhancerDefaultOpen = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
+
 	/**
 	 * 创建一个可折叠的设置区域。
 	 *

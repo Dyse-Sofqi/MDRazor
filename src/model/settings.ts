@@ -31,6 +31,9 @@ export interface MDRazorSettings {
 
 	// ── 空格可视化 (whitespace-visible.ts) ──
 	showWhitespace: boolean;
+
+	// ── 标签页增强 (tab-enhancer.ts) ──
+	tabEnhancerDefaultOpen: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -47,4 +50,5 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	dirFocusOption: true,
 	showDirFileCount: true,
 	showWhitespace: false,
+	tabEnhancerDefaultOpen: true,
 };

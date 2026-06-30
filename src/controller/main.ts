@@ -23,6 +23,7 @@ import { spaceConfig, createSpaceVisualizationExtension } from './whitespace-vis
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
 import { registerDirFocus } from './dir-focus';
 import { registerDirFileCount } from './dir-file-count';
+import { registerTabEnhancer } from './tab-enhancer';
 
 /**
  * 主插件类。
@@ -51,6 +52,9 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册目录文件数量显示
 		registerDirFileCount(this, () => this.settings.showDirFileCount);
+
+	// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
+	registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
 	}
 
 	onunload() {
