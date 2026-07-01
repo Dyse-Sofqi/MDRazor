@@ -133,6 +133,16 @@ export function registerVerticalTabs(
 		app.workspace.iterateAllLeaves((leaf: any) => {
 			if (leaf.view?.file?.path === path) {
 				leaf.detach();
+				return;
+			}
+			// Pseudo tab: view not loaded, match via view state
+			if (!leaf.view?.file) {
+				try {
+					const vs = leaf.getViewState?.();
+					if (vs?.state?.file === path) {
+						leaf.detach();
+					}
+				} catch { /* leaf not ready */ }
 			}
 		});
 	};

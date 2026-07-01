@@ -115,6 +115,17 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.2** (2026-07-02)
+
+- Fix: Close button SVG constrained to 1em to prevent inflating folder row line-height
+- Fix: Vertical tabs detects inactive pseudo tabs restored on restart (`.view` null, fallback to `getViewState()`)
+- Fix: Close button now works on pseudo tabs — detaches the shortcut leaf via `leaf.detach()`
+
+**1.9.1** (2026-07-02)
+
+- Fix: Inactive tabs after Obsidian restart not shown in vertical tabs view — added `leaf.getViewState()` fallback for leaves with null `.view`
+- Fix: Close button SVG constrained to 1em to prevent inflating folder row line-height
+
 **1.9.0** (2026-07-02)
 
 - New: Vertical tabs — tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons, close buttons on open file titles, one-click "tabs-only" view that hides inactive files and empty folders
