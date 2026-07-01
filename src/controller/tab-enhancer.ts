@@ -3,6 +3,8 @@
  *
  * Intercept file clicks in file explorer. If tab for that file already exists,
  * switch to it. Otherwise let Obsidian open normally.
+ *
+ * Ctrl/Meta+click bypasses enhancer → native Obsidian behavior (open in new tab).
  */
 
 import { type App, type Plugin, TFile } from 'obsidian';
@@ -49,6 +51,9 @@ export function registerTabEnhancer(
 
 			// Skip clicks on vertical-tabs close button
 			if ((e.target as HTMLElement).closest('.mdr-vertical-tab-close')) return;
+
+			// Ctrl/Meta+click → restore native Obsidian behavior (open in new tab)
+			if (e.ctrlKey || e.metaKey) return;
 
 			const el = (e.target as HTMLElement).closest('.nav-file-title');
 			if (!el) return;
