@@ -226,7 +226,36 @@ export function attachHandler(
 		if (!enabled()) return;
 
 		const el = (e.target as HTMLElement).closest('.nav-folder-title');
-		if (!el || isChevronClick(e)) return;
+
+		// ── Blank area click → expand all top-level folders ──
+		if (!el) {
+			if (!isChevronClick(e)
+				&& !(e.target as HTMLElement).closest('.nav-file-title, .mdr-vertical-tab-close')) {
+				focusedFolderPath = null;
+				const items = view.fileItems;
+				const paths = items instanceof Map
+					? Array.from(items.keys())
+					: Object.keys(items);
+				const toExpand: Array<{ setCollapsed(c: boolean): void }> = [];
+				for (const path of paths) {
+					const item = items instanceof Map ? items.get(path) : items[path];
+					if (item?.file instanceof TFolder && item.file.parent?.isRoot()) {
+						toExpand.push(item);
+					}
+				}
+				window.requestAnimationFrame(() => {
+					for (const item of toExpand) {
+						try { item.setCollapsed(false); } catch { /* skip */ }
+					}
+					view.requestUpdate?.();
+				});
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+			}
+			return;
+		}
+
+		if (isChevronClick(e)) return;
 
 		// Walk ancestor chain to find data-path attribute
 		// (Obsidian may place it on .nav-folder or .tree-item depending on version)
