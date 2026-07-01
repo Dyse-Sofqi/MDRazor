@@ -66,3 +66,7 @@
 .mdr-vertical-tabs-view .nav-folder:not(.mdr-vertical-tab-has-active) {
 	display: none;
 }
+/* 垂直标签页视图中不显示目录文件计数 */
+.mdr-vertical-tabs-view .mdr-dir-file-count {
+	display: none;
+}
