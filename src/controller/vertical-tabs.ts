@@ -176,9 +176,9 @@ export function registerVerticalTabs(
 			if (folderEl) {
 				const hasActive = folderEl.querySelector('.nav-file-title.mdr-vertical-tab-active');
 				if (hasActive) {
-					folder.classList.add('mdr-vertical-tab-has-active');
+					folderEl.classList.add('mdr-vertical-tab-has-active');
 				} else {
-					folder.classList.remove('mdr-vertical-tab-has-active');
+					folderEl.classList.remove('mdr-vertical-tab-has-active');
 				}
 			}
 		});
