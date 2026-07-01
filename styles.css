@@ -48,3 +48,28 @@
 	flex: 1 1 auto;
 	min-width: 0;
 }
+
+/* ── 垂直标签页 ── */
+
+/* 关闭按钮：靠右对齐，默认透明，hover 显现 */
+.mdr-vertical-tab-close {
+	margin-left: auto;
+	margin-right: 4px;
+	cursor: pointer;
+	opacity: 0;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+}
+.nav-file-title:hover .mdr-vertical-tab-close {
+	opacity: 0.6;
+}
+.nav-file-title:hover .mdr-vertical-tab-close:hover {
+	opacity: 1;
+}
+
+/* 标签页列表视图：隐藏非活跃文件和不含活跃文件的目录 */
+.mdr-vertical-tabs-view .nav-file-title:not(.mdr-vertical-tab-active),
+.mdr-vertical-tabs-view .nav-folder-title:not(.mdr-vertical-tab-has-active) {
+	display: none;
+}
