@@ -63,6 +63,15 @@ export function registerVerticalTabs(
 		return paths;
 	};
 
+	const getFileItem = (
+		view: FileExplorerView,
+		path: string,
+	): FileExplorerItem | undefined => {
+		const items = view.fileItems;
+		if (items instanceof Map) return items.get(path);
+		return (items as Record<string, FileExplorerItem>)[path];
+	};
+
 	/* ---- close button factory (avoids duplication) ---- */
 
 	const buildCloseBtn = (path: string): HTMLElement => {
@@ -78,13 +87,10 @@ export function registerVerticalTabs(
 		return btn;
 	};
 
-	const getFileItem = (
-		view: FileExplorerView,
-		path: string,
-	): FileExplorerItem | undefined => {
-		const items = view.fileItems;
-		if (items instanceof Map) return items.get(path);
-		return (items as Record<string, FileExplorerItem>)[path];
+	const addCloseBtnToTitle = (title: HTMLElement, path: string): void => {
+		if (!title.querySelector('.mdr-vertical-tab-close')) {
+			title.appendChild(buildCloseBtn(path));
+		}
 	};
 
 	/* ---- A: toggle button ---- */
@@ -94,7 +100,6 @@ export function registerVerticalTabs(
 		const navButtons = containerEl.querySelector('.nav-buttons-container');
 		if (!navButtons) return;
 
-		// Remove existing if any
 		const existing = navButtons.querySelector('.mdr-vertical-tabs-toggle');
 		if (existing) existing.remove();
 
@@ -120,12 +125,6 @@ export function registerVerticalTabs(
 				leaf.detach();
 			}
 		});
-	};
-
-	const addCloseBtnToTitle = (title: HTMLElement, path: string): void => {
-		if (!title.querySelector('.mdr-vertical-tab-close')) {
-			title.appendChild(buildCloseBtn(path));
-		}
 	};
 
 	const ensureCloseButtons = (): void => {
@@ -154,9 +153,35 @@ export function registerVerticalTabs(
 
 	/* ---- C: view toggle + class marks ---- */
 
+	/**
+	 * Expand ancestor folders of all open files so their file titles
+	 * are present in the DOM before we try to mark them.
+	 */
+	const expandAncestors = (): void => {
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		if (!leaves.length || !leaves[0]) return;
+		const view = leaves[0].view as unknown as FileExplorerView;
+
+		const openPaths = getOpenFilePaths();
+		for (const path of openPaths) {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (file) {
+				let parent = file.parent;
+				while (parent && !parent.isRoot()) {
+					const item = getFileItem(view, parent.path);
+					if (item) item.setCollapsed(false);
+					parent = parent.parent;
+				}
+			}
+		}
+	};
+
 	const refreshClassMarks = (): void => {
 		if (!containerEl) return;
 		const openPaths = getOpenFilePaths();
+
+		// Expand ancestors FIRST so file titles appear in DOM
+		if (isViewActive()) expandAncestors();
 
 		// Mark file titles
 		const fileTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title');
@@ -169,7 +194,7 @@ export function registerVerticalTabs(
 			}
 		});
 
-		// Mark folder titles that contain active files
+		// Mark folder containers that contain active files
 		const folderTitles = containerEl.querySelectorAll<HTMLElement>('.nav-folder-title');
 		folderTitles.forEach((folder) => {
 			const folderEl = folder.closest('.nav-folder');
@@ -182,25 +207,6 @@ export function registerVerticalTabs(
 				}
 			}
 		});
-
-		// Expand ancestor folders of active files when in tabs view
-		if (isViewActive()) {
-			const leaves = app.workspace.getLeavesOfType('file-explorer');
-			if (leaves.length && leaves[0]) {
-				const view = leaves[0].view as unknown as FileExplorerView;
-				for (const path of openPaths) {
-					const file = app.vault.getAbstractFileByPath(path);
-					if (file) {
-						let parent = file.parent;
-						while (parent && !parent.isRoot()) {
-							const item = getFileItem(view, parent.path);
-							if (item) item.setCollapsed(false);
-							parent = parent.parent;
-						}
-					}
-				}
-			}
-		}
 	};
 
 	const applyViewState = (): void => {
@@ -226,9 +232,8 @@ export function registerVerticalTabs(
 			const openPaths = getOpenFilePaths();
 			for (const mutation of mutations) {
 				const addedNodes = Array.from(mutation.addedNodes);
-					for (const node of addedNodes) {
-						if (!(node instanceof HTMLElement)) continue;
-					// Scan the added node and its descendants for file titles
+				for (const node of addedNodes) {
+					if (!(node instanceof HTMLElement)) continue;
 					const candidates = node.classList.contains('nav-file-title')
 						? [node as HTMLElement]
 						: Array.from(node.querySelectorAll<HTMLElement>('.nav-file-title'));
@@ -290,7 +295,11 @@ export function registerVerticalTabs(
 		// Stop retrying once all open files have their close buttons in DOM
 		const stopChecker = window.setInterval(() => {
 			const openPaths = getOpenFilePaths();
-			if (openPaths.size === 0) { window.clearInterval(stopChecker); window.clearInterval(retryInterval); return; }
+			if (openPaths.size === 0) {
+				window.clearInterval(stopChecker);
+				window.clearInterval(retryInterval);
+				return;
+			}
 			let allFound = true;
 			for (const path of openPaths) {
 				if (!containerEl?.querySelector(`.nav-file-title[data-path="${path}"] .mdr-vertical-tab-close`)) {
