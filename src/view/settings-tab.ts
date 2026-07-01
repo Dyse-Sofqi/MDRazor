@@ -213,6 +213,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(tabSection)
+			.setName('垂直标签页')
+			.setDesc('在文件列表中为已打开的文件显示关闭按钮，并提供标签页列表切换视图')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.verticalTabsEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.verticalTabsEnabled = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 
 	/**
