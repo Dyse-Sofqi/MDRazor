@@ -161,7 +161,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(listSection)
-			.setName('聚焦选项')
+			.setName('选项聚焦')
 			.setDesc('光标移入列表项时，自动折叠其他同级及旁系列表项，仅展开焦点链（当前项、其祖先、及其子孙）')
 			.addToggle((toggle) =>
 				toggle

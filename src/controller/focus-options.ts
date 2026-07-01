@@ -19,6 +19,21 @@ import { EditorState, Prec } from '@codemirror/state';
 import { syntaxTree, foldEffect, unfoldEffect, foldService } from '@codemirror/language';
 import { listEnhancerConfig } from '../model/shared';
 
+// 鼠标按下标志：鼠标未弹起时不触发折叠，避免拖选过程中闪烁
+let isPointerDown = false;
+
+// 鼠标事件处理器：pointerdown 设置标志，pointerup 清除标志并强制重算折叠
+const pointerHandlers = EditorView.domEventHandlers({
+	pointerdown: () => {
+		isPointerDown = true;
+		return false;
+	},
+	pointerup: () => {
+		isPointerDown = false;
+		return false;
+	},
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 数据结构
 // ═══════════════════════════════════════════════════════════════════════════
@@ -461,6 +476,8 @@ const focusViewPlugin = ViewPlugin.fromClass(
 			const sel = update.state.selection.main;
 			const pos = sel.head;
 			if (pos === this.lastPos) return;
+			// 鼠标未弹起 → 不触发折叠，避免拖选过程中闪烁
+			if (isPointerDown) return;
 			this.lastPos = pos;
 
 			queueMicrotask(() => {
@@ -526,5 +543,5 @@ const focusViewPlugin = ViewPlugin.fromClass(
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function createFocusOptionsExtension() {
-	return [focusFoldService, focusViewPlugin];
+	return [focusFoldService, focusViewPlugin, pointerHandlers];
 }

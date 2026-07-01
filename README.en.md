@@ -115,6 +115,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.3** (2026-07-02)
+
+- Change: List Focus Option renamed from "聚焦选项" to "选项聚焦" in settings UI
+- Fix: List focus fold triggered while mouse button held down caused flicker — added pointerdown/pointerup guard, defers fold until mouse release
+
 **1.9.2** (2026-07-02)
 
 - Fix: Close button SVG constrained to 1em to prevent inflating folder row line-height
