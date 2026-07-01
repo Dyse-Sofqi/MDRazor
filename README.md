@@ -82,6 +82,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**1.9.4** (2026-07-02)
+
+- 新增：垂直标签页切换按钮激活状态样式（.is-active），与原生「显示当前文件」按钮一致，点击后图标有背景色和颜色加深
+- 修复：tab-enhancer 模块 any 类型警告 — 使用 WorkspaceLeaf 替代 any，openFile 添加 void 标记
+
 **1.9.3** (2026-07-02)
 
 - 新增：Ctrl/Meta+点击文件时还原 Obsidian 原生新标签页打开行为，绕过标签页增强的跳转逻辑

@@ -105,6 +105,11 @@ export function registerVerticalTabs(
 
 	/* ---- A: toggle button ---- */
 
+	const syncToggleActive = (): void => {
+		if (!toggleBtn) return;
+		toggleBtn.classList.toggle('is-active', isViewActive());
+	};
+
 	const injectToggleButton = (): void => {
 		if (!containerEl) return;
 		const navButtons = containerEl.querySelector('.nav-buttons-container');
@@ -117,10 +122,13 @@ export function registerVerticalTabs(
 
 		const btn = document.createElement('div');
 		btn.className = 'clickable-icon nav-action-button mdr-vertical-tabs-toggle';
+		if (isViewActive()) btn.classList.add('is-active');
 		btn.setAttribute('aria-label', '切换标签页视图');
 		setIcon(btn, 'arrow-left-right');
 		btn.addEventListener('click', () => {
-			setViewActive(!isViewActive());
+			const next = !isViewActive();
+			setViewActive(next);
+			btn.classList.toggle('is-active', next);
 			applyViewState();
 		});
 		navButtons.appendChild(btn);

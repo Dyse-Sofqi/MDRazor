@@ -7,7 +7,7 @@
  * Ctrl/Meta+click bypasses enhancer → native Obsidian behavior (open in new tab).
  */
 
-import { type App, type Plugin, TFile } from 'obsidian';
+import { type Plugin, TFile, type WorkspaceLeaf } from 'obsidian';
 
 /* ------------------------------------------------------------------ */
 /*  Lifecycle                                                          */
@@ -72,10 +72,10 @@ export function registerTabEnhancer(
 			if (!(abstractFile instanceof TFile)) return;
 
 			// Check if file is already open in any leaf
-			let existingLeaf: any = null;
-			app.workspace.iterateAllLeaves((leaf: any) => {
-				const view = leaf.view;
-				if (view && view.file && view.file.path === path) {
+			let existingLeaf: WorkspaceLeaf | null = null;
+			app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+				const view = leaf.view as { file?: { path: string } };
+				if (view?.file?.path === path) {
 					existingLeaf = leaf;
 				}
 			});
@@ -89,7 +89,7 @@ export function registerTabEnhancer(
 				e.stopPropagation();
 				e.stopImmediatePropagation();
 				const leaf = app.workspace.getLeaf(true);
-				if (leaf) leaf.openFile(abstractFile);
+				if (leaf) void leaf.openFile(abstractFile);
 			}
 		};
 

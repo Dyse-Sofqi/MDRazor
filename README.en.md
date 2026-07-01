@@ -82,6 +82,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.4** (2026-07-02)
+
+- New: Vertical tabs toggle button gets `.is-active` state (background + darker icon), matching Obsidian native "Show current file" button behavior
+- Fix: `any` type warnings in tab-enhancer — replaced with `WorkspaceLeaf`, added `void` to `openFile` promise
+
 **1.9.3** (2026-07-02)
 
 - New: Ctrl/Meta+click on a file restores native Obsidian new-tab behavior, bypassing tab-enhancer switch logic
