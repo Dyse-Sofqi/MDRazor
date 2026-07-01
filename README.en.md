@@ -61,6 +61,13 @@ while collapsing all unrelated branches (siblings, parent siblings, grandparent 
 - The chevron still works independently for normal single-level toggle
 - Can be toggled independently in settings
 
+#### 🖱️ Blank-area Expand
+
+Click empty area in the file list to expand all top-level folders. Quickly browse the full directory structure.
+
+- Shares toggle with Directory Focus (available when Directory Focus is enabled)
+- Won't trigger on sort/filter buttons or other interactive areas
+
 #### 🔢 Directory File Count
 
 Displays the count of direct children (sub-folders + files) right-aligned on each folder title in the file explorer. Does NOT recurse into sub-folders.
@@ -76,13 +83,22 @@ Click a file in the file explorer: if a tab for that file already exists, switch
 
 - Can be toggled independently in settings
 
+#### 🗂️ Vertical Tabs
+
+Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles.
+
+- Supports "tabs-only" and "full directory" view toggle
+- Tabs-only view hides unopened files and empty folders, focuses on active files
+- Close button displayed on the right of each open file title
+- Can be toggled independently in settings
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, **Escape**, **Heading**, **Space Visualization**
-- **List Enhancements** — 5 toggles: List Integration, Enter Soft Break, Focus Option, Directory Focus, **Directory File Count**
-- **Tab Enhancer** — 1 toggle: Default New Tab Open
+- **List Enhancements** — 6 toggles: List Integration, Enter Soft Break, Focus Option, Directory Focus, **Blank-area Expand**, **Directory File Count**
+- **Tab Enhancer** — 2 toggles: Default New Tab Open, **Vertical Tabs**
 
 ### Development Progress
 

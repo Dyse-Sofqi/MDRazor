@@ -47,7 +47,6 @@ export default class MDRazorPlugin extends Plugin {
 		this.registerEditorExtension(createFormatHiderExtension());
 		this.registerEditorExtension(createSpaceVisualizationExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
-
 		// 注册目录聚焦（非 CM6 扩展 — 直接操作文件列表 DOM）
 		registerDirFocus(this, () => this.settings.dirFocusOption);
 
@@ -131,5 +130,5 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(formattingConfig, this.settings);
 		Object.assign(spaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
-	}
+		}
 }
