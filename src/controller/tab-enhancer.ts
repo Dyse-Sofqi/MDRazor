@@ -47,6 +47,9 @@ export function registerTabEnhancer(
 		handler = (e: MouseEvent) => {
 			if (!enabled()) return;
 
+			// Skip clicks on vertical-tabs close button
+			if ((e.target as HTMLElement).closest('.mdr-vertical-tab-close')) return;
+
 			const el = (e.target as HTMLElement).closest('.nav-file-title');
 			if (!el) return;
 

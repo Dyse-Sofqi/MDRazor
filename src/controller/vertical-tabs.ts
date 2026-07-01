@@ -256,7 +256,6 @@ export function registerVerticalTabs(
 		if (!containerEl || !enabled()) return;
 		ensureCloseButtons();
 		if (isViewActive()) {
-			refreshClassMarks();
 			applyViewState();
 		}
 	};
@@ -265,10 +264,12 @@ export function registerVerticalTabs(
 
 	const attach = (): void => {
 		if (!containerEl) return;
-		injectToggleButton();
-		ensureCloseButtons();
-		applyViewState();
 		startObserver();
+		injectToggleButton();
+		applyViewState();
+		// Defer close button injection — applyViewState expands ancestor folders
+		// whose file titles appear asynchronously in the DOM
+		setTimeout(() => ensureCloseButtons(), 100);
 	};
 
 	const detach = (): void => {
