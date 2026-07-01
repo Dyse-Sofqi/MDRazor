@@ -99,6 +99,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.0** (2026-07-02)
+
+- New: Vertical tabs — tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons, close buttons on open file titles, one-click "tabs-only" view that hides inactive files and empty folders
+- New: Blank-area expand — click empty area of the file list to expand all top-level folders. Coexists with directory focus and vertical tabs
+- Fix: Directory file count hidden in vertical tabs view; file explorer sort/filter buttons broken by blank-area click feature
+- Enhancement: Vertical tabs async DOM population robustness (MutationObserver listener, ancestor path expansion retry)
+
 **1.8.2** (2026-07-01)
 
 - New: Tab enhancer — click a file in the file explorer: if an existing tab is found, switch to it; otherwise open a new tab. Prevents duplicate tabs, more efficient file navigation

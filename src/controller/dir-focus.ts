@@ -230,7 +230,7 @@ export function attachHandler(
 		// ── Blank area click → expand all top-level folders ──
 		if (!el) {
 			if (!isChevronClick(e)
-				&& !(e.target as HTMLElement).closest('.nav-file-title, .mdr-vertical-tab-close')) {
+				&& !(e.target as HTMLElement).closest('.nav-file-title, .mdr-vertical-tab-close, .nav-buttons-container')) {
 				focusedFolderPath = null;
 				const items = view.fileItems;
 				const paths = items instanceof Map
