@@ -24,6 +24,7 @@ import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer
 import { registerDirFocus } from './dir-focus';
 import { registerDirFileCount } from './dir-file-count';
 import { registerTabEnhancer } from './tab-enhancer';
+import { registerVerticalTabs } from './vertical-tabs';
 
 /**
  * 主插件类。
@@ -55,6 +56,16 @@ export default class MDRazorPlugin extends Plugin {
 
 	// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
 	registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
+	// 注册垂直标签页（文件列表关闭按钮 + 标签页列表视图）
+	registerVerticalTabs(
+		this,
+		() => this.settings.verticalTabsEnabled,
+		() => this.settings.verticalTabsViewActive,
+		(active: boolean) => {
+			this.settings.verticalTabsViewActive = active;
+			this.saveSettings();
+		},
+	);
 	}
 
 	onunload() {
