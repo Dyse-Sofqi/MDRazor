@@ -55,10 +55,20 @@ export function registerVerticalTabs(
 	const getOpenFilePaths = (): Set<string> => {
 		const paths = new Set<string>();
 		app.workspace.iterateAllLeaves((leaf: any) => {
+			// Fast path: view already loaded
 			const file = leaf.view?.file;
 			if (file instanceof TFile) {
 				paths.add(file.path);
+				return;
 			}
+			// Fallback: view state has file path even before view loads
+			// Covers inactive tabs restored on startup where .view is null
+			try {
+				const vs = leaf.getViewState?.();
+				if (vs?.state?.file && typeof vs.state.file === 'string') {
+					paths.add(vs.state.file);
+				}
+			} catch { /* leaf not ready */ }
 		});
 		return paths;
 	};
