@@ -32,8 +32,10 @@ export interface MDRazorSettings {
 	// ── 空格可视化 (whitespace-visible.ts) ──
 	showWhitespace: boolean;
 
-	// ── 标签页增强 (tab-enhancer.ts) ──
+	// ── 标签页增强 (tab-enhancer.ts / vertical-tabs.ts) ──
 	tabEnhancerDefaultOpen: boolean;
+	verticalTabsEnabled: boolean;
+	verticalTabsViewActive: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -51,4 +53,6 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	showDirFileCount: true,
 	showWhitespace: false,
 	tabEnhancerDefaultOpen: true,
+	verticalTabsEnabled: true,
+	verticalTabsViewActive: false,
 };
