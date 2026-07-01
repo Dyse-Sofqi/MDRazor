@@ -262,14 +262,47 @@ export function registerVerticalTabs(
 
 	/* ---- attach / detach ---- */
 
+	const syncAll = (): void => {
+		ensureCloseButtons();
+		refreshClassMarks();
+		applyViewState();
+	};
+
 	const attach = (): void => {
 		if (!containerEl) return;
 		startObserver();
 		injectToggleButton();
-		applyViewState();
-		// Defer close button injection — applyViewState expands ancestor folders
-		// whose file titles appear asynchronously in the DOM
-		setTimeout(() => ensureCloseButtons(), 100);
+
+		// Initial pass
+		syncAll();
+
+		// Retry: ancestor folder expansion may render file titles asynchronously,
+		// especially on restart when Obsidian restores leaves before file explorer DOM
+		let retries = 0;
+		const retryInterval = window.setInterval(() => {
+			if (retries++ >= 3) {
+				window.clearInterval(retryInterval);
+				return;
+			}
+			syncAll();
+		}, 200);
+
+		// Stop retrying once all open files have their close buttons in DOM
+		const stopChecker = window.setInterval(() => {
+			const openPaths = getOpenFilePaths();
+			if (openPaths.size === 0) { window.clearInterval(stopChecker); window.clearInterval(retryInterval); return; }
+			let allFound = true;
+			for (const path of openPaths) {
+				if (!containerEl?.querySelector(`.nav-file-title[data-path="${path}"] .mdr-vertical-tab-close`)) {
+					allFound = false;
+					break;
+				}
+			}
+			if (allFound) {
+				window.clearInterval(retryInterval);
+				window.clearInterval(stopChecker);
+			}
+		}, 200);
 	};
 
 	const detach = (): void => {
