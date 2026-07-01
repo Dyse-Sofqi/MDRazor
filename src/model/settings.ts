@@ -26,6 +26,8 @@ export interface MDRazorSettings {
 	listIntegration: boolean;
 	enterSoftBreak: boolean;
 	listFocusOption: boolean;
+	listFocusSecondThreshold: number;
+	listFocusSecondThresholdEnabled: boolean;
 	dirFocusOption: boolean;
 	showDirFileCount: boolean;
 
@@ -49,6 +51,8 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,
+	listFocusSecondThreshold: 3,
+	listFocusSecondThresholdEnabled: false,
 	dirFocusOption: true,
 	showDirFileCount: true,
 	showWhitespace: false,

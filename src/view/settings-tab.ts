@@ -173,6 +173,28 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(listSection)
+			.setName('二级子项不折叠的上限')
+			.setDesc('开启后，一级项的第二级子项数量 ≤ 设定值时该一级项不折叠。仅影响一级项，其后代仍受选项聚焦影响')
+			.addSlider((slider) =>
+				slider
+					.setLimits(1, 9, 1)
+					.setValue(this.plugin.settings.listFocusSecondThreshold)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.listFocusSecondThreshold = value;
+						await this.plugin.saveSettings();
+					}),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.listFocusSecondThresholdEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.listFocusSecondThresholdEnabled = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(listSection)
 			.setName('目录聚焦')
 			.setDesc('点击文件列表的文件夹时，展开该文件夹的所有子孙文件夹，折叠其余无关文件夹（同级、父同级、祖父同级等）')
 			.addToggle((toggle) =>

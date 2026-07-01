@@ -214,6 +214,21 @@ function hasDescendants(items: ListItemInfo[], i: number): boolean {
 // 聚焦计算
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** 统计一个一级项的直接子项（深度=1）数量 */
+function countDirectChildren(items: ListItemInfo[], idx: number): number {
+	const self = items[idx];
+	if (!self || self.depth !== 0) return 0;
+	const end = subtreeEndIndex(items, idx);
+	let count = 0;
+	for (let j = idx + 1; j < end; j++) {
+		const child = items[j];
+		if (!child) continue;
+		if (child.depth === 1) count++;
+		if (child.depth <= 0) break;
+	}
+	return count;
+}
+
 function computeFoldIndices(
 	items: ListItemInfo[],
 	cursorPos: number,
@@ -292,7 +307,15 @@ function computeFoldIndices(
 	const focusedBlock = getBlock(items, focusedIdx, doc);
 	const foldSet = new Set<number>();
 	for (let i = 0; i < items.length; i++) {
-		if (!unfoldSet.has(i) && focusedBlock.has(i)) foldSet.add(i);
+		if (!unfoldSet.has(i) && focusedBlock.has(i)) {
+			// Threshold guard: 二级子项不折叠的上限
+			const item = items[i];
+			if (item && item.depth === 0 && listEnhancerConfig.listFocusSecondThresholdEnabled) {
+				const directChildren = countDirectChildren(items, i);
+				if (directChildren <= listEnhancerConfig.listFocusSecondThreshold) continue;
+			}
+			foldSet.add(i);
+		}
 	}
 
 	return foldSet;

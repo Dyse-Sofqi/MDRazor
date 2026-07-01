@@ -82,6 +82,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.5** (2026-07-02)
+
+- New: List focus sub-setting "Second-level child threshold" — slider (1-9) + toggle. When enabled, top-level items with ≤ threshold second-level children skip focus folding
+- Fix: manifest.json version aligned to 1.9.5
+
 **1.9.4** (2026-07-02)
 
 - New: Vertical tabs toggle button gets `.is-active` state (background + darker icon), matching Obsidian native "Show current file" button behavior
