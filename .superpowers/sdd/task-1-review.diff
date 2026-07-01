@@ -1,0 +1,41 @@
+diff --git a/src/model/settings.ts b/src/model/settings.ts
+index 4c3de5f..a601060 100644
+--- a/src/model/settings.ts
++++ b/src/model/settings.ts
+@@ -25,30 +25,34 @@ export interface MDRazorSettings {
+ 	// ── 列表增强 (list-enhancer.ts) ──
+ 	listIntegration: boolean;
+ 	enterSoftBreak: boolean;
+ 	listFocusOption: boolean;
+ 	dirFocusOption: boolean;
+ 	showDirFileCount: boolean;
+ 
+ 	// ── 空格可视化 (whitespace-visible.ts) ──
+ 	showWhitespace: boolean;
+ 
+-	// ── 标签页增强 (tab-enhancer.ts) ──
++	// ── 标签页增强 (tab-enhancer.ts / vertical-tabs.ts) ──
+ 	tabEnhancerDefaultOpen: boolean;
++	verticalTabsEnabled: boolean;
++	verticalTabsViewActive: boolean;
+ }
+ 
+ export const DEFAULT_SETTINGS: MDRazorSettings = {
+ 	hideBoldFormatting: true,
+ 	hideItalicFormatting: true,
+ 	hideHighlightFormatting: true,
+ 	hideStrikethroughFormatting: true,
+ 	hideCodeFormatting: true,
+ 	hideEscapeFormatting: true,
+ 	hideHeadingFormatting: true,
+ 	listIntegration: true,
+ 	enterSoftBreak: true,
+ 	listFocusOption: true,
+ 	dirFocusOption: true,
+ 	showDirFileCount: true,
+ 	showWhitespace: false,
+ 	tabEnhancerDefaultOpen: true,
++	verticalTabsEnabled: true,
++	verticalTabsViewActive: false,
+ };
+\ No newline at end of file
