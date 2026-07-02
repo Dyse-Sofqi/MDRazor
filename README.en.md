@@ -108,7 +108,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
-**1.10.0** (2026-07-02)
+**2.0.0** (2026-07-02)
 
 - New: Status bar workspace switch — button at the bottom-right. 0-1 workspaces no-op, 2 workspaces direct switch, 3+ opens a popup list attached above the button
 - New: Popup menu features hover highlight, Escape/outside-click dismiss, current workspace name tracking

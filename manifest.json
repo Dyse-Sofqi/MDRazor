@@ -1,7 +1,7 @@
 {
 	"id": "md-razor",
 	"name": "MDRazor",
-	"version": "1.10.0",
+	"version": "2.0.0",
 	"minAppVersion": "1.0.0",
 	"description": "Enhanced markdown editing: hide formatting markers, list enhancement with soft-break.",
 	"author": "Sofqi",
