@@ -78,3 +78,20 @@
 .mdr-vertical-tabs-view .mdr-dir-file-count {
 	display: none;
 }
+
+/* ── 状态栏增强：工作区切换 ── */
+.mdrazor-statusbar-workspace {
+	cursor: pointer;
+	user-select: none;
+}
+.mdrazor-statusbar-workspace:hover {
+	color: var(--text-accent);
+}
+.mdrazor-workspace-menu {
+	font-size: var(--font-ui-small);
+	max-height: 240px;
+	overflow-y: auto;
+}
+.mdrazor-workspace-menu > div:hover {
+	background: var(--background-modifier-hover);
+}

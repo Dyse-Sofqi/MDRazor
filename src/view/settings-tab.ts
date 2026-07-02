@@ -273,6 +273,32 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		// ═══════════════════════════════════════════
+		// 状态栏增强 配置区
+		// ═══════════════════════════════════════════
+
+		new Setting(containerEl)
+			.setName('状态栏增强')
+			.setHeading()
+			.setDesc('在状态栏添加工作区切换等增强功能');
+
+		new Setting(containerEl)
+			.setName('工作区切换')
+			.setDesc('在右下角状态栏显示工作区切换按钮，点击快速切换工作区')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.statusBarEnhancement)
+					.onChange(async (value) => {
+						this.plugin.settings.statusBarEnhancement = value;
+						if (value) {
+							this.plugin.statusBarEnhancer?.addButton();
+						} else {
+							this.plugin.statusBarEnhancer?.removeButton();
+						}
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 
 	/**

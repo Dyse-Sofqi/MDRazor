@@ -26,6 +26,7 @@ import { registerDirFileCount } from './dir-file-count';
 import { registerTabEnhancer } from './tab-enhancer';
 import { registerVerticalTabs } from './vertical-tabs';
 import { registerOrphanImageCleaner } from './orphan-image-cleaner';
+import { registerStatusBarEnhancer } from './status-bar-enhancer';
 
 /**
  * 主插件类。
@@ -40,6 +41,9 @@ export default class MDRazorPlugin extends Plugin {
 	/** Ribbon 图标控制：用于在设置开关变化时添加/移除。 */
 	orphanImageRibbon!: { addRibbon: () => void; removeRibbon: () => void };
 
+	/** 状态栏增强控制。 */
+	statusBarEnhancer!: { addButton: () => void; removeButton: () => void };
+
 	async onload() {
 		await this.loadSettings();
 
@@ -48,6 +52,9 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册失联图片清理功能（获取 ribbon 控制句柄）
 		this.orphanImageRibbon = registerOrphanImageCleaner(this);
+
+		// 注册状态栏增强
+		this.statusBarEnhancer = registerStatusBarEnhancer(this);
 
 		// 注册每个功能模块的 CodeMirror 6 扩展。
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
@@ -75,6 +82,10 @@ export default class MDRazorPlugin extends Plugin {
 		// 如果设置已启用，添加 ribbon 图标
 		if (this.settings.orphanImageCleanerEnabled) {
 			this.orphanImageRibbon.addRibbon();
+		}
+		// 如果设置已启用，添加状态栏按钮
+		if (this.settings.statusBarEnhancement) {
+			this.statusBarEnhancer.addButton();
 		}
 	}
 
