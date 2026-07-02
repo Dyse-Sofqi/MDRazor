@@ -41,6 +41,9 @@ export interface MDRazorSettings {
 	tabEnhancerDefaultOpen: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
+
+	// ── 状态栏增强 (status-bar-enhancer.ts) ──
+	statusBarEnhancement: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -63,4 +66,6 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	tabEnhancerDefaultOpen: true,
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
+
+	statusBarEnhancement: true,
 };
