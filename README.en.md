@@ -104,10 +104,16 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
+- **Statusbar Enhancement** — 1 toggle: Workspace Switch
 
 ### Changelog
 
-**1.9.9** (2026-07-02)
+**1.10.0** (2026-07-02)
+
+- New: Status bar workspace switch — button at the bottom-right. 0-1 workspaces no-op, 2 workspaces direct switch, 3+ opens a popup list attached above the button
+- New: Popup menu features hover highlight, Escape/outside-click dismiss, current workspace name tracking
+- New: Settings panel "Statusbar Enhancement" section with "Workspace Switch" toggle (default on)
+- Fix: Graceful degradation when workspace plugin is disabled — button auto-hides
 
 - Fix: Vertical tabs blank/partial display with large file lists — virtual scroller height corruption from `display:none` on hundreds of items
 - Fix: Switching back to file list showed missing items and scroll loop — added `forceExplorerRefresh()` to rebuild scroller on toggle-off
