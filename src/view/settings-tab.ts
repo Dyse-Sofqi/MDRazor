@@ -29,6 +29,27 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// ═══════════════════════════════════════════
+		// 失联图片清理 配置区
+		// ═══════════════════════════════════════════
+
+		new Setting(containerEl)
+			.setName('清理失联图片')
+			.setDesc('启用后，左侧功能区显示垃圾桶图标按钮。点击后扫描库中未被任何笔记引用过的图片（jpg/jpeg/png/gif/svg），将其移入系统回收站')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.orphanImageCleanerEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.orphanImageCleanerEnabled = value;
+						if (value) {
+							this.plugin.orphanImageRibbon?.addRibbon();
+						} else {
+							this.plugin.orphanImageRibbon?.removeRibbon();
+						}
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		// ═══════════════════════════════════════════
 		// 隐藏样式 配置区
 		// ═══════════════════════════════════════════
 

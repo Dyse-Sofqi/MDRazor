@@ -25,6 +25,7 @@ import { registerDirFocus } from './dir-focus';
 import { registerDirFileCount } from './dir-file-count';
 import { registerTabEnhancer } from './tab-enhancer';
 import { registerVerticalTabs } from './vertical-tabs';
+import { registerOrphanImageCleaner } from './orphan-image-cleaner';
 
 /**
  * 主插件类。
@@ -36,11 +37,17 @@ import { registerVerticalTabs } from './vertical-tabs';
 export default class MDRazorPlugin extends Plugin {
 	settings!: MDRazorSettings;
 
+	/** Ribbon 图标控制：用于在设置开关变化时添加/移除。 */
+	orphanImageRibbon!: { addRibbon: () => void; removeRibbon: () => void };
+
 	async onload() {
 		await this.loadSettings();
 
 		// 注册设置面板（Obsidian PluginSettingTab）
 		this.addSettingTab(new MDRazorSettingTab(this.app, this));
+
+		// 注册失联图片清理功能（获取 ribbon 控制句柄）
+		this.orphanImageRibbon = registerOrphanImageCleaner(this);
 
 		// 注册每个功能模块的 CodeMirror 6 扩展。
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
@@ -53,24 +60,27 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册目录文件数量显示
 		registerDirFileCount(this, () => this.settings.showDirFileCount);
 
-	// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
-	registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
-	// 注册垂直标签页（文件列表关闭按钮 + 标签页列表视图）
-	registerVerticalTabs(
-		this,
-		() => this.settings.verticalTabsEnabled,
-		() => this.settings.verticalTabsViewActive,
-		(active: boolean) => {
-			this.settings.verticalTabsViewActive = active;
-			this.saveSettings();
-		},
-	);
+		// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
+		registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
+		// 注册垂直标签页（文件列表关闭按钮 + 标签页列表视图）
+		registerVerticalTabs(
+			this,
+			() => this.settings.verticalTabsEnabled,
+			() => this.settings.verticalTabsViewActive,
+			(active: boolean) => {
+				this.settings.verticalTabsViewActive = active;
+				this.saveSettings();
+			},
+		);
+		// 如果设置已启用，添加 ribbon 图标
+		if (this.settings.orphanImageCleanerEnabled) {
+			this.orphanImageRibbon.addRibbon();
+		}
 	}
 
 	onunload() {
-		// 清理工作由 Obsidian 自动完成：
-		//   - registerEditorExtension 注册的扩展在卸载时自动分离
-		//   - addSettingTab 注册的设置面板自动移除
+		// 清理 ribbon 图标（其他清理由 Obsidian 自动完成）
+		this.orphanImageRibbon?.removeRibbon();
 	}
 
 	/**
@@ -130,5 +140,5 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(formattingConfig, this.settings);
 		Object.assign(spaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
-		}
+	}
 }

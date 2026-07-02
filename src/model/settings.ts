@@ -13,6 +13,9 @@
  * 后续新增功能开关也应默认 true，保持一致的首次体验。
  */
 export interface MDRazorSettings {
+	// ── 失联图片清理 (orphan-image-cleaner.ts) ──
+	orphanImageCleanerEnabled: boolean;
+
 	// ── 隐藏样式 (format-hider.ts) ──
 	hideBoldFormatting: boolean;
 	hideItalicFormatting: boolean;
@@ -41,6 +44,7 @@ export interface MDRazorSettings {
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
+	orphanImageCleanerEnabled: false,
 	hideBoldFormatting: true,
 	hideItalicFormatting: true,
 	hideHighlightFormatting: true,
