@@ -83,11 +83,14 @@ function hasBlankOrBoundaryBetween(
 
 	const prevLine = doc.lineAt(prev.markerFrom);
 	const nextLine = doc.lineAt(next.markerFrom);
+	const prevIndent = getIndentWidth(prevLine.text, 4);
 
 	for (let ln = prevLine.number + 1; ln < nextLine.number; ln++) {
 		const line = doc.line(ln);
 		if (line.text.trim() === '') return true;
 		if (isStructuralBoundary(line.text)) return true;
+		// 有内容的行，缩进 ≤ 前一项缩进 → 非续行 → 段落边界
+		if (getIndentWidth(line.text, 4) <= prevIndent) return true;
 	}
 	return false;
 }
