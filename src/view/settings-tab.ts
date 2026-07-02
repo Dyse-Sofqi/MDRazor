@@ -160,6 +160,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		let thresholdToggle: import('obsidian').ToggleComponent;
+
 		new Setting(listSection)
 			.setName('选项聚焦')
 			.setDesc('光标移入列表项时，自动折叠其他同级及旁系列表项，仅展开焦点链（当前项、其祖先、及其子孙）')
@@ -168,13 +170,14 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.listFocusOption)
 					.onChange(async (value) => {
 						this.plugin.settings.listFocusOption = value;
+						thresholdToggle?.setDisabled(!value);
 						await this.plugin.saveSettings();
 					}),
 			);
 
 		new Setting(listSection)
-			.setName('二级子项不折叠的上限')
-			.setDesc('开启后，一级项的第二级子项数量 ≤ 设定值时该一级项不折叠。仅影响一级项，其后代仍受选项聚焦影响')
+			.setName('二级子项最大展开数')
+			.setDesc('开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响')
 			.addSlider((slider) =>
 				slider
 					.setLimits(1, 9, 1)
@@ -185,14 +188,16 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			)
-			.addToggle((toggle) =>
+			.addToggle((toggle) => {
+				thresholdToggle = toggle;
 				toggle
 					.setValue(this.plugin.settings.listFocusSecondThresholdEnabled)
+					.setDisabled(!this.plugin.settings.listFocusOption)
 					.onChange(async (value) => {
 						this.plugin.settings.listFocusSecondThresholdEnabled = value;
 						await this.plugin.saveSettings();
-					}),
-			);
+					});
+			});
 
 		new Setting(listSection)
 			.setName('目录聚焦')

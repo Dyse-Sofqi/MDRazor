@@ -305,15 +305,21 @@ function computeFoldIndices(
 	// 仅折叠与聚焦项属于同一"列表块"的项。
 	// 空行或结构性边界（标题、水平线）分隔的独立列表不受影响。
 	const focusedBlock = getBlock(items, focusedIdx, doc);
+	// 将未展开但满足阈值条件的一级项加入展开集
+	for (const blockItem of focusedBlock) {
+		if (unfoldSet.has(blockItem)) continue;
+		const bi = items[blockItem];
+		if (bi && bi.depth === 0 && listEnhancerConfig.listFocusSecondThresholdEnabled) {
+			const directKids = countDirectChildren(items, blockItem);
+			if (directKids <= listEnhancerConfig.listFocusSecondThreshold) {
+				unfoldSet.add(blockItem);
+			}
+		}
+	}
+
 	const foldSet = new Set<number>();
 	for (let i = 0; i < items.length; i++) {
 		if (!unfoldSet.has(i) && focusedBlock.has(i)) {
-			// Threshold guard: 二级子项不折叠的上限
-			const item = items[i];
-			if (item && item.depth === 0 && listEnhancerConfig.listFocusSecondThresholdEnabled) {
-				const directChildren = countDirectChildren(items, i);
-				if (directChildren <= listEnhancerConfig.listFocusSecondThreshold) continue;
-			}
 			foldSet.add(i);
 		}
 	}

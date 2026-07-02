@@ -12,6 +12,22 @@ Designed to refine your writing experience with precision like a razor.
 
 ---
 
+### Installation
+
+#### Via Community Plugins (Recommended)
+
+1. Open Obsidian → Settings → Community plugins → Browse
+2. Search for **MDRazor** and install
+3. Enable in Installed plugins list
+
+#### Via BRAT (Preview builds)
+
+1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) plugin
+2. Add `Dyse-Sofqi/MDRazor` in BRAT settings
+3. Enable MDRazor manually
+
+---
+
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
@@ -56,6 +72,8 @@ Optimized list editing experience with the following independent toggles:
 
 - **List Focus Option** — When the cursor enters a list item, automatically expand all its descendants and collapse all non-directly-related content (siblings, parent siblings, etc.). Only the focus chain (itself + ancestors + descendants) stays visible. Deeply nested list navigation no longer overwhelming. Fold is deferred until mouse button release to prevent flicker during selection drag.
 
+  - **Second-level Max Expand Count** — Sub-setting of List Focus Option (slider 1-9 + toggle). When enabled, top-level items with ≤ threshold second-level children will be expanded during focus. Affects top-level items only; descendants still follow normal focus-fold behavior. Disabled when List Focus Option is off.
+
 - **Directory Focus** — Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure. Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state. The chevron still works independently for normal single-level toggle.
 
   - 🖱️ **Blank-area Expand** — Shares toggle with Directory Focus (available when Directory Focus is enabled). Click empty area in the file list to expand all top-level folders. Quickly browse the full directory structure. Won't trigger on sort/filter buttons or other interactive areas.
@@ -77,10 +95,16 @@ File tab management with the following independent toggles:
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Space Visualization
-- **List Enhancements** — 5 toggles: List Integration, Enter Soft Break, Focus Option, Directory Focus, Directory File Count
+- **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
 
 ### Changelog
+
+**1.9.6** (2026-07-02)
+
+- Change: Renamed "Second-level child threshold" to "Second-level Max Expand Count" — semantics shifted from "skip fold" to "active expand"
+- New: Threshold toggle now depends on List Focus Option — auto-disabled when List Focus is off
+- New: README installation guide — Community Plugins and BRAT
 
 **1.9.5** (2026-07-02)
 
