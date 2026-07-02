@@ -108,6 +108,13 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.0.2** (2026-07-03)
+
+- 修复：vertical-tabs.ts TS 类型错误 — `leaf.view` 缺少 `.file` 属性，添加显式类型断言
+- 修复：status-bar-enhancer.ts 与 vertical-tabs.ts 中无描述的 eslint-disable 指令 — 替换为精准的作用域抑制，附带描述；移除冗余 `as WorkspacesPluginInstance` 强转
+- 新增：vertical-tabs.ts 跨窗口安全 `isHTMLElement` 类型守卫，替代 `instanceof HTMLElement`
+- 优化：提升类型安全 — WorkspaceLeaf 类型参数替代隐式 any，AppInternalPlugins 接口替代 as any 链式强转
+
 **2.0.1** (2026-07-03)
 
 - 修复：状态栏工作区切换按钮初始化时自动获取并显示当前工作区名称，无需先点击

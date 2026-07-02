@@ -8,8 +8,7 @@
  *      ancestor directories of active files
  */
 
-import { type Plugin, TFile, setIcon } from 'obsidian';
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, obsidianmd/prefer-instanceof, @typescript-eslint/no-unnecessary-type-assertion */
+import { type Plugin, type WorkspaceLeaf, TFile, setIcon } from 'obsidian';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
@@ -24,6 +23,10 @@ interface FileExplorerView {
 	fileItems: Map<string, FileExplorerItem> | Record<string, FileExplorerItem>;
 	requestUpdate?: () => void;
 }
+
+/* ---- cross-window-safe type guard ---- */
+
+const isHTMLElement = (n: Node): n is HTMLElement => n.nodeType === Node.ELEMENT_NODE;
 
 /* ------------------------------------------------------------------ */
 /*  Lifecycle                                                          */
@@ -57,9 +60,9 @@ export function registerVerticalTabs(
 
 	const getOpenFilePaths = (): Set<string> => {
 		const paths = new Set<string>();
-		app.workspace.iterateAllLeaves((leaf: any) => {
-			// Fast path: view already loaded
-			const file = leaf.view?.file;
+		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			/* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- leaf.view untyped generic obsidian API */
+			const file = (leaf.view as { file?: TFile })?.file;
 			if (file instanceof TFile) {
 				paths.add(file.path);
 				return;
@@ -82,7 +85,8 @@ export function registerVerticalTabs(
 	): FileExplorerItem | undefined => {
 		const items = view.fileItems;
 		if (items instanceof Map) return items.get(path);
-		return (items as Record<string, FileExplorerItem>)[path];
+		/* eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- union narrowed via instanceof above, cast keeps TS happy */
+	return (items as Record<string, FileExplorerItem>)[path];
 	};
 
 	/* ---- close button factory (avoids duplication) ---- */
@@ -136,13 +140,14 @@ export function registerVerticalTabs(
 	/* ---- B: close buttons ---- */
 
 	const closeTab = (path: string): void => {
-		app.workspace.iterateAllLeaves((leaf: any) => {
-			if (leaf.view?.file?.path === path) {
+		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			/* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- leaf.view generic obsidian type, .path exists at runtime */
+			if ((leaf.view as { file?: { path: string } })?.file?.path === path) {
 				leaf.detach();
 				return;
 			}
 			// Pseudo tab: view not loaded, match via view state
-			if (!leaf.view?.file) {
+			if (!(leaf.view as { file?: unknown })?.file) {
 				try {
 					const vs = leaf.getViewState?.();
 					if (vs?.state?.file === path) {
@@ -363,9 +368,9 @@ export function registerVerticalTabs(
 			for (const mutation of mutations) {
 				const addedNodes = Array.from(mutation.addedNodes);
 				for (const node of addedNodes) {
-					if (!(node instanceof HTMLElement)) continue;
+					if (!isHTMLElement(node)) continue;
 					const candidates = node.classList.contains('nav-file-title')
-						? [node as HTMLElement]
+						? [node]
 						: Array.from(node.querySelectorAll<HTMLElement>('.nav-file-title'));
 					for (const title of candidates) {
 						const path = title.getAttribute('data-path');
@@ -376,7 +381,7 @@ export function registerVerticalTabs(
 						}
 					}
 					// Mark ancestor folders for all added nodes containing nav-folder
-					if (isViewActive() && (node instanceof HTMLElement)) {
+					if (isViewActive() && isHTMLElement(node)) {
 						const newFolders = node.classList.contains('nav-folder')
 							? [node]
 							: Array.from(node.querySelectorAll<HTMLElement>('.nav-folder'));

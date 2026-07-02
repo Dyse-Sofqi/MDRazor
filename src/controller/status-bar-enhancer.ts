@@ -9,13 +9,15 @@ interface WorkspacesPluginInstance {
 	loadWorkspace(name: string): Promise<void>;
 }
 
+interface AppInternalPlugins {
+	getPluginById(id: string): { enabled: boolean; instance: WorkspacesPluginInstance } | null;
+}
+
 function getWorkspacesPlugin(app: App): WorkspacesPluginInstance | null {
-	/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-	const internalPlugins = (app as any).internalPlugins;
+	const internalPlugins = (app as unknown as { internalPlugins: AppInternalPlugins }).internalPlugins;
 	const workspacesPlugin = internalPlugins?.getPluginById('workspaces');
 	if (!workspacesPlugin?.enabled) return null;
-	return workspacesPlugin.instance as WorkspacesPluginInstance;
-	/* eslint-enable */
+	return workspacesPlugin.instance;
 }
 
 export function registerStatusBarEnhancer(

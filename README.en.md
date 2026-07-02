@@ -108,6 +108,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.2** (2026-07-03)
+
+- Fix: TS type errors in `vertical-tabs.ts` — `leaf.view` lacks `.file` property, added explicit type assertions
+- Fix: Undescribed eslint-disable directives in `status-bar-enhancer.ts` and `vertical-tabs.ts` — replaced with scoped described suppressions; removed redundant `as WorkspacesPluginInstance` cast
+- New: Cross-window-safe `isHTMLElement` type guard in `vertical-tabs.ts`, replaces `instanceof HTMLElement`
+- Change: Improved type safety — `WorkspaceLeaf` type parameter replaces implicit `any`, `AppInternalPlugins` interface replaces `as any` chain-cast
+
 **2.0.1** (2026-07-03)
 
 - Fix: Status bar workspace switch now loads and displays current workspace name on initialization, no need to click first
