@@ -62,6 +62,12 @@ All hidden formats share these behaviors:
 
 ---
 
+#### 🗑️ Orphan Image Cleaner
+
+- **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via three syntaxes (`![[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and moves them to the system recycle bin. Reports each processed filename via Notice.
+
+---
+
 #### 📝 List Enhancements
 
 Optimized list editing experience with the following independent toggles:
@@ -95,10 +101,16 @@ File tab management with the following independent toggles:
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Space Visualization
+- **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
 
 ### Changelog
+
+**1.9.8** (2026-07-02)
+
+- New: Orphan image cleaner — settings toggle + trash-2 ribbon icon, scans vault for unreferenced images (jpg/jpeg/png/gif/svg), moves to system recycle bin
+- Change: Cleanup reports individual filenames instead of generic progress
 
 **1.9.7** (2026-07-02)
 

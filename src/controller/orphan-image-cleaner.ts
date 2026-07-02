@@ -82,8 +82,7 @@ async function cleanOrphanImages(plugin: Plugin): Promise<void> {
 		return;
 	}
 
-	// 步骤 3：移入系统回收站
-	new Notice(`正在删除 ${orphaned.length} 张失联图片…`);
+	// 步骤 3：逐个移入系统回收站，报告具体文件名
 	let successCount = 0;
 	let failCount = 0;
 
@@ -91,15 +90,15 @@ async function cleanOrphanImages(plugin: Plugin): Promise<void> {
 		try {
 			await plugin.app.vault.trash(file, true); // true = 系统回收站
 			successCount++;
+			new Notice(`已清理: ${file.path}`);
 		} catch {
 			failCount++;
+			new Notice(`清理失败: ${file.path}`);
 		}
 	}
 
-	if (failCount === 0) {
-		new Notice(`已清理 ${successCount} 张失联图片到回收站`);
-	} else {
-		new Notice(`已清理 ${successCount} 张到回收站，${failCount} 张删除失败`);
+	if (failCount > 0) {
+		new Notice(`清理完成: ${successCount} 成功, ${failCount} 失败`);
 	}
 }
 
