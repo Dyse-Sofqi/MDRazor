@@ -245,25 +245,22 @@ function computeFoldIndices(
 		const item = items[i];
 		if (!item) continue;
 		const end = subtreeEndIndex(items, i);
-		let endPos: number;
-		if (end < items.length) {
-			endPos = items[end]?.markerFrom ?? Number.MAX_SAFE_INTEGER;
-		} else {
-			// No next sibling: bound to end of last descendant content.
-			// Scan forward through continuation lines (non-blank, non-marker)
-			// so cursor after the list does not match.
-			const lastDesc = items[end - 1];
-			if (!lastDesc) continue;
-			const lastLine = doc.lineAt(lastDesc.markerFrom);
-			endPos = lastLine.to;
-			for (let ln = lastLine.number + 1; ln <= doc.lines; ln++) {
-				const l = doc.line(ln);
-				const text = l.text;
-				if (text.trim() === '') break;
-				if (/^\s*[-*+>]/.test(text) || /^\s*\d+[.)]/.test(text)) break;
-				if (isStructuralBoundary(text)) break;
-				endPos = l.to;
-			}
+		const lastDesc = items[end > 0 ? end - 1 : 0];
+		if (!lastDesc) continue;
+		const lastLine = doc.lineAt(lastDesc.markerFrom);
+		let endPos = lastLine.to;
+		// Scan continuation lines; stop at blank line, next sibling, or structural boundary.
+		const nextSibling = end < items.length ? items[end] : null;
+		const nextBoundary = nextSibling
+			? doc.lineAt(nextSibling.markerFrom).from
+			: Number.MAX_SAFE_INTEGER;
+		for (let ln = lastLine.number + 1; ln <= doc.lines; ln++) {
+			const l = doc.line(ln);
+			if (l.from >= nextBoundary) break;
+			if (l.text.trim() === '') break;
+			if (/^\s*[-*+>]/.test(l.text) || /^\s*\d+[.)]/.test(l.text)) break;
+			if (isStructuralBoundary(l.text)) break;
+			endPos = l.to;
 		}
 		if (cursorPos >= item.markerFrom && cursorPos <= endPos) {
 			if (item.depth > bestDepth) {
