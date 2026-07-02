@@ -170,7 +170,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.listFocusOption)
 					.onChange(async (value) => {
 						this.plugin.settings.listFocusOption = value;
-						thresholdToggle?.setDisabled(!value);
+						(thresholdToggle.toggleEl as HTMLInputElement).disabled = !value;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -192,11 +192,11 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				thresholdToggle = toggle;
 				toggle
 					.setValue(this.plugin.settings.listFocusSecondThresholdEnabled)
-					.setDisabled(!this.plugin.settings.listFocusOption)
 					.onChange(async (value) => {
 						this.plugin.settings.listFocusSecondThresholdEnabled = value;
 						await this.plugin.saveSettings();
 					});
+				(thresholdToggle.toggleEl as HTMLInputElement).disabled = !this.plugin.settings.listFocusOption;
 			});
 
 		new Setting(listSection)
