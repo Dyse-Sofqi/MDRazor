@@ -66,7 +66,10 @@
 	display: block;
 }
 
-/* 标签页列表视图：隐藏非活跃文件和不含活跃文件的目录（含其子节点） */
+/* 标签页列表视图：隐藏非活跃文件和不含活跃文件的目录（含其子节点）
+ * Non-ancestor folders collapsed via setCollapsed(true) — children removed
+ * from DOM, no virtual-scroller corruption. Only a few files in expanded
+ * ancestor folders get CSS display:none. */
 .mdr-vertical-tabs-view .nav-file-title:not(.mdr-vertical-tab-active),
 .mdr-vertical-tabs-view .nav-folder:not(.mdr-vertical-tab-has-active) {
 	display: none;

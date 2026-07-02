@@ -107,6 +107,15 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.9** (2026-07-02)
+
+- Fix: Vertical tabs blank/partial display with large file lists — virtual scroller height corruption from `display:none` on hundreds of items
+- Fix: Switching back to file list showed missing items and scroll loop — added `forceExplorerRefresh()` to rebuild scroller on toggle-off
+- Enhancement: Non-ancestor folders now collapsed via `setCollapsed(true)` API instead of CSS hiding — removes children from DOM, fixing virtual scroller height measurement
+- Enhancement: `collapseNonAncestors()` — collapse all folders outside the active file path chain when entering vertical tabs view
+- Enhancement: RAF retry increased from 3 to 8 frames for async-rendered large directory trees
+- Enhancement: MutationObserver now marks ancestor `.nav-folder` nodes on new DOM insertion, covering async-rendered folders
+
 **1.9.8** (2026-07-02)
 
 - New: Orphan image cleaner — settings toggle + trash-2 ribbon icon, scans vault for unreferenced images (jpg/jpeg/png/gif/svg), moves to system recycle bin

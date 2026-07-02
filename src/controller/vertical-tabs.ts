@@ -21,6 +21,7 @@ interface FileExplorerItem {
 
 interface FileExplorerView {
 	fileItems: Map<string, FileExplorerItem> | Record<string, FileExplorerItem>;
+	requestUpdate?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -182,6 +183,63 @@ export function registerVerticalTabs(
 	/* ---- C: view toggle + class marks ---- */
 
 	/**
+	 * Force file explorer virtual scroller to recalculate by collapsing
+	 * then re-expanding ALL folders. Fixes scroll corruption from
+	 * virtual-scroller measurement on collapsed/display-none elements.
+	 */
+	const forceExplorerRefresh = (): void => {
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		if (!leaves.length || !leaves[0]) return;
+		const view = leaves[0].view as unknown as FileExplorerView;
+
+		const items = view.fileItems;
+		const entries: Array<[string, FileExplorerItem]> =
+			items instanceof Map ? Array.from(items.entries()) : Object.entries(items);
+
+		// Collapse every item that could be a folder
+		const collapsed: string[] = [];
+		for (const [p, item] of entries) {
+			const af = app.vault.getAbstractFileByPath(p);
+			if (!af) continue;
+			try { item.setCollapsed(true); collapsed.push(p); } catch { /* skip */ }
+		}
+		// Re-expand — forces scroller recalc
+		for (const p of collapsed) {
+			const item = getFileItem(view, p);
+			if (item) {
+				try { item.setCollapsed(false); } catch { /* skip */ }
+			}
+		}
+		view.requestUpdate?.();
+	};
+
+	/**
+	 * Collapse folders that are NOT ancestors of open files.
+	 * Removes their children from the DOM so virtual scroller
+	 * measurements are accurate — avoids the display:none layout
+	 * collapse that corrupts scroll height.
+	 */
+	const collapseNonAncestors = (): void => {
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		if (!leaves.length || !leaves[0]) return;
+		const view = leaves[0].view as unknown as FileExplorerView;
+
+		const openPaths = getOpenFilePaths();
+		const ancestorPaths = getAncestorPaths(openPaths);
+		// Root itself is not in ancestorPaths, add all root children paths
+		// so root-level sibling folders can be collapsed.
+
+		const items = view.fileItems;
+		const entries = items instanceof Map ? Array.from(items.entries()) : Object.entries(items);
+		for (const [p, item] of entries) {
+			const af = app.vault.getAbstractFileByPath(p);
+			if (!af) continue;
+			if (ancestorPaths.has(p)) continue;
+			try { item.setCollapsed(true); } catch { /* skip */ }
+		}
+	};
+
+	/**
 	 * Expand ancestor folders of all open files so their file titles
 	 * are present in the DOM before we try to mark them.
 	 */
@@ -197,11 +255,34 @@ export function registerVerticalTabs(
 				let parent = file.parent;
 				while (parent && !parent.isRoot()) {
 					const item = getFileItem(view, parent.path);
-					if (item) item.setCollapsed(false);
+					if (item) {
+						try { item.setCollapsed(false); } catch { /* skip */ }
+					}
 					parent = parent.parent;
 				}
 			}
 		}
+		view.requestUpdate?.();
+	};
+
+	/**
+	 * Compute ancestor folder paths of all open files from vault tree.
+	 * Used to mark folders without relying on DOM child queries,
+	 * avoiding race with async folder expansion rendering.
+	 */
+	const getAncestorPaths = (openPaths: Set<string>): Set<string> => {
+		const paths = new Set<string>();
+		for (const path of openPaths) {
+			const file = app.vault.getAbstractFileByPath(path);
+			if (file) {
+				let parent = file.parent;
+				while (parent && !parent.isRoot()) {
+					paths.add(parent.path);
+					parent = parent.parent;
+				}
+			}
+		}
+		return paths;
 	};
 
 	const refreshClassMarks = (): void => {
@@ -209,7 +290,10 @@ export function registerVerticalTabs(
 		const openPaths = getOpenFilePaths();
 
 		// Expand ancestors FIRST so file titles appear in DOM
-		if (isViewActive()) expandAncestors();
+		if (isViewActive()) {
+			expandAncestors();
+			collapseNonAncestors();
+		}
 
 		// Mark file titles
 		const fileTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title');
@@ -222,17 +306,32 @@ export function registerVerticalTabs(
 			}
 		});
 
-		// Mark folder containers that contain active files
+		// Mark folder containers using pre-computed ancestor paths.
+		// Use fallback: data-path may be on .nav-folder-title or .nav-folder
+		// depending on Obsidian version (same pattern as dir-focus.ts).
+		const ancestorPaths = getAncestorPaths(openPaths);
 		const folderTitles = containerEl.querySelectorAll<HTMLElement>('.nav-folder-title');
 		folderTitles.forEach((folder) => {
 			const folderEl = folder.closest('.nav-folder');
-			if (folderEl) {
-				const hasActive = folderEl.querySelector('.nav-file-title.mdr-vertical-tab-active');
-				if (hasActive) {
-					folderEl.classList.add('mdr-vertical-tab-has-active');
-				} else {
-					folderEl.classList.remove('mdr-vertical-tab-has-active');
+			if (!folderEl) return;
+			let path = folder.getAttribute('data-path');
+			if (!path) path = folderEl.getAttribute('data-path');
+			if (path && ancestorPaths.has(path)) {
+				folderEl.classList.add('mdr-vertical-tab-has-active');
+			} else {
+				folderEl.classList.remove('mdr-vertical-tab-has-active');
+			}
+		});
+
+		// Re-mark folders for any newly rendered file titles
+		const activeTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title.mdr-vertical-tab-active');
+		activeTitles.forEach((title) => {
+			let el: Element | null = title.closest('.nav-folder');
+			while (el) {
+				if (!el.classList.contains('mdr-vertical-tab-has-active')) {
+					el.classList.add('mdr-vertical-tab-has-active');
 				}
+				el = el.parentElement?.closest('.nav-folder') ?? null;
 			}
 		});
 	};
@@ -242,11 +341,23 @@ export function registerVerticalTabs(
 
 		if (!enabled() || !isViewActive()) {
 			containerEl.classList.remove('mdr-vertical-tabs-view');
+			forceExplorerRefresh();
 			return;
 		}
 
+		forceExplorerRefresh();
 		refreshClassMarks();
 		containerEl.classList.add('mdr-vertical-tabs-view');
+
+		// Retry: Obsidian renders expanded folders asynchronously.
+		// Large vaults need more frames for all titles to hit DOM.
+		let retries = 0;
+		const retry = (): void => {
+			if (retries++ >= 8 || !containerEl || !isViewActive()) return;
+			refreshClassMarks();
+			requestAnimationFrame(retry);
+		};
+		requestAnimationFrame(retry);
 	};
 
 	/* ---- mutation observer (handle folder expand/collapse) ---- */
@@ -258,6 +369,7 @@ export function registerVerticalTabs(
 		observer = new MutationObserver((mutations) => {
 			if (!enabled()) return;
 			const openPaths = getOpenFilePaths();
+			const ancestorPaths = getAncestorPaths(openPaths);
 			for (const mutation of mutations) {
 				const addedNodes = Array.from(mutation.addedNodes);
 				for (const node of addedNodes) {
@@ -271,6 +383,18 @@ export function registerVerticalTabs(
 						if (openPaths.has(path)) {
 							addCloseBtnToTitle(title, path);
 							if (isViewActive()) title.classList.add('mdr-vertical-tab-active');
+						}
+					}
+					// Mark ancestor folders for all added nodes containing nav-folder
+					if (isViewActive() && (node instanceof HTMLElement)) {
+						const newFolders = node.classList.contains('nav-folder')
+							? [node]
+							: Array.from(node.querySelectorAll<HTMLElement>('.nav-folder'));
+						for (const folderEl of newFolders) {
+							const path = folderEl.getAttribute('data-path');
+							if (path && ancestorPaths.has(path)) {
+								folderEl.classList.add('mdr-vertical-tab-has-active');
+							}
 						}
 					}
 				}
