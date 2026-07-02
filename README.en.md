@@ -100,6 +100,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**1.9.7** (2026-07-02)
+
+- Fix: List focus fold misidentified content paragraph lines between lists as continuations — separate lists merged into one block, triggering fold on previous list
+- Change: Block boundary detection now compares indent — content lines with indent ≤ previous item indent recognized as paragraph boundary
+
 **1.9.6** (2026-07-02)
 
 - Change: Renamed "Second-level child threshold" to "Second-level Max Expand Count" — semantics shifted from "skip fold" to "active expand"
