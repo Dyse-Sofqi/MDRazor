@@ -62,7 +62,7 @@ function updateCounts(app: App, containerEl: HTMLElement): void {
 			return;
 		}
 
-		badge = document.createElement('span');
+		badge = app.workspace.containerEl.ownerDocument.createElement('span');
 		badge.className = BADGE_CLASS;
 		badge.textContent = '' + count;
 

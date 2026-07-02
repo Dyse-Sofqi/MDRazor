@@ -8,14 +8,15 @@
  *      ancestor directories of active files
  */
 
-import { type App, type Plugin, TFile, setIcon } from 'obsidian';
+import { type Plugin, TFile, setIcon } from 'obsidian';
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, obsidianmd/prefer-instanceof, @typescript-eslint/no-unnecessary-type-assertion */
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
 /* ------------------------------------------------------------------ */
 
 interface FileExplorerItem {
-	file: TFile | any;
+	file: TFile;
 	setCollapsed(collapsed: boolean): void;
 }
 
@@ -39,6 +40,7 @@ export function registerVerticalTabs(
 	let containerEl: HTMLElement | null = null;
 	let observer: MutationObserver | null = null;
 	let toggleBtn: HTMLElement | null = null;
+	const doc = app.workspace.containerEl.ownerDocument;
 
 	/* ---- locate file-explorer container ---- */
 
@@ -86,7 +88,7 @@ export function registerVerticalTabs(
 	/* ---- close button factory (avoids duplication) ---- */
 
 	const buildCloseBtn = (path: string): HTMLElement => {
-		const btn = document.createElement('span');
+		const btn = doc.createElement('span');
 		btn.className = 'mdr-vertical-tab-close';
 		setIcon(btn, 'x');
 		btn.setAttribute('aria-label', '关闭标签页');
@@ -106,11 +108,6 @@ export function registerVerticalTabs(
 
 	/* ---- A: toggle button ---- */
 
-	const syncToggleActive = (): void => {
-		if (!toggleBtn) return;
-		toggleBtn.classList.toggle('is-active', isViewActive());
-	};
-
 	const injectToggleButton = (): void => {
 		if (!containerEl) return;
 		const navButtons = containerEl.querySelector('.nav-buttons-container');
@@ -121,7 +118,7 @@ export function registerVerticalTabs(
 
 		if (!enabled()) return;
 
-		const btn = document.createElement('div');
+		const btn = doc.createElement('div');
 		btn.className = 'clickable-icon nav-action-button mdr-vertical-tabs-toggle';
 		if (isViewActive()) btn.classList.add('is-active');
 		btn.setAttribute('aria-label', '切换标签页视图');
@@ -226,8 +223,6 @@ export function registerVerticalTabs(
 
 		const openPaths = getOpenFilePaths();
 		const ancestorPaths = getAncestorPaths(openPaths);
-		// Root itself is not in ancestorPaths, add all root children paths
-		// so root-level sibling folders can be collapsed.
 
 		const items = view.fileItems;
 		const entries = items instanceof Map ? Array.from(items.entries()) : Object.entries(items);
@@ -267,8 +262,6 @@ export function registerVerticalTabs(
 
 	/**
 	 * Compute ancestor folder paths of all open files from vault tree.
-	 * Used to mark folders without relying on DOM child queries,
-	 * avoiding race with async folder expansion rendering.
 	 */
 	const getAncestorPaths = (openPaths: Set<string>): Set<string> => {
 		const paths = new Set<string>();
@@ -307,8 +300,6 @@ export function registerVerticalTabs(
 		});
 
 		// Mark folder containers using pre-computed ancestor paths.
-		// Use fallback: data-path may be on .nav-folder-title or .nav-folder
-		// depending on Obsidian version (same pattern as dir-focus.ts).
 		const ancestorPaths = getAncestorPaths(openPaths);
 		const folderTitles = containerEl.querySelectorAll<HTMLElement>('.nav-folder-title');
 		folderTitles.forEach((folder) => {
@@ -350,14 +341,13 @@ export function registerVerticalTabs(
 		containerEl.classList.add('mdr-vertical-tabs-view');
 
 		// Retry: Obsidian renders expanded folders asynchronously.
-		// Large vaults need more frames for all titles to hit DOM.
 		let retries = 0;
 		const retry = (): void => {
 			if (retries++ >= 8 || !containerEl || !isViewActive()) return;
 			refreshClassMarks();
-			requestAnimationFrame(retry);
+			window.requestAnimationFrame(retry);
 		};
-		requestAnimationFrame(retry);
+		window.requestAnimationFrame(retry);
 	};
 
 	/* ---- mutation observer (handle folder expand/collapse) ---- */
@@ -433,8 +423,7 @@ export function registerVerticalTabs(
 		// Initial pass
 		syncAll();
 
-		// Retry: ancestor folder expansion may render file titles asynchronously,
-		// especially on restart when Obsidian restores leaves before file explorer DOM
+		// Retry: ancestor folder expansion may render file titles asynchronously
 		let retries = 0;
 		const retryInterval = window.setInterval(() => {
 			if (retries++ >= 3) {

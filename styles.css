@@ -83,15 +83,35 @@
 .mdrazor-statusbar-workspace {
 	cursor: pointer;
 	user-select: none;
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
 .mdrazor-statusbar-workspace:hover {
 	color: var(--text-accent);
 }
 .mdrazor-workspace-menu {
+	position: fixed;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	z-index: 9999;
+	min-width: 160px;
+	padding: 4px 0;
 	font-size: var(--font-ui-small);
 	max-height: 240px;
 	overflow-y: auto;
 }
-.mdrazor-workspace-menu > div:hover {
+.mdrazor-workspace-menu-item {
+	padding: 6px 16px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.mdrazor-workspace-menu-item.is-active {
+	font-weight: 700;
+	color: var(--text-accent);
+}
+.mdrazor-workspace-menu-item:hover {
 	background: var(--background-modifier-hover);
 }

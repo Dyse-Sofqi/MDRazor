@@ -6,7 +6,7 @@
  *   2. 注册设置面板（View）
  *   3. 注册各个功能模块贡献的 CodeMirror 6 扩展
  *
- * 每个功能模块（format-hider.ts、list-enhancer.ts 等）暴露：
+ * 每个功能模块（format-hider.ts、list-enhancer.ts 等）暴露的：
  *   - create*Extension() 工厂函数 → 返回 CM6 Extension（在此注册）
  *   - 模块级配置对象（在此同步）
  *
@@ -38,10 +38,10 @@ import { registerStatusBarEnhancer } from './status-bar-enhancer';
 export default class MDRazorPlugin extends Plugin {
 	settings!: MDRazorSettings;
 
-	/** Ribbon 图标控制：用于在设置开关变化时添加/移除。 */
+	/** Ribbon 图标控制：用于在设置开关变化时添加/移除 */
 	orphanImageRibbon!: { addRibbon: () => void; removeRibbon: () => void };
 
-	/** 状态栏增强控制。 */
+	/** 状态栏增强控制 */
 	statusBarEnhancer!: { addButton: () => void; removeButton: () => void };
 
 	async onload() {
@@ -50,14 +50,14 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册设置面板（Obsidian PluginSettingTab）
 		this.addSettingTab(new MDRazorSettingTab(this.app, this));
 
-		// 注册失联图片清理功能（获取 ribbon 控制句柄）
+		// 注册失联图片清理功能（获得 ribbon 控制句柄）
 		this.orphanImageRibbon = registerOrphanImageCleaner(this);
 
 		// 注册状态栏增强
 		this.statusBarEnhancer = registerStatusBarEnhancer(this);
 
-		// 注册每个功能模块的 CodeMirror 6 扩展。
-		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染。
+		// 注册每个功能模块的 CodeMirror 6 扩展
+		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染
 		this.registerEditorExtension(createFormatHiderExtension());
 		this.registerEditorExtension(createSpaceVisualizationExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
@@ -76,7 +76,7 @@ export default class MDRazorPlugin extends Plugin {
 			() => this.settings.verticalTabsViewActive,
 			(active: boolean) => {
 				this.settings.verticalTabsViewActive = active;
-				this.saveSettings();
+				void this.saveSettings();
 			},
 		);
 		// 如果设置已启用，添加 ribbon 图标
@@ -95,7 +95,7 @@ export default class MDRazorPlugin extends Plugin {
 	}
 
 	/**
-	 * 从磁盘加载设置，与默认值合并，然后同步到功能模块。
+	 * 从磁盘加载设置，与默认值合并，然后同步到功能模块
 	 */
 	async loadSettings() {
 		const rawData = (await this.loadData()) as Record<string, unknown> | null;
@@ -115,7 +115,7 @@ export default class MDRazorPlugin extends Plugin {
 
 	/**
 	 * 将当前设置持久化到磁盘，然后同步到功能模块，
-	 * 使 CM6 扩展立即生效（无需重新加载插件）。
+	 * 使 CM6 扩展立即生效（无需重新加载插件）
 	 */
 	async saveSettings() {
 		await this.saveData(this.settings);
@@ -127,7 +127,7 @@ export default class MDRazorPlugin extends Plugin {
 	 * 强制所有打开的编辑器刷新装饰。
 	 *
 	 * 发送空事务到每个 CM6 EditorView，触发 ViewPlugin.update()，
-	 * 使其从共享配置对象重新读取并重建装饰集。
+	 * 使其从共享配置对象重新读取并重建装饰集合。
 	 * 这样设置开关可即时生效，无需重启 Obsidian。
 	 */
 	private repaintAllEditors() {
@@ -143,7 +143,7 @@ export default class MDRazorPlugin extends Plugin {
 	 * 将设置传播到每个功能模块的可变配置对象。
 	 *
 	 * 为什么使用模块级配置？CM6 ViewPlugin 实例生命周期很长，
-	 * 且与 Obsidian 插件生命周期解耦。通过写入 ViewPlugin 在每次
+	 * 且与 Obsidian 插件生命周期解耦。通过写入 ViewPlugin 在每个
 	 * update() 时读取的普通可变对象，我们避免了设置变更时需要
 	 * 重建或重新注册扩展。
 	 */

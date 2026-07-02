@@ -108,6 +108,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.1** (2026-07-03)
+
+- Fix: Status bar workspace switch now loads and displays current workspace name on initialization, no need to click first
+
 **2.0.0** (2026-07-02)
 
 - New: Status bar workspace switch — button at the bottom-right. 0-1 workspaces no-op, 2 workspaces direct switch, 3+ opens a popup list attached above the button
