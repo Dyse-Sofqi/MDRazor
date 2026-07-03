@@ -38,11 +38,13 @@ export function registerVerticalTabs(
 	isViewActive: () => boolean,
 	setViewActive: (active: boolean) => void,
 ): void {
+	if (!enabled()) return;
 	const { app } = plugin;
 
 	let containerEl: HTMLElement | null = null;
 	let observer: MutationObserver | null = null;
 	let toggleBtn: HTMLElement | null = null;
+	let savedFolderStates: Map<string, boolean> | null = null;
 	const doc = app.workspace.containerEl.ownerDocument;
 
 	/* ---- locate file-explorer container ---- */
@@ -332,15 +334,44 @@ export function registerVerticalTabs(
 		});
 	};
 
+	/* ---- save/restore folder states on view toggle ---- */
+	const saveCurrentFolderStates = (): void => {
+		savedFolderStates = new Map();
+		if (!containerEl) return;
+		const folderEls = containerEl.querySelectorAll<HTMLElement>('.nav-folder');
+		folderEls.forEach((folderEl) => {
+			const path = folderEl.getAttribute('data-path');
+			if (path) savedFolderStates!.set(path, folderEl.classList.contains('is-collapsed'));
+		});
+	};
+
+	const restoreFolderStates = (): void => {
+		if (!savedFolderStates || savedFolderStates.size === 0) return;
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		if (!leaves.length || !leaves[0]) return;
+		const view = leaves[0].view as unknown as FileExplorerView;
+		const items = view.fileItems;
+		for (const [path, collapsed] of savedFolderStates) {
+			const item = items instanceof Map ? items.get(path) : items[path];
+			if (item) {
+				try { item.setCollapsed(collapsed); } catch { /* skip */ }
+			}
+		}
+		view.requestUpdate?.();
+		savedFolderStates.clear();
+	};
+
 	const applyViewState = (): void => {
 		if (!containerEl) return;
 
 		if (!enabled() || !isViewActive()) {
+			const wasActive = containerEl.classList.contains('mdr-vertical-tabs-view');
 			containerEl.classList.remove('mdr-vertical-tabs-view');
-			forceExplorerRefresh();
+			if (wasActive) restoreFolderStates();
 			return;
 		}
 
+		saveCurrentFolderStates();
 		forceExplorerRefresh();
 		refreshClassMarks();
 		containerEl.classList.add('mdr-vertical-tabs-view');

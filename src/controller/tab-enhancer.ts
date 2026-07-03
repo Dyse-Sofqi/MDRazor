@@ -24,6 +24,7 @@ export function registerTabEnhancer(
 	plugin: Plugin,
 	enabled: () => boolean,
 ): void {
+	if (!enabled()) return;
 	const { app } = plugin;
 
 	let containerEl: HTMLElement | null = null;

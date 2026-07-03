@@ -46,20 +46,6 @@ function getAncestors(folder: TFolder): TFolder[] {
 	return chain;
 }
 
-/** Collect all descendant folders recursively. */
-function getDescendants(folder: TFolder): TFolder[] {
-	const result: TFolder[] = [];
-	function walk(f: TFolder): void {
-		for (const child of f.children) {
-			if (child instanceof TFolder) {
-				result.push(child);
-				walk(child);
-			}
-		}
-	}
-	walk(folder);
-	return result;
-}
 
 /**
  * Get all visible folder paths from the file-explorer view's fileItems.
@@ -84,7 +70,7 @@ function getAllFolderPaths(view: FileExplorerView): string[] {
 /**
  * Compute target collapse states for ALL folders.
  *
- * keepExpanded = ancestors + clicked + descendants
+ * keepExpanded = ancestors + clicked
  * Inside keepExpanded → expanded (false)
  * Outside keepExpanded → collapsed (true)
  * Clicked folder → always expanded (false)
@@ -94,12 +80,10 @@ export function computeCollapseStates(
 	allPaths: string[],
 ): CollapseState {
 	const ancestors = getAncestors(clicked);
-	const descendants = getDescendants(clicked);
 
 	const keepExpanded = new Set<string>();
 	for (const f of ancestors) keepExpanded.add(f.path);
 	keepExpanded.add(clicked.path);
-	for (const f of descendants) keepExpanded.add(f.path);
 
 	const states: CollapseState = {};
 	for (const path of allPaths) {
@@ -120,7 +104,6 @@ let currentBatchId = 0;
  *
  * - batchId counter cancels stale batches on rapid clicks
  * - Saves & restores scrollTop to prevent scrollbar jump
- * - Calls view.requestUpdate?.() after final batch for defensive refresh
  */
 export function applyStates(
 	view: FileExplorerView,
@@ -149,7 +132,6 @@ export function applyStates(
 		}
 		i += 10;
 		if (i >= entries.length) {
-			view.requestUpdate?.();
 			if (containerEl) containerEl.scrollTop = savedScrollTop;
 			return;
 		}
@@ -227,7 +209,7 @@ export function attachHandler(
 
 		const el = (e.target as HTMLElement).closest('.nav-folder-title');
 
-		// ── Blank area click → expand all top-level folders ──
+		// ── Blank area click → collapse all top-level folders ──
 		if (!el) {
 			if (!isChevronClick(e)
 				&& !(e.target as HTMLElement).closest('.nav-file-title, .mdr-vertical-tab-close, .nav-buttons-container')) {
@@ -236,18 +218,17 @@ export function attachHandler(
 				const paths = items instanceof Map
 					? Array.from(items.keys())
 					: Object.keys(items);
-				const toExpand: Array<{ setCollapsed(c: boolean): void }> = [];
+				const toCollapse: Array<{ setCollapsed(c: boolean): void }> = [];
 				for (const path of paths) {
 					const item = items instanceof Map ? items.get(path) : items[path];
 					if (item?.file instanceof TFolder && item.file.parent?.isRoot()) {
-						toExpand.push(item);
+						toCollapse.push(item);
 					}
 				}
 				window.requestAnimationFrame(() => {
-					for (const item of toExpand) {
-						try { item.setCollapsed(false); } catch { /* skip */ }
+					for (const item of toCollapse) {
+						try { item.setCollapsed(true); } catch { /* skip */ }
 					}
-					view.requestUpdate?.();
 				});
 				e.stopPropagation();
 				e.stopImmediatePropagation();
@@ -321,6 +302,7 @@ export function detachHandler(containerEl: HTMLElement): void {
  * - Plugin.registerEvent() ensures cleanup on unload
  */
 export function registerDirFocus(plugin: Plugin, enabled: () => boolean): void {
+	if (!enabled()) return;
 	const { app } = plugin;
 	let containerEl: HTMLElement | null = null;
 
