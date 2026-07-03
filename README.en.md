@@ -108,6 +108,15 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.4** (2026-07-03)
+
+- Fix: Vertical Tabs sync refactored — replaced polling retries + full collapse-expand refresh with MutationObserver that waits for file-title DOM readiness + single-pass `syncFolderStates` (expand ancestors, collapse rest), plus `collapseAllFolders` on startup
+- Fix: Vertical Tabs ancestor expansion and non-ancestor collapsing each traversed `fileItems` separately — merged into single `syncFolderStates` pass
+- Fix: `iterateAllLeaves` in tab-enhancer.ts only matched loaded leaves (`.view.file`), missing unloaded leaves — added `getViewState().state.file` fallback
+- Fix: `tsconfig.json` `moduleResolution: "node"` deprecated in TS 5.8+ — changed to `"bundler"` to match esbuild bundler
+- Change: Dir-focus blank-area click now collapses **all** folders (not just top-level)
+- Change: Vertical Tabs toggle preserves folder collapse/expand state on exit — no more destructive full-expand
+
 **2.0.3** (2026-07-03)
 
 - Fix: Clicking a file in the file explorer no longer expands all folders — all three `register*` functions (Dir Focus / Tab Enhancer / Vertical Tabs) now check `enabled()` before attaching capture-phase event listeners to the file explorer. Previously, handlers were attached even when their feature toggle was off, interfering with Obsidian's React event delegation

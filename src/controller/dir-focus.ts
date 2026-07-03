@@ -221,7 +221,7 @@ export function attachHandler(
 				const toCollapse: Array<{ setCollapsed(c: boolean): void }> = [];
 				for (const path of paths) {
 					const item = items instanceof Map ? items.get(path) : items[path];
-					if (item?.file instanceof TFolder && item.file.parent?.isRoot()) {
+					if (item?.file instanceof TFolder) {
 						toCollapse.push(item);
 					}
 				}

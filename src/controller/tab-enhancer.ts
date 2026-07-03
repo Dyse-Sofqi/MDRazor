@@ -75,10 +75,19 @@ export function registerTabEnhancer(
 			// Check if file is already open in any leaf
 			let existingLeaf: WorkspaceLeaf | null = null;
 			app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-				const view = leaf.view as { file?: { path: string } };
-				if (view?.file?.path === path) {
+				// Leaf with loaded view
+				const file = (leaf.view as { file?: TFile })?.file;
+				if (file instanceof TFile && file.path === path) {
 					existingLeaf = leaf;
+					return;
 				}
+				// Unloaded leaf — match via view state
+				try {
+					const vs = leaf.getViewState?.();
+					if (vs?.state?.file === path) {
+						existingLeaf = leaf;
+					}
+				} catch { /* leaf not ready */ }
 			});
 
 			if (existingLeaf) {

@@ -108,6 +108,15 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.0.4** (2026-07-03)
+
+- 修复：垂直标签页同步流程重构 — 弃用轮询重试 + 全量折叠展开刷新，改用 MutationObserver 等待文件标题 DOM 就绪 + 单次 `syncFolderStates` 展开祖先/折叠非祖先，起始处 `collapseAllFolders` 折叠全部文件夹
+- 修复：垂直标签页展开祖先与折叠非祖先各遍历一次 fileItems — 合并为单次 `syncFolderStates` 遍历，展开祖先 + 折叠余下同时完成
+- 修复：tab-enhancer.ts 中 `iterateAllLeaves` 仅匹配已加载 leaf（`.view.file`），未匹配未加载 leaf — 增加 `getViewState().state.file` 兜底匹配
+- 修复：tsconfig.json `moduleResolution: "node"` 已弃用（TS 5.8+ 警告）— 改为 `"bundler"` 配合 esbuild
+- 优化：目录聚焦点击空白区域改为折叠全部文件夹（不再仅限一级文件夹）
+- 优化：垂直标签页退出时保留折叠/展开状态 — 切换前后不再全量破坏性展开
+
 **2.0.3** (2026-07-03)
 
 - 修复：点击文件列表中的文件时所有文件夹被展开 — 三个 register\* 函数（目录聚焦/标签页增强/垂直标签页）在功能关闭时不再向文件管理器附加捕获阶段事件监听器。此前即使开关关闭，监听器仍被附加，干扰 Obsidian React 事件系统
