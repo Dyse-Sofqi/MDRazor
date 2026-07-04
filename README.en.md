@@ -108,6 +108,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.7** (2026-07-05)
+
+- **Fix: Orphan image cleaner API compatibility** — `FileManager.trashFile()` is Obsidian ≥1.1.x only; fallback to `Vault.trash()` ensures `minAppVersion 1.0.0` passes eslint-plugin-obsidianmd checks
+- **Refactor: CSS lint cleanup** — Removed 4 `!important` rules (replaced with higher-specificity selectors), restructured `:has()` usage to eliminate `:not(:has())`, resolves `no-important` / `no-recent-has` warnings
+
 **2.0.6** (2026-07-05)
 
 - **Fix: Deprecated API replacement** — `Workspace.activeLeaf` → `Workspace.getMostRecentLeaf()` in `vertical-tabs.ts`, resolves `@typescript-eslint/no-deprecated` error

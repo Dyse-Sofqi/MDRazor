@@ -10,7 +10,7 @@
 
 /* 折叠符号悬停时不改变底色 */
 .mdrazor-section-heading .clickable-icon:hover {
-	background: none !important;
+	background: none;
 }
 
 /* ── 空格可视化 — 半透明 · 标记 ── */
@@ -21,11 +21,15 @@
 
 /* ── 软换行续行隐藏折叠符号 ──
  * 列表项软换行后，子项折叠符号不应出现在续行上，仅首行保留。
- * :has(.cm-formatting-list) 选中含列表符号的行（首行），取反即续行。
+ * 默认隐藏所有 .collapse-indicator，再对含列表符号的行（首行）显示。
  */
-.markdown-source-view.mod-cm6 .HyperMD-list-line:not(:has(.cm-formatting-list)) .list-collapse-indicator,
-.markdown-source-view.mod-cm6 .HyperMD-list-line:not(:has(.cm-formatting-list)) .collapse-indicator {
-	display: none !important;
+.markdown-source-view.mod-cm6 .HyperMD-list-line .list-collapse-indicator,
+.markdown-source-view.mod-cm6 .HyperMD-list-line .collapse-indicator {
+	display: none;
+}
+.markdown-source-view.mod-cm6 .HyperMD-list-line:has(.cm-formatting-list) .list-collapse-indicator,
+.markdown-source-view.mod-cm6 .HyperMD-list-line:has(.cm-formatting-list) .collapse-indicator {
+	display: flex;
 }
 
 /* ── 目录文件计数 ── */
@@ -40,8 +44,8 @@
 	user-select: none;
 	white-space: nowrap;
 }
-.nav-folder-title {
-	display: flex !important;
+div.nav-folder-title {
+	display: flex;
 	align-items: center;
 }
 .nav-folder-title-content {
@@ -72,7 +76,7 @@
  * tree-item CSS classes — all theme styles apply automatically.
  */
 .mdr-vertical-tabs-view .nav-files-container:not(.mdr-vt-custom-list) {
-	display: none !important;
+	display: none;
 }
 .mdr-vt-custom-list {
 	overflow-y: auto;

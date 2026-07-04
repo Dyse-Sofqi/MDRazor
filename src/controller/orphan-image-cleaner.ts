@@ -88,7 +88,7 @@ async function cleanOrphanImages(plugin: Plugin): Promise<void> {
 
 	for (const file of orphaned) {
 		try {
-			await plugin.app.fileManager.trashFile(file);
+			await plugin.app.vault.trash(file, true);
 			successCount++;
 			new Notice(`已清理: ${file.path}`);
 		} catch {

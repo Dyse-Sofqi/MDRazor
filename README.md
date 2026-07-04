@@ -108,6 +108,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.0.7** (2026-07-05)
+
+- **修复：失联图片清理 API 兼容性** — `FileManager.trashFile()` 仅 Obsidian ≥1.1.x 可用，回退至 `Vault.trash()`，使 `minAppVersion 1.0.0` 通过 eslint-plugin-obsidianmd 校验
+- **优化：CSS lint 清理** — 移除 4 处 `!important`（改用更高优先级选择器覆盖）、重构 `:has()` 写法消除 `:not(:has())`，消除 `no-important` / `no-recent-has` 警告
+
 **2.0.6** (2026-07-05)
 
 - **修复：弃用 API 替换** — `Workspace.activeLeaf` → `Workspace.getMostRecentLeaf()`，消除 `@typescript-eslint/no-deprecated` 报错
