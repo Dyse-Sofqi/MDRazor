@@ -108,6 +108,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.6** (2026-07-05)
+
+- **Fix: Deprecated API replacement** — `Workspace.activeLeaf` → `Workspace.getMostRecentLeaf()` in `vertical-tabs.ts`, resolves `@typescript-eslint/no-deprecated` error
+- **Fix: Vertical tabs hiding method** — removed `element.style.display = 'none'` in `renderCustomList` and `style.display = ''` in `destroyCustomList`; CSS class now controls visibility
+- **Fix: Orphan image cleaner API** — replaced `Vault.trash()` with `FileManager.trashFile()` to respect user's recycle-bin preference
+- **Fix: Space widget `toDOM` signature** — removed optional `?` from `toDOM(view?: EditorView)`, CM6 always passes an `EditorView` instance at runtime; removed `document` fallback
+
 **2.0.5** (2026-07-04)
 
 - **Rewrite: Vertical Tabs rendering engine** — replaced CSS-hiding + `fileItems` API with a custom DOM tree that replaces the virtual-scroller; only renders open tabs + ancestor folders. Uses native Obsidian CSS classes, inheriting all theme styles automatically

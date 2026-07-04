@@ -108,6 +108,13 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.0.6** (2026-07-05)
+
+- **修复：弃用 API 替换** — `Workspace.activeLeaf` → `Workspace.getMostRecentLeaf()`，消除 `@typescript-eslint/no-deprecated` 报错
+- **修复：垂直标签页隐藏方案** — 移除 `renderCustomList` 中 `element.style.display = 'none'` 和 `destroyCustomList` 中的 `style.display = ''`，改用 CSS class 控制可见性
+- **修复：失联图片清理 API 替换** — `Vault.trash()` → `FileManager.trashFile()`，尊重用户回收站偏好设置
+- **修复：空格可视化参数声明** — 移除 `toDOM(view?: EditorView)` 的可选标记，CM6 运行时始终传入 `EditorView` 实例；删除 `document` 兜底降级
+
 **2.0.5** (2026-07-04)
 
 - **重写：垂直标签页渲染引擎** — 弃用 CSS 隐藏 + `fileItems` API 方案，改为生成自定义 DOM 树替换虚拟滚动列表，仅渲染打开的标签页及祖先文件夹。使用原生 Obsidian CSS 类名，自动继承所有主题样式

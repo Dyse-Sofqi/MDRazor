@@ -25,8 +25,8 @@ import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
 export const spaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
 class SpaceWidget extends WidgetType {
-		toDOM(view?: EditorView): HTMLElement {
-			const doc = view?.dom.ownerDocument ?? document;
+		toDOM(view: EditorView): HTMLElement {
+			const doc = view.dom.ownerDocument;
 			const span = doc.createElement('span');
 			span.className = 'mdrazor-space-char';
 			span.textContent = '·';

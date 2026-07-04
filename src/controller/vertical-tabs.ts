@@ -266,8 +266,7 @@ export function registerVerticalTabs(
 	 * Triggered by leaf-change listener too.
 	 */
 	const getActiveFilePath = (): string | null => {
-		/* eslint-disable-next-line @typescript-eslint/no-deprecated -- only reliable API without importing View subclasses */
-		const al = app.workspace.activeLeaf;
+		const al = app.workspace.getMostRecentLeaf();
 		if (al) {
 			const f = (al.view as { file?: TFile })?.file;
 			if (f instanceof TFile) return f.path;
@@ -502,8 +501,7 @@ export function registerVerticalTabs(
 		if (!containerEl) return;
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 
-		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
-		if (realList) realList.style.display = 'none';
+			const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
 
 		const wrapper = doc.createElement('div');
 		wrapper.className = 'nav-files-container mdr-vt-custom-list';
@@ -518,10 +516,6 @@ export function registerVerticalTabs(
 		removeCaptureHandler();
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 		customCollapsed.clear();
-		if (containerEl) {
-			const realList = containerEl.querySelector<HTMLElement>('.nav-files-container:not(.mdr-vt-custom-list)');
-			if (realList) realList.style.display = '';
-		}
 	};
 
 	/* ---- apply / remove view state ---- */
