@@ -4,11 +4,15 @@
  * Integrates tab management into the file-explorer sidebar:
  *   A. Toggle button in nav-buttons-container (arrow-left-right icon)
  *   B. Close buttons on file titles whose tabs are open
- *   C. Tabs-only view: hide inactive files and empty folders, expand
- *      ancestor directories of active files
+ *   C. Tabs-only view: custom filtered DOM tree replacing the virtual-scroller
+ *      file list. Only open tabs + ancestor folders are rendered. Identical
+ *      Obsidian CSS classes — inherits all file-explorer styles automatically.
+ *
+ * Interaction is delegated via a single capture-phase handler on
+ * containerEl.parentElement — fires before dir-focus on containerEl.
  */
 
-import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon } from 'obsidian';
+import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon, Menu } from 'obsidian';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
@@ -29,6 +33,18 @@ interface FileExplorerView {
 const isHTMLElement = (n: Node): n is HTMLElement => n.nodeType === Node.ELEMENT_NODE;
 
 /* ------------------------------------------------------------------ */
+/*  Tree node (custom filtered list)                                    */
+/* ------------------------------------------------------------------ */
+
+interface TreeNode {
+	type: 'file' | 'folder';
+	path: string;
+	name: string;
+	isOpen: boolean;
+	children: TreeNode[];
+}
+
+/* ------------------------------------------------------------------ */
 /*  Lifecycle                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -42,9 +58,14 @@ export function registerVerticalTabs(
 	const { app } = plugin;
 
 	let containerEl: HTMLElement | null = null;
-	let observer: MutationObserver | null = null;
 	let toggleBtn: HTMLElement | null = null;
-	let savedFolderStates: Map<string, boolean> | null = null;
+	let customListEl: HTMLElement | null = null;
+	const customCollapsed = new Set<string>();
+	let leafChangeTimer: number | null = null;
+	let captureHandler: ((e: MouseEvent) => void) | null = null;
+	let lastActiveFilePath: string | null = null;
+	let closeBtnObserver: MutationObserver | null = null;
+
 	const doc = app.workspace.containerEl.ownerDocument;
 
 	/* ---- locate file-explorer container ---- */
@@ -63,14 +84,11 @@ export function registerVerticalTabs(
 	const getOpenFilePaths = (): Set<string> => {
 		const paths = new Set<string>();
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			/* eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- leaf.view untyped generic obsidian API */
 			const file = (leaf.view as { file?: TFile })?.file;
 			if (file instanceof TFile) {
 				paths.add(file.path);
 				return;
 			}
-			// Fallback: view state has file path even before view loads
-			// Covers inactive tabs restored on startup where .view is null
 			try {
 				const vs = leaf.getViewState?.();
 				if (vs?.state?.file && typeof vs.state.file === 'string') {
@@ -81,7 +99,60 @@ export function registerVerticalTabs(
 		return paths;
 	};
 
-	/* ---- close button factory (avoids duplication) ---- */
+	const getAncestorPaths = (openPaths: Set<string>): Set<string> => {
+		const paths = new Set<string>();
+		for (const p of openPaths) {
+			const file = app.vault.getAbstractFileByPath(p);
+			if (file) {
+				let parent = file.parent;
+				while (parent && !parent.isRoot()) {
+					paths.add(parent.path);
+					parent = parent.parent;
+				}
+			}
+		}
+		return paths;
+	};
+
+	const buildFilteredTree = (openPaths: Set<string>, ancestorPaths: Set<string>): TreeNode[] => {
+		return buildChildren(app.vault.getRoot(), openPaths, ancestorPaths);
+	};
+
+	const buildChildren = (
+		folder: TFolder,
+		openPaths: Set<string>,
+		ancestorPaths: Set<string>,
+	): TreeNode[] => {
+		const result: TreeNode[] = [];
+		const sorted = [...folder.children].sort((a, b) => {
+			const aIsFolder = a instanceof TFolder;
+			const bIsFolder = b instanceof TFolder;
+			if (aIsFolder && !bIsFolder) return -1;
+			if (!aIsFolder && bIsFolder) return 1;
+			return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+		});
+
+		for (const child of sorted) {
+			if (child instanceof TFile) {
+				if (openPaths.has(child.path)) {
+					result.push({ type: 'file', path: child.path, name: child.name.replace(/\.[^/.]+$/, ''), isOpen: true, children: [] });
+				}
+			} else if (child instanceof TFolder) {
+				if (ancestorPaths.has(child.path)) {
+					result.push({
+						type: 'folder',
+						path: child.path,
+						name: child.name.replace(/\.[^/.]+$/, ''),
+						isOpen: false,
+						children: buildChildren(child, openPaths, ancestorPaths),
+					});
+				}
+			}
+		}
+		return result;
+	};
+
+	/* ---- close button factory ---- */
 
 	const buildCloseBtn = (path: string): HTMLElement => {
 		const btn = doc.createElement('span');
@@ -108,10 +179,8 @@ export function registerVerticalTabs(
 		if (!containerEl) return;
 		const navButtons = containerEl.querySelector('.nav-buttons-container');
 		if (!navButtons) return;
-
 		const existing = navButtons.querySelector('.mdr-vertical-tabs-toggle');
 		if (existing) existing.remove();
-
 		if (!enabled()) return;
 
 		const btn = doc.createElement('div');
@@ -129,34 +198,20 @@ export function registerVerticalTabs(
 		toggleBtn = btn;
 	};
 
-	/* ---- B: close buttons ---- */
+	/* ---- B: close buttons on native file-list entries ---- */
 
-	const closeTab = (path: string): void => {
-		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			/* eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- leaf.view generic obsidian type, .path exists at runtime */
-			if ((leaf.view as { file?: { path: string } })?.file?.path === path) {
-				leaf.detach();
-				return;
-			}
-			// Pseudo tab: view not loaded, match via view state
-			if (!(leaf.view as { file?: unknown })?.file) {
-				try {
-					const vs = leaf.getViewState?.();
-					if (vs?.state?.file === path) {
-						leaf.detach();
-					}
-				} catch { /* leaf not ready */ }
-			}
-		});
-	};
-
-	const ensureCloseButtons = (): void => {
+	const refreshCloseButtons = (): void => {
 		if (!containerEl || !enabled()) return;
+		// Only touch the real (non-VT) file list
+		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container:not(.mdr-vt-custom-list)');
+		if (!realList) return;
 		const openPaths = getOpenFilePaths();
-		const fileTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title');
-
-		fileTitles.forEach((title) => {
-			const path = title.getAttribute('data-path');
+		realList.querySelectorAll<HTMLElement>('.nav-file-title').forEach((title) => {
+			let path = title.getAttribute('data-path');
+			if (!path) {
+				const navFile = title.closest('.nav-file');
+				if (navFile) path = navFile.getAttribute('data-path');
+			}
 			if (!path) return;
 			const existing = title.querySelector('.mdr-vertical-tab-close');
 			if (openPaths.has(path)) {
@@ -167,350 +222,408 @@ export function registerVerticalTabs(
 		});
 	};
 
-	const removeAllCloseButtons = (): void => {
-		if (!containerEl) return;
-		containerEl
-			.querySelectorAll('.mdr-vertical-tab-close')
-			.forEach((el) => el.remove());
-	};
-
-	/* ---- C: view toggle + class marks ---- */
-
-	/**
-	 * Request virtual-scroller recalc. No collapse-all hammer needed;
-	 * refreshClassMarks handles folder collapsing separately.
-	 */
-	const forceExplorerRefresh = (): void => {
-		const leaves = app.workspace.getLeavesOfType('file-explorer');
-		if (!leaves.length || !leaves[0]) return;
-		const view = leaves[0].view as unknown as FileExplorerView;
-		view.requestUpdate?.();
+	const closeTab = (path: string): void => {
+		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			if ((leaf.view as { file?: { path: string } })?.file?.path === path) {
+				leaf.detach();
+				return;
+			}
+			if (!(leaf.view as { file?: unknown })?.file) {
+				try {
+					const vs = leaf.getViewState?.();
+					if (vs?.state?.file === path) leaf.detach();
+				} catch { /* leaf not ready */ }
+			}
+		});
 	};
 
 	/**
-	 * Single-pass expand ancestors + collapse non-ancestors.
-	 * Called only after file titles confirmed in DOM.
+	 * Switch to existing tab if file already open, else open in current leaf.
+	 * Mirrors tab-enhancer.ts logic exactly.
 	 */
-	const syncFolderStates = (): void => {
-		const leaves = app.workspace.getLeavesOfType('file-explorer');
-		if (!leaves.length || !leaves[0]) return;
-		const view = leaves[0].view as unknown as FileExplorerView;
-
-		const ancestorPaths = getAncestorPaths(getOpenFilePaths());
-		const items = view.fileItems;
-		const entries = items instanceof Map ? Array.from(items.entries()) : Object.entries(items);
-		for (const [p, item] of entries) {
-			const af = app.vault.getAbstractFileByPath(p);
-			if (!af) continue;
-			const expand = ancestorPaths.has(p);
-			try { item.setCollapsed(!expand); } catch { /* skip */ }
+	const openOrSwitchTab = (path: string): void => {
+		let existingLeaf: WorkspaceLeaf | null = null;
+		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			const lf = (leaf.view as { file?: TFile })?.file;
+			if (lf instanceof TFile && lf.path === path) {
+				existingLeaf = leaf;
+				return;
+			}
+			try {
+				const vs = leaf.getViewState?.();
+				if (vs?.state?.file === path) existingLeaf = leaf;
+			} catch { /* skip */ }
+		});
+		if (existingLeaf) {
+			void app.workspace.setActiveLeaf(existingLeaf, { focus: true });
+		} else {
+			void app.workspace.openLinkText(path, '', false);
 		}
-		view.requestUpdate?.();
 	};
 
 	/**
-	 * Wait until all target file-title elements appear in DOM, or timeout.
+	 * Path of the file currently active in the workspace (displayed tab).
+	 * Triggered by leaf-change listener too.
 	 */
-	const waitForFileTitles = (paths: Set<string>, timeout = 1500): Promise<void> => {
-		if (!containerEl || paths.size === 0) return Promise.resolve();
-		const found = (): boolean => {
-			for (const p of paths) {
-				if (!containerEl!.querySelector(`.nav-file-title[data-path="${CSS.escape(p)}"]`)) return false;
-			}
-			return true;
-		};
-		if (found()) return Promise.resolve();
-		return new Promise((resolve) => {
-			const mo = new MutationObserver(() => { if (found()) { mo.disconnect(); resolve(); } });
-			mo.observe(containerEl!, { childList: true, subtree: true });
-			window.setTimeout(() => { mo.disconnect(); resolve(); }, timeout);
-		});
+	const getActiveFilePath = (): string | null => {
+		/* eslint-disable-next-line @typescript-eslint/no-deprecated -- only reliable API without importing View subclasses */
+		const al = app.workspace.activeLeaf;
+		if (al) {
+			const f = (al.view as { file?: TFile })?.file;
+			if (f instanceof TFile) return f.path;
+			try {
+				const vs = al.getViewState?.();
+				if (vs?.state?.file && typeof vs.state.file === 'string') return vs.state.file;
+			} catch { /* skip */ }
+		}
+		// Fallback: cache from last known active file. Prevents highlight
+		// loss when sidebar/blank-area click triggers leaf-change to a
+		// non-file leaf (file-explorer, search, etc.).
+		return lastActiveFilePath;
 	};
 
 	/**
-	 * Compute ancestor folder paths of all open files from vault tree.
+	 * Highlight a file title in custom list by setting is-active class.
+	 * Set highlight to null to clear all.
 	 */
-	const getAncestorPaths = (openPaths: Set<string>): Set<string> => {
-		const paths = new Set<string>();
-		for (const path of openPaths) {
-			const file = app.vault.getAbstractFileByPath(path);
-			if (file) {
-				let parent = file.parent;
-				while (parent && !parent.isRoot()) {
-					paths.add(parent.path);
-					parent = parent.parent;
-				}
-			}
+	const setFileHighlight = (newPath: string | null): void => {
+		if (!customListEl) return;
+		const oldActive = customListEl.querySelector<HTMLElement>('.tree-item-self.nav-file-title.is-active');
+		if (oldActive) oldActive.classList.remove('is-active');
+
+		lastActiveFilePath = newPath;
+
+		if (newPath) {
+			const fileEl = customListEl.querySelector<HTMLElement>(
+				`.nav-file[data-path="${CSS.escape(newPath)}"] > .tree-item-self.nav-file-title`,
+			);
+			if (fileEl) fileEl.classList.add('is-active');
 		}
-		return paths;
 	};
 
-	const collapseAllFolders = (): void => {
-		const leaves = app.workspace.getLeavesOfType('file-explorer');
-		if (!leaves.length || !leaves[0]) return;
-		const view = leaves[0].view as unknown as FileExplorerView;
-		const items = view.fileItems;
-		const entries = items instanceof Map ? Array.from(items.entries()) : Object.entries(items);
-		for (const [p, item] of entries) {
-			const af = app.vault.getAbstractFileByPath(p);
-			if (!af || (af instanceof TFolder && af.isRoot())) continue;
-			try { item.setCollapsed(true); } catch { /* skip */ }
+	/* ---- C: custom filtered list ---- */
+
+	const renderTreeNode = (node: TreeNode, depth: number, activePath: string | null): HTMLElement => {
+		const itemEl = doc.createElement('div');
+		itemEl.className = `tree-item ${node.type === 'folder' ? 'nav-folder' : 'nav-file'}`;
+		itemEl.setAttribute('data-path', node.path);
+
+		if (node.type === 'folder') {
+			const isCollapsed = customCollapsed.has(node.path);
+			itemEl.classList.toggle('is-collapsed', isCollapsed);
+
+			const selfEl = doc.createElement('div');
+			selfEl.className = 'tree-item-self is-clickable nav-folder-title';
+
+			const chevronEl = doc.createElement('div');
+			chevronEl.className = 'tree-item-icon collapse-icon';
+			setIcon(chevronEl, isCollapsed ? 'chevron-right' : 'chevron-down');
+			selfEl.appendChild(chevronEl);
+
+			const innerEl = doc.createElement('div');
+			innerEl.className = 'tree-item-inner nav-folder-title-content';
+			innerEl.textContent = node.name;
+			selfEl.appendChild(innerEl);
+
+			itemEl.appendChild(selfEl);
+
+			const childrenEl = doc.createElement('div');
+			childrenEl.className = 'tree-item-children nav-folder-children';
+			for (const child of node.children) {
+				childrenEl.appendChild(renderTreeNode(child, depth + 1, activePath));
+			}
+			itemEl.appendChild(childrenEl);
+		} else {
+			const selfEl = doc.createElement('div');
+			selfEl.className = 'tree-item-self is-clickable nav-file-title';
+
+			if (node.path === activePath) {
+				selfEl.classList.add('is-active');
+			}
+
+			const innerEl = doc.createElement('div');
+			innerEl.className = 'tree-item-inner nav-file-title-content';
+			innerEl.textContent = node.name;
+			selfEl.appendChild(innerEl);
+
+			if (node.isOpen) {
+				itemEl.classList.add('mdr-vertical-tab-active');
+				addCloseBtnToTitle(selfEl, node.path);
+			}
+
+			itemEl.appendChild(selfEl);
 		}
-		view.requestUpdate?.();
+
+		return itemEl;
 	};
 
-	const refreshClassMarks = (): void => {
-		if (!containerEl) return;
-		const openPaths = getOpenFilePaths();
+	const toggleCustomFolder = (path: string): void => {
+		if (!customListEl) return;
+		const folderEl = customListEl.querySelector<HTMLElement>(
+			`.nav-folder[data-path="${CSS.escape(path)}"]`,
+		);
+		if (!folderEl) return;
 
-		// Mark file titles
-		const fileTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title');
-		fileTitles.forEach((title) => {
-			const path = title.getAttribute('data-path');
-			if (path && openPaths.has(path)) {
-				title.classList.add('mdr-vertical-tab-active');
-			} else {
-				title.classList.remove('mdr-vertical-tab-active');
-			}
-		});
+		if (customCollapsed.has(path)) {
+			customCollapsed.delete(path);
+			folderEl.classList.remove('is-collapsed');
+		} else {
+			customCollapsed.add(path);
+			folderEl.classList.add('is-collapsed');
+		}
 
-		// Mark folder containers using pre-computed ancestor paths.
-		const ancestorPaths = getAncestorPaths(openPaths);
-		const folderTitles = containerEl.querySelectorAll<HTMLElement>('.nav-folder-title');
-		folderTitles.forEach((folder) => {
-			const folderEl = folder.closest('.nav-folder');
-			if (!folderEl) return;
-			let path = folder.getAttribute('data-path');
-			if (!path) path = folderEl.getAttribute('data-path');
-			if (path && ancestorPaths.has(path)) {
-				folderEl.classList.add('mdr-vertical-tab-has-active');
-			} else {
-				folderEl.classList.remove('mdr-vertical-tab-has-active');
-			}
-		});
-
-		// Re-mark folders for any newly rendered file titles
-		const activeTitles = containerEl.querySelectorAll<HTMLElement>('.nav-file-title.mdr-vertical-tab-active');
-		activeTitles.forEach((title) => {
-			let el: Element | null = title.closest('.nav-folder');
-			while (el) {
-				if (!el.classList.contains('mdr-vertical-tab-has-active')) {
-					el.classList.add('mdr-vertical-tab-has-active');
-				}
-				el = el.parentElement?.closest('.nav-folder') ?? null;
-			}
-		});
+		const chevron = folderEl.querySelector<HTMLElement>(':scope > .tree-item-self .collapse-icon');
+		if (chevron) {
+			chevron.empty();
+			setIcon(chevron, customCollapsed.has(path) ? 'chevron-right' : 'chevron-down');
+		}
 	};
 
-	/* ---- save/restore folder states on view toggle ---- */
-	const saveCurrentFolderStates = (): void => {
-		savedFolderStates = new Map();
-		if (!containerEl) return;
-		const folderEls = containerEl.querySelectorAll<HTMLElement>('.nav-folder');
-		folderEls.forEach((folderEl) => {
+	const setAllCustomFolders = (collapsed: boolean): void => {
+		if (!customListEl) return;
+		const folders = customListEl.querySelectorAll<HTMLElement>('.nav-folder');
+		folders.forEach((folderEl) => {
 			const path = folderEl.getAttribute('data-path');
-			if (path) savedFolderStates!.set(path, folderEl.classList.contains('is-collapsed'));
+			if (!path) return;
+			if (collapsed) {
+				customCollapsed.add(path);
+				folderEl.classList.add('is-collapsed');
+			} else {
+				customCollapsed.delete(path);
+				folderEl.classList.remove('is-collapsed');
+			}
+			const chevron = folderEl.querySelector<HTMLElement>(':scope > .tree-item-self .collapse-icon');
+			if (chevron) {
+				chevron.empty();
+				setIcon(chevron, collapsed ? 'chevron-right' : 'chevron-down');
+			}
 		});
 	};
 
-	const restoreFolderStates = (): void => {
-		if (!savedFolderStates || savedFolderStates.size === 0) return;
-		const leaves = app.workspace.getLeavesOfType('file-explorer');
-		if (!leaves.length || !leaves[0]) return;
-		const view = leaves[0].view as unknown as FileExplorerView;
-		const items = view.fileItems;
-		for (const [path, collapsed] of savedFolderStates) {
-			const item = items instanceof Map ? items.get(path) : items[path];
-			if (item) {
-				try { item.setCollapsed(collapsed); } catch { /* skip */ }
-			}
-		}
-		view.requestUpdate?.();
-		savedFolderStates.clear();
+	const showContextMenu = (e: MouseEvent, path: string): void => {
+		const abstractFile = app.vault.getAbstractFileByPath(path);
+		if (!abstractFile) return;
+		const menu = new Menu();
+		app.workspace.trigger('file-menu', menu, abstractFile, 'file-explorer');
+		(menu as unknown as { showAtMouseEvent(e: MouseEvent): void }).showAtMouseEvent(e);
 	};
+
+	/* ---- delegated interaction ---- */
+
+	const installCaptureHandler = (): void => {
+		if (!containerEl) return;
+		removeCaptureHandler();
+
+		captureHandler = (e: MouseEvent) => {
+			if (!isViewActive() || !customListEl) return;
+			const target = e.target as HTMLElement;
+
+			if (target.closest('.mdr-vertical-tab-close')) return;
+
+			if (e.type === 'contextmenu') {
+				const ctxTarget = target.closest<HTMLElement>('[data-path]');
+				if (ctxTarget) {
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					e.preventDefault();
+					const path = ctxTarget.getAttribute('data-path');
+					if (path) showContextMenu(e, path);
+				}
+				return;
+			}
+
+			const navBtn = target.closest('.nav-action-button');
+			if (navBtn) {
+				const label = navBtn.getAttribute('aria-label') ?? '';
+				if (label === 'Collapse all' || label === 'Expand all') {
+					const collapse = label === 'Collapse all';
+					void Promise.resolve().then(() => {
+						if (customListEl && isViewActive()) setAllCustomFolders(collapse);
+					});
+					return;
+				}
+			}
+
+			const folderTitle = target.closest('.nav-folder-title');
+			if (folderTitle) {
+				const folderEl = folderTitle.closest('.nav-folder');
+				const path = folderEl?.getAttribute('data-path');
+				if (path) {
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					e.preventDefault();
+					toggleCustomFolder(path);
+					return;
+				}
+			}
+
+			const fileTitle = target.closest<HTMLElement>('.nav-file-title');
+			if (fileTitle) {
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+				e.preventDefault();
+				const fileEl = fileTitle.closest('.nav-file');
+				const path = fileEl?.getAttribute('data-path');
+				if (path) {
+					const abstractFile = app.vault.getAbstractFileByPath(path);
+					if (abstractFile instanceof TFile) {
+						if (e.button === 1 || e.ctrlKey || e.metaKey) {
+							void app.workspace.openLinkText(path, '', 'tab');
+						} else {
+							openOrSwitchTab(path);
+						}
+						// Update is-active immediately — don't wait for leaf-change rebuild
+						setFileHighlight(path);
+					}
+				}
+				return;
+			}
+		};
+
+		const hostEl = containerEl.parentElement;
+		if (!hostEl) return;
+		hostEl.addEventListener('click', captureHandler, true);
+		hostEl.addEventListener('contextmenu', captureHandler, true);
+	};
+
+	const removeCaptureHandler = (): void => {
+		if (!captureHandler) return;
+		const hostEl = containerEl?.parentElement;
+		if (hostEl) {
+			hostEl.removeEventListener('click', captureHandler, true);
+			hostEl.removeEventListener('contextmenu', captureHandler, true);
+		}
+		captureHandler = null;
+	};
+
+	/* ---- custom list lifecycle ---- */
+
+	const renderCustomList = (tree: TreeNode[], activePath: string | null): void => {
+		if (!containerEl) return;
+		if (customListEl) { customListEl.remove(); customListEl = null; }
+
+		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
+		if (realList) realList.style.display = 'none';
+
+		const wrapper = doc.createElement('div');
+		wrapper.className = 'nav-files-container mdr-vt-custom-list';
+		for (const node of tree) wrapper.appendChild(renderTreeNode(node, 0, activePath));
+		if (realList) realList.after(wrapper); else containerEl.appendChild(wrapper);
+
+		customListEl = wrapper;
+		installCaptureHandler();
+	};
+
+	const destroyCustomList = (): void => {
+		removeCaptureHandler();
+		if (customListEl) { customListEl.remove(); customListEl = null; }
+		customCollapsed.clear();
+		if (containerEl) {
+			const realList = containerEl.querySelector<HTMLElement>('.nav-files-container:not(.mdr-vt-custom-list)');
+			if (realList) realList.style.display = '';
+		}
+	};
+
+	/* ---- apply / remove view state ---- */
 
 	const applyViewState = (): void => {
 		if (!containerEl) return;
-
-		/* save scroll position before DOM-altering ops */
-		const scroller = containerEl.querySelector('.nav-files-container');
-		const savedScrollTop = scroller?.scrollTop ?? 0;
-
 		if (!enabled() || !isViewActive()) {
 			const wasActive = containerEl.classList.contains('mdr-vertical-tabs-view');
+			if (!wasActive) return;
 			containerEl.classList.remove('mdr-vertical-tabs-view');
-			if (wasActive) restoreFolderStates();
+			destroyCustomList();
 			return;
 		}
 
-		saveCurrentFolderStates();
-		forceExplorerRefresh();
 		containerEl.classList.add('mdr-vertical-tabs-view');
-
-		// Single-pass expand ancestors + collapse non-ancestors, then wait
-		// for file titles to appear in DOM before marking.
 		const openPaths = getOpenFilePaths();
-		if (openPaths.size === 0) {
-			refreshClassMarks();
-			collapseAllFolders();
-			window.requestAnimationFrame(() => {
-				if (scroller) scroller.scrollTop = 0;
-			});
-			return;
+		if (openPaths.size === 0) { renderCustomList([], null); return; }
+
+		// Resolve active path: try workspace activeLeaf, fall back to first open tab
+		let activePath = getActiveFilePath();
+		if (!activePath) {
+			activePath = openPaths.values().next().value ?? null;
 		}
-		syncFolderStates();
 
-		waitForFileTitles(openPaths).then(() => {
-			if (!containerEl || !isViewActive()) return;
-			refreshClassMarks();
-			window.requestAnimationFrame(() => {
-				if (scroller) scroller.scrollTop = savedScrollTop;
-			});
-		}).catch(() => { });
+		const ancestorPaths = getAncestorPaths(openPaths);
+		renderCustomList(buildFilteredTree(openPaths, ancestorPaths), activePath);
 	};
 
-	/* ---- mutation observer (handle folder expand/collapse) ---- */
-
-	const startObserver = (): void => {
-		if (!containerEl) return;
-		if (observer) observer.disconnect();
-
-		observer = new MutationObserver((mutations) => {
-			if (!enabled()) return;
-			const openPaths = getOpenFilePaths();
-			const ancestorPaths = getAncestorPaths(openPaths);
-			for (const mutation of mutations) {
-				const addedNodes = Array.from(mutation.addedNodes);
-				for (const node of addedNodes) {
-					if (!isHTMLElement(node)) continue;
-					const candidates = node.classList.contains('nav-file-title')
-						? [node]
-						: Array.from(node.querySelectorAll<HTMLElement>('.nav-file-title'));
-					for (const title of candidates) {
-						const path = title.getAttribute('data-path');
-						if (!path) continue;
-						if (openPaths.has(path)) {
-							addCloseBtnToTitle(title, path);
-							if (isViewActive()) title.classList.add('mdr-vertical-tab-active');
-						}
-					}
-					// Mark ancestor folders for all added nodes containing nav-folder
-					if (isViewActive() && isHTMLElement(node)) {
-						const newFolders = node.classList.contains('nav-folder')
-							? [node]
-							: Array.from(node.querySelectorAll<HTMLElement>('.nav-folder'));
-						for (const folderEl of newFolders) {
-							const path = folderEl.getAttribute('data-path');
-							if (path && ancestorPaths.has(path)) {
-								folderEl.classList.add('mdr-vertical-tab-has-active');
-							}
-						}
-					}
-				}
-			}
-		});
-
-		observer.observe(containerEl, {
-			childList: true,
-			subtree: true,
-		});
-	};
-
-	/* ---- leaf change listener ---- */
+	/* ---- leaf change (debounced) ---- */
 
 	const onLeafChange = (): void => {
 		if (!containerEl || !enabled()) return;
-		ensureCloseButtons();
-		if (isViewActive()) {
-			applyViewState();
-		}
+		refreshCloseButtons();
+		if (!isViewActive()) return;
+		if (leafChangeTimer !== null) window.clearTimeout(leafChangeTimer);
+		leafChangeTimer = window.setTimeout(() => {
+			leafChangeTimer = null;
+			if (containerEl && isViewActive()) {
+				applyViewState();
+			}
+		}, 100);
+	};
+
+	/* ---- observer for virtual-scrolled close buttons ---- */
+
+	const startCloseBtnObserver = (): void => {
+		if (!containerEl) return;
+		if (closeBtnObserver) closeBtnObserver.disconnect();
+
+		closeBtnObserver = new MutationObserver(() => {
+			if (!containerEl || !enabled()) return;
+			refreshCloseButtons();
+		});
+
+		closeBtnObserver.observe(containerEl, { childList: true, subtree: true });
+	};
+
+	const stopCloseBtnObserver = (): void => {
+		if (closeBtnObserver) { closeBtnObserver.disconnect(); closeBtnObserver = null; }
 	};
 
 	/* ---- attach / detach ---- */
 
-	const syncAll = (): void => {
-		ensureCloseButtons();
-		refreshClassMarks();
-	};
-
 	const attach = (): void => {
 		if (!containerEl) return;
-		startObserver();
 		injectToggleButton();
-
-		// Initial pass
-		syncAll();
-		if (isViewActive()) {
-			applyViewState();
-		}
-
-		// One async follow-up - observer handles rest
-		window.requestAnimationFrame(() => {
-			if (containerEl && isViewActive()) {
-				ensureCloseButtons();
-				refreshClassMarks();
-			}
-		});
+		startCloseBtnObserver();
+		refreshCloseButtons();
+		if (isViewActive()) applyViewState();
 	};
 
 	const detach = (): void => {
-		if (observer) {
-			observer.disconnect();
-			observer = null;
-		}
-		removeAllCloseButtons();
-		if (toggleBtn) {
-			toggleBtn.remove();
-			toggleBtn = null;
-		}
-		if (containerEl) {
-			containerEl.classList.remove('mdr-vertical-tabs-view');
-		}
+		destroyCustomList();
+		stopCloseBtnObserver();
+		if (toggleBtn) { toggleBtn.remove(); toggleBtn = null; }
+		if (leafChangeTimer !== null) { window.clearTimeout(leafChangeTimer); leafChangeTimer = null; }
+		if (containerEl) containerEl.classList.remove('mdr-vertical-tabs-view');
+		refreshCloseButtons();
 	};
 
-	/* ---- initial setup (layout-ready with retry) ---- */
+	/* ---- initial setup ---- */
 
 	app.workspace.onLayoutReady(() => {
 		if (!findContainer()) {
 			let retries = 0;
 			const interval = window.setInterval(() => {
-				if (containerEl) {
-					window.clearInterval(interval);
-					return;
-				}
-				if (retries++ >= 3) {
-					window.clearInterval(interval);
-					return;
-				}
-				if (findContainer()) {
-					window.clearInterval(interval);
-					attach();
-				}
+				if (containerEl) { window.clearInterval(interval); return; }
+				if (retries++ >= 3) { window.clearInterval(interval); return; }
+				if (findContainer()) { window.clearInterval(interval); attach(); }
 			}, 500);
 			return;
 		}
 		attach();
 	});
 
-	/* ---- re-attach on layout-change ---- */
+	plugin.registerEvent(app.workspace.on('layout-change', () => {
+		detach();
+		containerEl = null;
+		if (findContainer()) attach();
+	}));
 
-	plugin.registerEvent(
-		app.workspace.on('layout-change', () => {
-			detach();
-			containerEl = null;
-			if (findContainer()) attach();
-		}),
-	);
-
-	/* ---- update close buttons + view on active-leaf-change ---- */
-
-	plugin.registerEvent(
-		app.workspace.on('active-leaf-change', () => {
-			onLeafChange();
-		}),
-	);
-
-	/* ---- cleanup on unload ---- */
+	plugin.registerEvent(app.workspace.on('active-leaf-change', () => onLeafChange()));
 
 	plugin.register(() => detach());
 }

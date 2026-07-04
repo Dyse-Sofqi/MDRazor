@@ -108,6 +108,17 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.0.5** (2026-07-04)
+
+- **Rewrite: Vertical Tabs rendering engine** — replaced CSS-hiding + `fileItems` API with a custom DOM tree that replaces the virtual-scroller; only renders open tabs + ancestor folders. Uses native Obsidian CSS classes, inheriting all theme styles automatically
+- **Fix: Close buttons missing from file-list entries** — dual-path `data-path` detection (`.nav-file-title` first, `.nav-file` ancestor fallback) + MutationObserver handles virtual-scroller delayed rendering
+- **Fix: Highlight (is-active) lost on tab switch** — immediately apply highlight on file click, don't wait for async leaf-change rebuild; fallback to `lastActiveFilePath` cache when non-file leaf activates
+- **Fix: No highlight on first VT toggle after startup/refresh** — fallback to first open tab when active path resolution fails
+- **Fix: Folder names in VT custom list had extension stripped** — `name.replace(/\.[^/.]+$/, '')` now only applies to file nodes, folders no longer lose trailing characters
+- **Fix: Close buttons persisted after tab closed in VT view** — `refreshCloseButtons()` re-scans on `detach()` and leaf-change, removes orphan close buttons
+- **Change: VT interaction switched to capture-phase events** — capture listener on `containerEl.parentElement` fires before dir-focus on containerEl
+- **Removed: Deprecated polling retries, save/restore folder states, CSS display:none hiding, full `forceExplorerRefresh`**
+
 **2.0.4** (2026-07-03)
 
 - Fix: Vertical Tabs sync refactored — replaced polling retries + full collapse-expand refresh with MutationObserver that waits for file-title DOM readiness + single-pass `syncFolderStates` (expand ancestors, collapse rest), plus `collapseAllFolders` on startup

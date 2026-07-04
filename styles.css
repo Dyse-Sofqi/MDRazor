@@ -66,14 +66,27 @@
 	display: block;
 }
 
-/* 标签页列表视图：隐藏非活跃文件和不含活跃文件的目录（含其子节点）
- * Non-ancestor folders collapsed via setCollapsed(true) — children removed
- * from DOM, no virtual-scroller corruption. Only a few files in expanded
- * ancestor folders get CSS display:none. */
-.mdr-vertical-tabs-view .nav-file-title:not(.mdr-vertical-tab-active),
-.mdr-vertical-tabs-view .nav-folder:not(.mdr-vertical-tab-has-active) {
+/*
+ * Tabs-only view: hide the real virtual-scroller file list and show a
+ * custom filtered DOM list instead. Custom list uses identical Obsidian
+ * tree-item CSS classes — all theme styles apply automatically.
+ */
+.mdr-vertical-tabs-view .nav-files-container:not(.mdr-vt-custom-list) {
+	display: none !important;
+}
+.mdr-vt-custom-list {
+	overflow-y: auto;
+	flex: 1 1 auto;
+}
+/*
+ * Custom list uses .is-collapsed class to hide children in place
+ * (real file-explorer removes children from DOM entirely via
+ * setCollapsed(), so no built-in CSS rule exists for this).
+ */
+.mdr-vt-custom-list .nav-folder.is-collapsed > .nav-folder-children {
 	display: none;
 }
+
 /* 垂直标签页视图中不显示目录文件计数 */
 .mdr-vertical-tabs-view .mdr-dir-file-count {
 	display: none;

@@ -108,6 +108,17 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.0.5** (2026-07-04)
+
+- **重写：垂直标签页渲染引擎** — 弃用 CSS 隐藏 + `fileItems` API 方案，改为生成自定义 DOM 树替换虚拟滚动列表，仅渲染打开的标签页及祖先文件夹。使用原生 Obsidian CSS 类名，自动继承所有主题样式
+- **修复：文件列表中已打开文件的关闭按钮不显示** — 双路径 data-path 检测（`.nav-file-title` 优先，降级 `.nav-file` 祖先）+ MutationObserver 处理虚拟滚动延迟渲染
+- **修复：切换标签页后高亮 (is-active) 丢失** — 点击文件时立即设置高亮，不等待 leaf-change 异步重建；非文件 leaf 激活时回退 `lastActiveFilePath` 缓存
+- **修复：启动/刷新后首次切换 VT 视图无高亮** — resolve 活跃路径失败时 fallback 到第一个打开的标签页
+- **修复：VT 自定义列表中文件夹名误去除扩展名** — `name.replace(/\.[^/.]+$/, '')` 仅限文件节点，文件夹不再错误移除末尾字符
+- **修复：VT 文件列表关闭按钮在标签页关闭后残留** — `refreshCloseButtons()` 在 `detach()` 及 leaf-change 时重新扫描，移除 orphan 关闭按钮
+- **优化：VT 交互改为捕获阶段事件** — `containerEl.parentElement` 上 capture listener 优先于 containerEl 上的目录聚焦事件触发
+- **删除：弃用的轮询重试、save/restore 文件夹状态、CSS display:none 隐藏方案、全量 `forceExplorerRefresh`**
+
 **2.0.4** (2026-07-03)
 
 - 修复：垂直标签页同步流程重构 — 弃用轮询重试 + 全量折叠展开刷新，改用 MutationObserver 等待文件标题 DOM 就绪 + 单次 `syncFolderStates` 展开祖先/折叠非祖先，起始处 `collapseAllFolders` 折叠全部文件夹
