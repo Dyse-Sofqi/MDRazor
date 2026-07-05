@@ -1,8 +1,9 @@
 {
 	"id": "md-razor",
 	"name": "MDRazor",
+	"version": "2.1.1",
 	"minAppVersion": "1.0.0",
-	"description": "Enhanced markdown editing: hide formatting markers, list enhancement with soft-break.",
+	"description": "Hide formatting markers, list enhancement with soft-break, dir focus, vertical tabs, auto save workspace, auto pic clean.",
 	"author": "Sofqi",
 	"authorUrl": "https://github.com/Dyse-Sofqi",
 	"fundingUrl": "https://github.com/Dyse-Sofqi/ziping/blob/main/zanshang.jpg",
