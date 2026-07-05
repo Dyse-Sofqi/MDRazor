@@ -54,7 +54,7 @@ export default class MDRazorPlugin extends Plugin {
 		this.orphanImageRibbon = registerOrphanImageCleaner(this);
 
 		// 注册状态栏增强
-		this.statusBarEnhancer = registerStatusBarEnhancer(this);
+		this.statusBarEnhancer = registerStatusBarEnhancer(this, () => this.settings.autoSaveWorkspaceLayout);
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染

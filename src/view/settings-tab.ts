@@ -299,6 +299,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(containerEl)
+			.setName('自动更新工作区布局')
+			.setDesc('切换或加载工作区时，自动保存当前工作区布局。与 Obsidian 原生"加载工作区"功能及本插件工作区切换联动')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoSaveWorkspaceLayout)
+					.onChange(async (value) => {
+						this.plugin.settings.autoSaveWorkspaceLayout = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 
 	/**

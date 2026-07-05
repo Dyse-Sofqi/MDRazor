@@ -44,6 +44,7 @@ export interface MDRazorSettings {
 
 	// ── 状态栏增强 (status-bar-enhancer.ts) ──
 	statusBarEnhancement: boolean;
+	autoSaveWorkspaceLayout: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -68,4 +69,5 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	verticalTabsViewActive: false,
 
 	statusBarEnhancement: true,
+	autoSaveWorkspaceLayout: true,
 };

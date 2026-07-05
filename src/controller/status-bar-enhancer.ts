@@ -7,6 +7,7 @@ import { Plugin, type App } from 'obsidian';
 interface WorkspacesPluginInstance {
 	workspaces: Record<string, unknown>;
 	loadWorkspace(name: string): Promise<void>;
+	saveWorkspace(name: string): Promise<void>;
 }
 
 interface AppInternalPlugins {
@@ -22,10 +23,12 @@ function getWorkspacesPlugin(app: App): WorkspacesPluginInstance | null {
 
 export function registerStatusBarEnhancer(
 	plugin: Plugin,
+	autoSaveEnabled: () => boolean,
 ): { addButton: () => void; removeButton: () => void } {
 	let statusBarEl: HTMLElement | null = null;
 	let menuEl: HTMLElement | null = null;
 	let currentWorkspaceName: string | null = null;
+	let nativeLoadWorkspace: ((name: string) => Promise<void>) | null = null;
 	const doc = plugin.app.workspace.containerEl.ownerDocument;
 
 	const updateButtonText = (): void => {
@@ -40,11 +43,28 @@ export function registerStatusBarEnhancer(
 		const wp = getWorkspacesPlugin(plugin.app);
 		if (!wp) return;
 		try {
+			// 自动保存：切换前先保存当前工作区布局
+			if (autoSaveEnabled() && currentWorkspaceName) {
+				try {
+					await saveCurrentWorkspace(wp, currentWorkspaceName);
+				} catch (e) {
+					console.error('MDRazor: failed to auto-save workspace', currentWorkspaceName, e);
+				}
+			}
 			await wp.loadWorkspace(name);
 			currentWorkspaceName = name;
 			updateButtonText();
 		} catch (e) {
 			console.error('MDRazor: failed to switch workspace', e);
+		}
+	};
+
+	const saveCurrentWorkspace = async (
+		wp: WorkspacesPluginInstance,
+		name: string,
+	): Promise<void> => {
+		if (wp.saveWorkspace) {
+			await wp.saveWorkspace(name);
 		}
 	};
 
@@ -167,12 +187,36 @@ export function registerStatusBarEnhancer(
 		const wp = getWorkspacesPlugin(plugin.app);
 		if (wp) {
 			currentWorkspaceName = findCurrentWorkspace(wp);
+			// Monkey-patch: 拦截原生 loadWorkspace，切换前自动保存当前布局
+			if (autoSaveEnabled()) {
+				nativeLoadWorkspace = wp.loadWorkspace.bind(wp);
+				wp.loadWorkspace = async (name: string) => {
+					if (currentWorkspaceName && currentWorkspaceName !== name) {
+						if (wp.saveWorkspace) {
+							try {
+								await wp.saveWorkspace(currentWorkspaceName);
+							} catch (e) {
+								console.error('MDRazor: failed to auto-save workspace before native load', currentWorkspaceName, e);
+							}
+						}
+					}
+					await nativeLoadWorkspace!(name);
+					currentWorkspaceName = name;
+					updateButtonText();
+				};
+			}
 		}
 		updateButtonText();
 	};
 
 	const removeButton = (): void => {
 		removeMenu();
+		// 恢复原生 loadWorkspace
+		const wp = getWorkspacesPlugin(plugin.app);
+		if (wp && nativeLoadWorkspace) {
+			wp.loadWorkspace = nativeLoadWorkspace;
+			nativeLoadWorkspace = null;
+		}
 		if (statusBarEl) {
 			statusBarEl.remove();
 			statusBarEl = null;

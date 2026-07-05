@@ -104,9 +104,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
-- **Statusbar Enhancement** — 1 toggle: Workspace Switch
+- **Statusbar Enhancement** — 2 toggles: Workspace Switch, Auto-save Workspace Layout
 
 ### Changelog
+
+**2.1.0** (2026-07-05)
+
+- **New: Auto-save workspace layout** — Automatically saves the current workspace layout before switching to or loading another workspace. Intercepts Obsidian's native "Load Workspace" via monkey-patching `loadWorkspace`, and also integrates with the plugin's own status-bar workspace switcher. Independent toggle under "Statusbar Enhancement" in the settings panel, enabled by default
 
 **2.0.7** (2026-07-05)
 
