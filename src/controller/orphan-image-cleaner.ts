@@ -113,6 +113,8 @@ const IMG_REF_PATTERNS = [
 	/!\[[^\]]*\]\(([^)]+)\)/g,
 	// HTML img tag: <img src="path/to/image.png" ...>
 	/<img[^>]+src\s*=\s*["']([^"']+)["']/gi,
+	// Wiki link without !: [[path/to/image.png]] or [[image.png|alt]]
+	/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g,
 ];
 
 /**

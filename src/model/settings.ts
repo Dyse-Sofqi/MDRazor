@@ -24,6 +24,7 @@ export interface MDRazorSettings {
 	hideCodeFormatting: boolean;
 	hideEscapeFormatting: boolean;
 	hideHeadingFormatting: boolean;
+	hideWikiLinkFormatting: boolean;
 
 	// ── 列表增强 (list-enhancer.ts) ──
 	listIntegration: boolean;
@@ -56,6 +57,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideCodeFormatting: true,
 	hideEscapeFormatting: true,
 	hideHeadingFormatting: true,
+	hideWikiLinkFormatting: true,
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,

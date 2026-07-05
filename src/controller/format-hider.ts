@@ -2,7 +2,7 @@
  * MDRazor — 隐藏样式模块（Controller）
  *
  * 在 Obsidian 实时预览模式下，通过 CodeMirror 6 装饰隐藏 Markdown
- * 格式化标记符号（**、*、==、~~、`）以及转义符号（\）。
+ * 格式化标记符号（**、*、==、~~、`）、转义符号（\）、以及双链格式（[[、]]）。
  *
  * ── 架构 ──
  *
@@ -97,6 +97,17 @@ function buildDecorations(view: EditorView): DecorationSet {
 			) {
 				markerLen = 1;
 			}
+			// Wiki link brackets: [[ and ]].
+			// Obsidian live preview splits them into separate formatting tokens:
+			//   "formatting-link_formatting-link-start" → [[  (2 chars, open marker)
+			//   "formatting-link_formatting-link-end"   → ]]  (2 chars, close marker)
+			// hmd-internal-link child nodes (alias, pipe, etc.) are skipped.
+			else if (
+				formattingConfig.hideWikiLinkFormatting &&
+				typeName.startsWith('formatting-link_formatting-link')
+			) {
+				markerLen = 2;
+			}
 			// 标题：# → 1-6 字符（可变长度）。
 			// # 后必须有空格才算有效标题格式。空格可能在 node 内或 node 后。
 			else if (
@@ -119,21 +130,39 @@ function buildDecorations(view: EditorView): DecorationSet {
 			if (markerLen > 0) {
 				const isEscape = typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape');
 				const isHeading = typeName.includes('formatting-header') || typeName.includes('formatting-heading') || typeName.includes('HeadingMark') || typeName.includes('HeaderMark');
+				const isWikiStart = typeName.includes('formatting-link_formatting-link-start');
+				const isWikiEnd = typeName.includes('formatting-link_formatting-link-end');
 
-				// 起始标记：从节点开始到内容起始
-				builder.add(
-					node.from,
-					node.from + markerLen,
-					Decoration.replace({ markerType: 'open' }),
-				);
-				// 结束标记：从内容结束到节点结束。
-				// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
-				if (!isEscape && !isHeading) {
+				if (isWikiEnd) {
+					// ]] close marker only — this node is the 2-char end bracket
 					builder.add(
-						node.to - markerLen,
+						node.from,
 						node.to,
 						Decoration.replace({ markerType: 'close' }),
 					);
+				} else if (isWikiStart) {
+					// [[ open marker only — this node is the 2-char start bracket
+					builder.add(
+						node.from,
+						node.to,
+						Decoration.replace({ markerType: 'open' }),
+					);
+				} else {
+					// 起始标记：从节点开始到内容起始
+					builder.add(
+						node.from,
+						node.from + markerLen,
+						Decoration.replace({ markerType: 'open' }),
+					);
+					// 结束标记：从内容结束到节点结束。
+					// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
+					if (!isEscape && !isHeading) {
+						builder.add(
+							node.to - markerLen,
+							node.to,
+							Decoration.replace({ markerType: 'close' }),
+						);
+					}
 				}
 			}
 		},

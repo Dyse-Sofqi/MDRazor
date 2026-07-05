@@ -108,6 +108,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.1** (2026-07-06)
+
+- **New: Hide wiki link formatting** — Added "Hide Wiki Link Brackets" toggle under "Format Hider" in the settings panel. Hides `[[` and `]]` formatting markers in Live Preview, with cursor exclusion (clicking at the boundary between a bracket and content pushes the cursor outside the marker). The `|` separator in `[[page|alias]]` remains visible
+- **Fix: Orphan image cleaner missed bare link references** — `[[image.png]]` (wiki links without `!`) are now counted as image references. Previously only `![[embed]]` / `![md](img)` / `<img>` patterns were matched, causing images referenced via bare wiki links to be falsely flagged as orphaned
+
 **2.1.0** (2026-07-05)
 
 - **New: Auto-save workspace layout** — Automatically saves the current workspace layout before switching to or loading another workspace. Intercepts Obsidian's native "Load Workspace" via monkey-patching `loadWorkspace`, and also integrates with the plugin's own status-bar workspace switcher. Independent toggle under "Statusbar Enhancement" in the settings panel, enabled by default

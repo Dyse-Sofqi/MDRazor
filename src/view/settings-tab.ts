@@ -140,6 +140,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(hideSection)
+			.setName('隐藏双链符号')
+			.setDesc('在实时预览中隐藏 [[ 和 ]] 双链格式标记')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.hideWikiLinkFormatting)
+					.onChange(async (value) => {
+						this.plugin.settings.hideWikiLinkFormatting = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(hideSection)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>
