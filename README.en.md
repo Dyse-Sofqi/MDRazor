@@ -108,7 +108,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
-**2.1.1** (2026-07-06)
+**2.1.2** (2026-07-06)
 
 - **New: Hide wiki link formatting** — Added "Hide Wiki Link Brackets" toggle under "Format Hider" in the settings panel. Hides `[[` and `]]` formatting markers in Live Preview, with cursor exclusion (clicking at the boundary between a bracket and content pushes the cursor outside the marker). The `|` separator in `[[page|alias]]` remains visible
 - **Fix: Orphan image cleaner missed bare link references** — `[[image.png]]` (wiki links without `!`) are now counted as image references. Previously only `![[embed]]` / `![md](img)` / `<img>` patterns were matched, causing images referenced via bare wiki links to be falsely flagged as orphaned
