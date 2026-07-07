@@ -108,6 +108,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.3** (2026-07-07)
+
+- **New: Sync VT folder collapse state back to file explorer on exit** — When switching from "tabs-only" back to file list view, folders expanded in VT stay expanded, folders collapsed in VT and folders not shown in VT are all collapsed, keeping browsing state consistent
+
 **2.1.2** (2026-07-06)
 
 - **New: Hide wiki link formatting** — Added "Hide Wiki Link Brackets" toggle under "Format Hider" in the settings panel. Hides `[[` and `]]` formatting markers in Live Preview, with cursor exclusion (clicking at the boundary between a bracket and content pushes the cursor outside the marker). The `|` separator in `[[page|alias]]` remains visible

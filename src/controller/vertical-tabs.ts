@@ -13,6 +13,7 @@
  */
 
 import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon, Menu } from 'obsidian';
+import { getAllFolderPaths, applyStates, type CollapseState } from './dir-focus';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
@@ -61,6 +62,7 @@ export function registerVerticalTabs(
 	let toggleBtn: HTMLElement | null = null;
 	let customListEl: HTMLElement | null = null;
 	const customCollapsed = new Set<string>();
+	const customFolderPaths = new Set<string>();
 	let leafChangeTimer: number | null = null;
 	let captureHandler: ((e: MouseEvent) => void) | null = null;
 	let lastActiveFilePath: string | null = null;
@@ -501,6 +503,18 @@ export function registerVerticalTabs(
 		if (!containerEl) return;
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 
+		// Record all folder paths in VT tree (for sync on exit)
+		customFolderPaths.clear();
+		const collectFolderPaths = (nodes: TreeNode[]): void => {
+			for (const n of nodes) {
+				if (n.type === 'folder') {
+					customFolderPaths.add(n.path);
+					collectFolderPaths(n.children);
+				}
+			}
+		};
+		collectFolderPaths(tree);
+
 			const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
 
 		const wrapper = doc.createElement('div');
@@ -517,6 +531,27 @@ export function registerVerticalTabs(
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 		customCollapsed.clear();
 	};
+	/**
+	 * Sync VT folder expand/collapse states back to the real file-explorer.
+	 * Folders expanded in VT stay expanded; everything else collapses.
+	 * Must run BEFORE destroyCustomList() which clears customCollapsed.
+	 */
+	const syncCollapseStatesOnExit = (): void => {
+		if (!containerEl) return;
+		const leaves = app.workspace.getLeavesOfType('file-explorer');
+		const leaf = leaves[0];
+		if (!leaf) return;
+		const view = leaf.view as unknown as FileExplorerView;
+		const allPaths = getAllFolderPaths(view);
+		if (allPaths.length === 0) return;
+
+		const states: CollapseState = {};
+		for (const path of allPaths) {
+			// Expanded in VT = in tree AND not collapsed by user
+			states[path] = customCollapsed.has(path) || !customFolderPaths.has(path);
+		}
+		applyStates(view, states, containerEl);
+	};
 
 	/* ---- apply / remove view state ---- */
 
@@ -526,6 +561,7 @@ export function registerVerticalTabs(
 			const wasActive = containerEl.classList.contains('mdr-vertical-tabs-view');
 			if (!wasActive) return;
 			containerEl.classList.remove('mdr-vertical-tabs-view');
+			syncCollapseStatesOnExit();
 			destroyCustomList();
 			return;
 		}

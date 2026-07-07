@@ -52,7 +52,7 @@ function getAncestors(folder: TFolder): TFolder[] {
  * Checks each FileItem's .file property directly instead of using
  * vault.getFolderByPath() (which requires Obsidian v1.5.7+).
  */
-function getAllFolderPaths(view: FileExplorerView): string[] {
+export function getAllFolderPaths(view: FileExplorerView): string[] {
 	const items = view.fileItems;
 	if (items instanceof Map) {
 		return Array.from(items.keys()).filter((path: string) => {
