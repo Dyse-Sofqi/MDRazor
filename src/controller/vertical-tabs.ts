@@ -159,12 +159,14 @@ export function registerVerticalTabs(
 	const buildCloseBtn = (path: string): HTMLElement => {
 		const btn = doc.createElement('span');
 		btn.className = 'mdr-vertical-tab-close';
+		btn.setAttribute('data-path', path);
 		setIcon(btn, 'x');
 		btn.setAttribute('aria-label', '关闭标签页');
 		btn.addEventListener('click', (e) => {
 			e.stopPropagation();
 			e.preventDefault();
-			closeTab(path);
+			const p = btn.getAttribute('data-path');
+			if (p) closeTab(p);
 		});
 		return btn;
 	};
@@ -215,9 +217,16 @@ export function registerVerticalTabs(
 				if (navFile) path = navFile.getAttribute('data-path');
 			}
 			if (!path) return;
-			const existing = title.querySelector('.mdr-vertical-tab-close');
+			const existing = title.querySelector<HTMLElement>('.mdr-vertical-tab-close');
 			if (openPaths.has(path)) {
-				if (!existing) title.appendChild(buildCloseBtn(path));
+				if (!existing) {
+					title.appendChild(buildCloseBtn(path));
+				} else {
+					// Update in-place: DOM element survive rename (data-path change).
+					// MutationObserver fire on remove/append, never on attribute set →
+					// no infinite loop. Click handler reads data-path at click time.
+					existing.setAttribute('data-path', path);
+				}
 			} else {
 				if (existing) existing.remove();
 			}

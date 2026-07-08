@@ -108,6 +108,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.4** (2026-07-08)
+
+- **Fix: Vertical tab close button broken after file rename** — Close button closure captured old path, `closeTab(oldPath)` found no leaf after rename. Store path as `data-path` attribute, read at click time; `refreshCloseButtons` updates attribute in-place instead of DOM replace, avoiding MutationObserver infinite loop that froze Obsidian
+
 **2.1.3** (2026-07-07)
 
 - **New: Sync VT folder collapse state back to file explorer on exit** — When switching from "tabs-only" back to file list view, folders expanded in VT stay expanded, folders collapsed in VT and folders not shown in VT are all collapsed, keeping browsing state consistent
