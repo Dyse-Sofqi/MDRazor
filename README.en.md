@@ -108,6 +108,10 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.5** (2026-07-12)
+
+- **Fix: Workspace switch corrupts layout after restart** — When Obsidian restarts with workspace 2 active, `currentWorkspaceName` was wrongly initialized to the first workspace name. Switching would auto-save current layout (workspace 2) into workspace 1 slot, corrupting both. Fix `findCurrentWorkspace` to read workspace plugin's internal `activeWorkspace` property first, instead of defaulting to first workspace
+
 **2.1.4** (2026-07-08)
 
 - **Fix: Vertical tab close button broken after file rename** — Close button closure captured old path, `closeTab(oldPath)` found no leaf after rename. Store path as `data-path` attribute, read at click time; `refreshCloseButtons` updates attribute in-place instead of DOM replace, avoiding MutationObserver infinite loop that froze Obsidian

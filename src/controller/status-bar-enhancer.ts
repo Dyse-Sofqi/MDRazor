@@ -72,6 +72,11 @@ export function registerStatusBarEnhancer(
 		if (currentWorkspaceName && currentWorkspaceName in (wp.workspaces || {})) {
 			return currentWorkspaceName;
 		}
+		// Try reading workspace plugin's internal active workspace first
+		const activeWorkspace = (wp as unknown as { activeWorkspace?: string }).activeWorkspace;
+		if (activeWorkspace && activeWorkspace in (wp.workspaces || {})) {
+			return activeWorkspace;
+		}
 		const names = Object.keys(wp.workspaces || {});
 		return names.length > 0 ? names[0]! : null;
 	};

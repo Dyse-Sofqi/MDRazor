@@ -108,6 +108,10 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.1.5** (2026-07-12)
+
+- **修复：重启后工作区切换覆盖布局** — 关闭 Obsidian 时若第二个工作区为当前状态，重启后状态栏 `currentWorkspaceName` 错误初始化为第一个工作区名。点击切换时先将当前布局（实际为工作区 2）自动保存到工作区 1，导致两工作区布局一致。修复 `findCurrentWorkspace` 优先读取工作区插件内部 `activeWorkspace` 属性，不再默认取列表第一个
+
 **2.1.4** (2026-07-08)
 
 - **修复：重命名文件后垂直标签页关闭按钮失效** — 关闭按钮绑定时捕获旧路径闭包，重命名后 `closeTab(oldPath)` 找不到叶子。改存储路径为 `data-path` 属性，点击时实时读取；`refreshCloseButtons` 原地更新属性而非替换 DOM，避免 MutationObserver 死循环导致 Obsidian 卡死
