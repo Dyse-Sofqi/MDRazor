@@ -1,7 +1,7 @@
 {
 	"id": "md-razor",
 	"name": "MDRazor",
-	"version": "2.1.6",
+	"version": "2.1.7",
 	"minAppVersion": "1.0.0",
 	"description": "Hide formatting markers, list enhancement with soft-break, dir focus, vertical tabs, auto save workspace, auto pic clean.",
 	"author": "Sofqi",

@@ -108,6 +108,15 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.7** (2026-07-14)
+
+- **New: Direct children count toggle** — Added sub-toggle under "Show directory file count" to switch between counting direct children (sub-folders + files) or all descendant files recursively
+- **New: Right-click new file opens in new tab** — Right-click "New file" in file explorer now opens the created file in a new tab instead of replacing the current tab
+- **Fix: Directory file count lost when expanding collapsed folders** — Replaced one-shot DOM scanning with MutationObserver + attribute change listener, ensuring file counts appear immediately when folders are expanded in the virtual-scrolled file explorer
+- **Fix: Directory file count not refreshed after plugin reload** — Initial scan uses a RAF loop with retries to cover React virtual scrolling async rendering delays
+- **Fix: Directory file count missed due to React data-path timing** — Deferred badge creation via setTimeout(0) + 50ms retry, ensuring Obsidian's React renderer finishes writing attributes before processing
+- **Fix: Dir-focus documentation corrected** — README, settings panel, and source comments all synchronized to actual behavior (only keeps ancestor chain + clicked folder expanded, no descendant expansion)
+
 **2.1.6** (2026-07-14)
 
 - **Refactor: Status bar buttons now use native Obsidian Lucide icons** — Sidebar toggle SVG replaced with `columns-3` icon, workspace switcher SVG replaced with `panels-top-left` icon. Native icons auto-adapt to Obsidian theme and dark mode

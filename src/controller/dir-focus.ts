@@ -1,8 +1,8 @@
 /**
  * MDRazor — Directory Focus
  *
- * Click folder name in file explorer: expand entire descendant tree plus
- * ancestor chain, collapse all siblings/parent-siblings/grandparent-siblings.
+ * Click folder name in file explorer: keep ancestor chain and clicked folder
+ * expanded, collapse all siblings/parent-siblings/grandparent-siblings.
  *
  * Uses capture-phase click intercept on the file-explorer container to block
  * Obsidian's native React handler, then batch-applies collapse states via

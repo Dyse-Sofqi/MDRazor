@@ -27,6 +27,7 @@ import { registerTabEnhancer } from './tab-enhancer';
 import { registerVerticalTabs } from './vertical-tabs';
 import { registerOrphanImageCleaner } from './orphan-image-cleaner';
 import { registerStatusBarEnhancer } from './status-bar-enhancer';
+import { registerSidebarToggle } from './sidebar-toggle';
 
 /**
  * 主插件类。
@@ -44,6 +45,12 @@ export default class MDRazorPlugin extends Plugin {
 	/** 状态栏增强控制 */
 	statusBarEnhancer!: { addButton: () => void; removeButton: () => void };
 
+	/** 侧边栏伸缩控制 */
+	sidebarToggle!: { addButton: () => void; removeButton: () => void };
+
+	/** 目录文件计数强制刷新 */
+	dirFileCountRefresher!: { forceRefresh: () => void };
+
 	async onload() {
 		await this.loadSettings();
 
@@ -56,6 +63,9 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册状态栏增强
 		this.statusBarEnhancer = registerStatusBarEnhancer(this, () => this.settings.autoSaveWorkspaceLayout);
 
+		// 注册侧边栏伸缩（注册 Obsidian 命令 + 状态栏按钮控制）
+		this.sidebarToggle = registerSidebarToggle(this);
+
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染
 		this.registerEditorExtension(createFormatHiderExtension());
@@ -65,7 +75,11 @@ export default class MDRazorPlugin extends Plugin {
 		registerDirFocus(this, () => this.settings.dirFocusOption);
 
 		// 注册目录文件数量显示
-		registerDirFileCount(this, () => this.settings.showDirFileCount);
+		this.dirFileCountRefresher = registerDirFileCount(
+			this,
+			() => this.settings.showDirFileCount,
+			() => this.settings.dirFileCountDirectOnly,
+		);
 
 		// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
 		registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
@@ -86,6 +100,10 @@ export default class MDRazorPlugin extends Plugin {
 		// 如果设置已启用，添加状态栏按钮
 		if (this.settings.statusBarEnhancement) {
 			this.statusBarEnhancer.addButton();
+		}
+		// 如果设置已启用，添加侧边栏伸缩按钮
+		if (this.settings.sidebarToggleEnabled) {
+			this.sidebarToggle.addButton();
 		}
 	}
 
@@ -121,6 +139,7 @@ export default class MDRazorPlugin extends Plugin {
 		await this.saveData(this.settings);
 		this.syncConfig();
 		this.repaintAllEditors();
+		this.dirFileCountRefresher.forceRefresh();
 	}
 
 	/**

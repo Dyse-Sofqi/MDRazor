@@ -2,9 +2,12 @@
  * MDRazor — Tab Enhancer
  *
  * Intercept file clicks in file explorer. If tab for that file already exists,
- * switch to it. Otherwise let Obsidian open normally.
+ * switch to it. Otherwise open in a new tab.
  *
  * Ctrl/Meta+click bypasses enhancer → native Obsidian behavior (open in new tab).
+ *
+ * Also intercepts right-click → new file (context menu create): opens
+ * newly created file in a new tab instead of default current-tab behavior.
  */
 
 import { type Plugin, TFile, type WorkspaceLeaf } from 'obsidian';
@@ -28,7 +31,12 @@ export function registerTabEnhancer(
 	const { app } = plugin;
 
 	let containerEl: HTMLElement | null = null;
-	let handler: ((e: MouseEvent) => void) | null = null;
+	let clickHandler: ((e: MouseEvent) => void) | null = null;
+	let contextMenuHandler: ((e: MouseEvent) => void) | null = null;
+
+	/** True when a contextmenu event was just fired on the file-explorer.
+	 *  Consumed by vault.create to decide whether to open in a new tab. */
+	let contextMenuJustUsed = false;
 
 	/* ---- locate file-explorer container ---- */
 
@@ -41,13 +49,41 @@ export function registerTabEnhancer(
 		return true;
 	};
 
-	/* ---- attach / detach handler ---- */
+	/* ---- vault.create → new tab for context-menu-created files ---- */
+
+	plugin.registerEvent(
+		app.vault.on('create', (file) => {
+			if (!enabled()) return;
+			if (!contextMenuJustUsed) return;
+			contextMenuJustUsed = false;
+			if (!(file instanceof TFile)) return;
+
+			// Open in new tab. File is still in rename mode, but Obsidian
+			// will switch to our leaf when rename completes.
+			const leaf = app.workspace.getLeaf(true);
+			if (leaf) void leaf.openFile(file);
+		}),
+	);
+
+	/* ---- attach / detach handlers ---- */
 
 	const attach = (): void => {
 		if (!containerEl) return;
-		if (handler) containerEl.removeEventListener('click', handler, true);
 
-		handler = (e: MouseEvent) => {
+		// Remove old handlers if re-attaching
+		if (clickHandler) containerEl.removeEventListener('click', clickHandler, true);
+		if (contextMenuHandler) containerEl.removeEventListener('contextmenu', contextMenuHandler, true);
+
+		contextMenuHandler = () => {
+			contextMenuJustUsed = true;
+			// Reset if no vault.create fires within 1s (user dismissed menu)
+			window.setTimeout(() => {
+				contextMenuJustUsed = false;
+			}, 1000);
+		};
+		containerEl.addEventListener('contextmenu', contextMenuHandler, true);
+
+		clickHandler = (e: MouseEvent) => {
 			if (!enabled()) return;
 
 			// Skip clicks on vertical-tabs close button
@@ -95,7 +131,7 @@ export function registerTabEnhancer(
 				e.stopImmediatePropagation();
 				app.workspace.setActiveLeaf(existingLeaf, { focus: true });
 			} else {
-				// No existing tab — explicitly open file
+				// No existing tab — open in new tab
 				e.stopPropagation();
 				e.stopImmediatePropagation();
 				const leaf = app.workspace.getLeaf(true);
@@ -103,14 +139,16 @@ export function registerTabEnhancer(
 			}
 		};
 
-		containerEl.addEventListener('click', handler, true);
+		containerEl.addEventListener('click', clickHandler, true);
 	};
 
 	const detach = (): void => {
-		if (containerEl && handler) {
-			containerEl.removeEventListener('click', handler, true);
+		if (containerEl) {
+			if (clickHandler) containerEl.removeEventListener('click', clickHandler, true);
+			if (contextMenuHandler) containerEl.removeEventListener('contextmenu', contextMenuHandler, true);
 		}
-		handler = null;
+		clickHandler = null;
+		contextMenuHandler = null;
 	};
 
 	/* ---- initial setup (layout-ready with retry) ---- */

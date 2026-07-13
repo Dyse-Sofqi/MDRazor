@@ -34,6 +34,7 @@ export interface MDRazorSettings {
 	listFocusSecondThresholdEnabled: boolean;
 	dirFocusOption: boolean;
 	showDirFileCount: boolean;
+	dirFileCountDirectOnly: boolean;
 
 	// ── 空格可视化 (whitespace-visible.ts) ──
 	showWhitespace: boolean;
@@ -46,6 +47,7 @@ export interface MDRazorSettings {
 	// ── 状态栏增强 (status-bar-enhancer.ts) ──
 	statusBarEnhancement: boolean;
 	autoSaveWorkspaceLayout: boolean;
+	sidebarToggleEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -65,6 +67,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	listFocusSecondThresholdEnabled: false,
 	dirFocusOption: true,
 	showDirFileCount: true,
+	dirFileCountDirectOnly: true,
 	showWhitespace: false,
 	tabEnhancerDefaultOpen: true,
 	verticalTabsEnabled: true,
@@ -72,4 +75,5 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 
 	statusBarEnhancement: true,
 	autoSaveWorkspaceLayout: true,
+	sidebarToggleEnabled: true,
 };

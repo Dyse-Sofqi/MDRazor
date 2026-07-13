@@ -234,7 +234,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(listSection)
 			.setName('目录聚焦')
-			.setDesc('点击文件列表的文件夹时，展开该文件夹的所有子孙文件夹，折叠其余无关文件夹（同级、父同级、祖父同级等）')
+			.setDesc('点击文件列表的文件夹时，仅展开该文件夹及其祖先链，折叠其余无关文件夹（同级、父同级、祖父同级等）')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.dirFocusOption)
@@ -244,17 +244,37 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		let directOnlyToggle: import("obsidian").ToggleComponent;
+
 		new Setting(listSection)
-			.setName('显示目录文件数量')
-			.setDesc('统计文件夹内子文件夹和子文件的数量，在文件夹右侧对齐显示')
+			.setName("显示目录文件数量")
+			.setDesc("统计文件夹内子文件夹和子文件的数量，在文件夹右侧对齐显示")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.showDirFileCount)
 					.onChange(async (value) => {
 						this.plugin.settings.showDirFileCount = value;
+						(directOnlyToggle.toggleEl as HTMLInputElement).disabled = !value;
 						await this.plugin.saveSettings();
+						this.plugin.dirFileCountRefresher.forceRefresh();
 					}),
 			);
+
+		new Setting(listSection)
+			.setName("仅显示直接子项数量")
+			.setDesc("开启后仅统计文件夹的直接子项（子文件夹 + 文件）；关闭后统计所有后代文件数量（递归统计子文件夹内的文件，不统计文件夹）")
+			.addToggle((toggle) => {
+				directOnlyToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.dirFileCountDirectOnly)
+					.onChange(async (value) => {
+						this.plugin.settings.dirFileCountDirectOnly = value;
+						await this.plugin.saveSettings();
+						this.plugin.dirFileCountRefresher.forceRefresh();
+					});
+				(directOnlyToggle.toggleEl as HTMLInputElement).disabled =
+					!this.plugin.settings.showDirFileCount;
+			});
 
 		// ═══════════════════════════════════════════
 		// 标签页增强 配置区
@@ -264,7 +284,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(tabSection)
 			.setName('默认新标签页打开')
-			.setDesc('单击文件目录中的文件时，若标签页已存在则跳转，否则打开新标签页')
+			.setDesc('单击文件目录中的文件时，若标签页已存在则跳转，否则打开新标签页。右键菜单新建文件同样在新标签页中打开')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.tabEnhancerDefaultOpen)
@@ -320,6 +340,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.autoSaveWorkspaceLayout)
 					.onChange(async (value) => {
 						this.plugin.settings.autoSaveWorkspaceLayout = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('侧边栏伸缩按钮')
+			.setDesc('在状态栏最左侧显示按钮，点击一键折叠/展开左右侧边栏。')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.sidebarToggleEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.sidebarToggleEnabled = value;
+						if (value) {
+							this.plugin.sidebarToggle?.addButton();
+						} else {
+							this.plugin.sidebarToggle?.removeButton();
+						}
 						await this.plugin.saveSettings();
 					}),
 			);
