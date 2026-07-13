@@ -108,6 +108,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.6** (2026-07-14)
+
+- **Refactor: Status bar buttons now use native Obsidian Lucide icons** — Sidebar toggle SVG replaced with `columns-3` icon, workspace switcher SVG replaced with `panels-top-left` icon. Native icons auto-adapt to Obsidian theme and dark mode
+- **New: Sidebar toggle shows "侧栏" label** — Text label next to the icon makes button purpose clear
+- **New: Sidebar toggle native hover shadow** — Background + rounded corners on hover, matching Obsidian native status bar buttons
+- **Consistent: Button icon-text gap** — Both buttons use `gap: 4px`, visually uniform
+
 **2.1.5** (2026-07-12)
 
 - **Fix: Workspace switch corrupts layout after restart** — When Obsidian restarts with workspace 2 active, `currentWorkspaceName` was wrongly initialized to the first workspace name. Switching would auto-save current layout (workspace 2) into workspace 1 slot, corrupting both. Fix `findCurrentWorkspace` to read workspace plugin's internal `activeWorkspace` property first, instead of defaulting to first workspace

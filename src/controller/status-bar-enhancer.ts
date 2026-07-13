@@ -2,7 +2,7 @@
  * MDRazor — 状态栏增强：工作区快速切换
  */
 
-import { Plugin, type App } from 'obsidian';
+import { Plugin, type App, setIcon } from 'obsidian';
 
 interface WorkspacesPluginInstance {
 	workspaces: Record<string, unknown>;
@@ -163,18 +163,7 @@ export function registerStatusBarEnhancer(
 		statusBarEl = plugin.addStatusBarItem();
 		statusBarEl.addClass('mdrazor-statusbar-workspace');
 
-		const svgNS = 'http://www.w3.org/2000/svg';
-		const svg = doc.createElementNS(svgNS, 'svg');
-		svg.setAttribute('width', '14');
-		svg.setAttribute('height', '14');
-		svg.setAttribute('viewBox', '0 0 24 24');
-		svg.setAttribute('fill', 'none');
-		svg.setAttribute('stroke', 'currentColor');
-		svg.setAttribute('stroke-width', '2');
-		svg.setAttribute('stroke-linecap', 'round');
-		svg.setAttribute('stroke-linejoin', 'round');
-		svg.innerHTML = '<rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>';
-		statusBarEl.appendChild(svg);
+		setIcon(statusBarEl, 'panels-top-left');
 
 		const nameSpan = doc.createElement('span');
 		nameSpan.className = 'mdrazror-workspace-name';

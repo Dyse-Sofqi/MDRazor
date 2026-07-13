@@ -96,16 +96,27 @@ div.nav-folder-title {
 	display: none;
 }
 
+/* ── 状态栏：侧边栏伸缩按钮（原生 hover 阴影） ── */
+.mdrazor-statusbar-sidebar-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+.mdrazor-statusbar-sidebar-toggle:hover {
+	background: var(--background-modifier-hover);
+	border-radius: 4px;
+	color: var(--text-normal);
+}
+
 /* ── 状态栏增强：工作区切换 ── */
 .mdrazor-statusbar-workspace {
-	cursor: pointer;
 	user-select: none;
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
 .mdrazor-statusbar-workspace:hover {
-	color: var(--text-accent);
+	color: var(--text-normal);
 }
 .mdrazor-workspace-menu {
 	position: fixed;
