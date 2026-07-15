@@ -108,6 +108,12 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.2.0** (2026-07-15)
+
+- **New: Format toggle button** — Added "Format Toggle Button" toggle (default off) under Statusbar Enhancement in settings. When enabled, a "标识" button appears at the leftmost position of the status bar. Icon shows `square-dashed-mouse-pointer` (any format hiding active) or `square-mouse-pointer` (all off). Toggles all format hiding styles (bold, italic, highlight, strikethrough, code, escape, heading, wiki link) at once; whitespace visualization (showWhitespace) is excluded. Command palette command `mdrazor-toggle-formatting` is permanently registered for hotkey binding. Settings toggle only controls button visibility.
+- **New: Format toggle hover style** — Same hover background, border-radius, text color as sidebar toggle button
+- **Change: Sidebar toggle icon** — Changed from `columns-3` to `gallery-horizontal`
+
 **2.1.7** (2026-07-14)
 
 - **New: Direct children count toggle** — Added sub-toggle under "Show directory file count" to switch between counting direct children (sub-folders + files) or all descendant files recursively

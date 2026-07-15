@@ -13,7 +13,7 @@
  */
 
 import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon, Menu } from 'obsidian';
-import { getAllFolderPaths, applyStates, type CollapseState } from './dir-focus';
+import { getAllFolderPaths, applyStates, type CollapseState } from '../list-enhancer/dir-focus';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */

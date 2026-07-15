@@ -13,7 +13,7 @@ import { Prec } from '@codemirror/state';
 import { createListIntegrationExtension } from './list-integration';
 import { createEnterSoftBreakExtension } from './enter-soft-break';
 import { createFocusOptionsExtension } from './focus-options';
-import { listEnhancerConfig } from '../model/shared';
+import { listEnhancerConfig } from '../../model/shared';
 
 // 保持对外接口一致：controller/main.ts 使用 `listEnhancerConfig`
 export { listEnhancerConfig };

@@ -16,7 +16,7 @@
  */
 
 import { App, Plugin, TFile, TFolder } from 'obsidian';
-import { listEnhancerConfig } from '../model/shared';
+import { listEnhancerConfig } from '../../model/shared';
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */

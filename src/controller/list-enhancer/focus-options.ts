@@ -17,7 +17,7 @@
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { EditorState, Prec } from '@codemirror/state';
 import { syntaxTree, foldEffect, unfoldEffect, foldService } from '@codemirror/language';
-import { listEnhancerConfig } from '../model/shared';
+import { listEnhancerConfig } from '../../model/shared';
 
 // 鼠标按下标志：鼠标未弹起时不触发折叠，避免拖选过程中闪烁
 let isPointerDown = false;

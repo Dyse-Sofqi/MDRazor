@@ -13,7 +13,7 @@
 
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { listEnhancerConfig, isInListItem } from '../model/shared';
+import { listEnhancerConfig, isInListItem } from '../../model/shared';
 
 /**
  * ViewPlugin — 在 capture 阶段拦截 Enter 按键。

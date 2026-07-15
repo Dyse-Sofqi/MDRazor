@@ -20,7 +20,7 @@ import {
 	WidgetType,
 } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
-import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
+import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 
 export const spaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 

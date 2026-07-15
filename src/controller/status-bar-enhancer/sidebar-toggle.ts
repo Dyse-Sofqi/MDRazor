@@ -47,7 +47,7 @@ export function registerSidebarToggle(
 			statusBarContainer.insertBefore(statusBarEl, statusBarContainer.firstChild);
 		}
 
-		setIcon(statusBarEl, 'columns-3');
+		setIcon(statusBarEl, 'gallery-horizontal');
 		statusBarEl.createSpan({ text: '侧栏' });
 
 		statusBarEl.addEventListener('click', toggleSidebars);

@@ -360,6 +360,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(containerEl)
+			.setName('隐藏样式启闭按钮')
+			.setDesc('在状态栏显示按钮，一键开启/关闭各类格式隐藏样式（不包括空格可视化）')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.formatToggleEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.formatToggleEnabled = value;
+						if (value) {
+							this.plugin.formatToggle?.addButton();
+						} else {
+							this.plugin.formatToggle?.removeButton();
+						}
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 
 	/**

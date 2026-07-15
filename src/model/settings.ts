@@ -13,10 +13,10 @@
  * 后续新增功能开关也应默认 true，保持一致的首次体验。
  */
 export interface MDRazorSettings {
-	// ── 失联图片清理 (orphan-image-cleaner.ts) ──
+	// ── 失联图片清理 (controller/orphan-image-cleaner/) ──
 	orphanImageCleanerEnabled: boolean;
 
-	// ── 隐藏样式 (format-hider.ts) ──
+	// ── 隐藏样式 (controller/format-hider/) ──
 	hideBoldFormatting: boolean;
 	hideItalicFormatting: boolean;
 	hideHighlightFormatting: boolean;
@@ -26,7 +26,7 @@ export interface MDRazorSettings {
 	hideHeadingFormatting: boolean;
 	hideWikiLinkFormatting: boolean;
 
-	// ── 列表增强 (list-enhancer.ts) ──
+	// ── 列表增强 (controller/list-enhancer/) ──
 	listIntegration: boolean;
 	enterSoftBreak: boolean;
 	listFocusOption: boolean;
@@ -36,18 +36,19 @@ export interface MDRazorSettings {
 	showDirFileCount: boolean;
 	dirFileCountDirectOnly: boolean;
 
-	// ── 空格可视化 (whitespace-visible.ts) ──
+	// ── 空格可视化 (controller/format-hider/whitespace-visible.ts) ──
 	showWhitespace: boolean;
 
-	// ── 标签页增强 (tab-enhancer.ts / vertical-tabs.ts) ──
+	// ── 标签页增强 (controller/tab-enhancer/) ──
 	tabEnhancerDefaultOpen: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
 
-	// ── 状态栏增强 (status-bar-enhancer.ts) ──
+	// ── 状态栏增强 (controller/status-bar-enhancer/) ──
 	statusBarEnhancement: boolean;
 	autoSaveWorkspaceLayout: boolean;
 	sidebarToggleEnabled: boolean;
+	formatToggleEnabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -76,4 +77,5 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	statusBarEnhancement: true,
 	autoSaveWorkspaceLayout: true,
 	sidebarToggleEnabled: true,
+	formatToggleEnabled: false,
 };

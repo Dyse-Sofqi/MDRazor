@@ -18,16 +18,17 @@ import { MarkdownView, Plugin } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
-import { formattingConfig, createFormatHiderExtension } from './format-hider';
-import { spaceConfig, createSpaceVisualizationExtension } from './whitespace-visible';
-import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer';
-import { registerDirFocus } from './dir-focus';
-import { registerDirFileCount } from './dir-file-count';
-import { registerTabEnhancer } from './tab-enhancer';
-import { registerVerticalTabs } from './vertical-tabs';
-import { registerOrphanImageCleaner } from './orphan-image-cleaner';
-import { registerStatusBarEnhancer } from './status-bar-enhancer';
-import { registerSidebarToggle } from './sidebar-toggle';
+import { formattingConfig, createFormatHiderExtension } from './format-hider/format-hider';
+import { spaceConfig, createSpaceVisualizationExtension } from './format-hider/whitespace-visible';
+import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer/list-enhancer';
+import { registerDirFocus } from './list-enhancer/dir-focus';
+import { registerDirFileCount } from './list-enhancer/dir-file-count';
+import { registerTabEnhancer } from './tab-enhancer/tab-enhancer';
+import { registerVerticalTabs } from './tab-enhancer/vertical-tabs';
+import { registerOrphanImageCleaner } from './orphan-image-cleaner/orphan-image-cleaner';
+import { registerStatusBarEnhancer } from './status-bar-enhancer/status-bar-enhancer';
+import { registerSidebarToggle } from './status-bar-enhancer/sidebar-toggle';
+import { registerFormatToggle } from './status-bar-enhancer/format-toggle';
 
 /**
  * 主插件类。
@@ -48,6 +49,9 @@ export default class MDRazorPlugin extends Plugin {
 	/** 侧边栏伸缩控制 */
 	sidebarToggle!: { addButton: () => void; removeButton: () => void };
 
+	/** 格式隐藏启闭控制 */
+	formatToggle!: { addButton: () => void; removeButton: () => void };
+
 	/** 目录文件计数强制刷新 */
 	dirFileCountRefresher!: { forceRefresh: () => void };
 
@@ -65,6 +69,9 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册侧边栏伸缩（注册 Obsidian 命令 + 状态栏按钮控制）
 		this.sidebarToggle = registerSidebarToggle(this);
+
+		// 注册格式隐藏启闭（注册 Obsidian 命令 + 状态栏按钮控制）
+		this.formatToggle = registerFormatToggle(this, this.settings, () => this.saveSettings());
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染
@@ -104,6 +111,10 @@ export default class MDRazorPlugin extends Plugin {
 		// 如果设置已启用，添加侧边栏伸缩按钮
 		if (this.settings.sidebarToggleEnabled) {
 			this.sidebarToggle.addButton();
+		}
+		// 如果设置已启用，添加格式隐藏启闭按钮
+		if (this.settings.formatToggleEnabled) {
+			this.formatToggle.addButton();
 		}
 	}
 

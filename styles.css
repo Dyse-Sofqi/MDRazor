@@ -97,12 +97,14 @@ div.nav-folder-title {
 }
 
 /* ── 状态栏：侧边栏伸缩按钮（原生 hover 阴影） ── */
-.mdrazor-statusbar-sidebar-toggle {
+.mdrazor-statusbar-sidebar-toggle,
+.mdrazor-statusbar-format-toggle {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
-.mdrazor-statusbar-sidebar-toggle:hover {
+.mdrazor-statusbar-sidebar-toggle:hover,
+.mdrazor-statusbar-format-toggle:hover {
 	background: var(--background-modifier-hover);
 	border-radius: 4px;
 	color: var(--text-normal);

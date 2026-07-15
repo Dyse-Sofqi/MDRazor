@@ -23,7 +23,7 @@ import {
 } from '@codemirror/view';
 import { Prec, RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-import { MDRazorSettings, DEFAULT_SETTINGS } from '../model/settings';
+import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 
 /**
  * 模块级可变配置对象。

@@ -25,7 +25,7 @@ import {
 	AtomicRange,
 	buildAtomicRanges,
 	nudgeOutOfAtomicRanges,
-} from '../model/shared';
+} from '../../model/shared';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  删除范围扩展
