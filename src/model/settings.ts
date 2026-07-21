@@ -41,6 +41,7 @@ export interface MDRazorSettings {
 
 	// ── 标签页增强 (controller/tab-enhancer/) ──
 	tabEnhancerDefaultOpen: boolean;
+	tabEnhancerOpenLink: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
 
@@ -71,6 +72,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	dirFileCountDirectOnly: true,
 	showWhitespace: false,
 	tabEnhancerDefaultOpen: true,
+	tabEnhancerOpenLink: true,
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
 

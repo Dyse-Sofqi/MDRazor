@@ -108,6 +108,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.1.9** (2026-07-21)
+
+- **New: Open wiki link in new tab** — Added "Open wiki link in new tab" toggle (default on) under Tab Enhancement in settings. When clicking a wiki link (including plain `[[page]]`, aliased `[[page|alias]]`, and block references `[[page#^blockid]]`) in a document, the plugin detects whether the target file already has an open tab: if so, switches to that tab with block-level scroll positioning (for block references); otherwise opens in a new tab. Ctrl/Meta+click bypasses to native Obsidian behavior.
+- **Fix: Link target resolution for aliased and block ref links** — Uses CM6 editor source text as primary strategy to extract the full wiki link target including subpath (`#^blockid`). Handles DOM structure where `.cm-hmd-blockref-link` is a sibling of `.cm-hmd-internal-link`. Subpath preserved in `OpenViewState.eState` for correct block-level navigation.
+
 **2.1.8** (2026-07-15)
 
 - **New: Format toggle button** — Added "Format Toggle Button" toggle (default off) under Statusbar Enhancement in settings. When enabled, a "标识" button appears at the leftmost position of the status bar. Icon shows `square-dashed-mouse-pointer` (any format hiding active) or `square-mouse-pointer` (all off). Toggles all format hiding styles (bold, italic, highlight, strikethrough, code, escape, heading, wiki link) at once; whitespace visualization (showWhitespace) is excluded. Command palette command `mdrazor-toggle-formatting` is permanently registered for hotkey binding. Settings toggle only controls button visibility.

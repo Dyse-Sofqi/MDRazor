@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MDRazor — 设置面板视图
  *
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
@@ -290,6 +290,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.tabEnhancerDefaultOpen)
 					.onChange(async (value) => {
 						this.plugin.settings.tabEnhancerDefaultOpen = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(tabSection)
+			.setName('新标签页打开双链')
+			.setDesc('在文档内点击双链时，检测目标文档是否已存在标签页，若存在则跳转，不存在则新建标签页')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.tabEnhancerOpenLink)
+					.onChange(async (value) => {
+						this.plugin.settings.tabEnhancerOpenLink = value;
 						await this.plugin.saveSettings();
 					}),
 			);
