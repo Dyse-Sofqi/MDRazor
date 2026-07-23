@@ -59,15 +59,24 @@ div.nav-folder-title {
 .mdr-vertical-tab-close {
 	margin-left: auto;
 	margin-right: 4px;
-	cursor: pointer;
+	cursor: default;
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
+	padding: 2px;
+	border-radius: 4px;
+}
+.mdr-vertical-tab-close:hover {
+	background-color: var(--background-modifier-hover);
 }
 .mdr-vertical-tab-close svg {
 	width: 1em;
 	height: 1em;
 	display: block;
+	color: var(--tab-text-color-focused-active);
+}
+.mdr-vertical-tab-close:hover svg {
+	color: var(--tab-text-color-focused-active-current);
 }
 
 /*

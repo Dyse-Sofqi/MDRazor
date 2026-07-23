@@ -108,6 +108,13 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.2.0** (2026-07-23)
+
+- **New: Hide HTML color tags** — Added "Hide HTML Color Tags" toggle (default on) under Style Hiding in settings. Hides `<font color="#c00000">` and `</font>` Hex color tag pairs in live preview. Uses regex scanning instead of CM6 syntax tree iteration, supporting any Hex color value (3-8 hex digits). Included in the format toggle button's toggle-all list
+- **New: Vertical tab close button hover effect** — Close button now has hover background `var(--background-modifier-hover)`, default icon color `var(--tab-text-color-focused-active)`, and hover icon color `var(--tab-text-color-focused-active-current)`. Cursor changed from `pointer` to `default`
+- **New: Collapsible status bar section in settings** — The "Statusbar Enhancement" section heading is now collapsible/expandable, consistent with the other sections (Style Hiding, List Enhancements, Tab Enhancer). Chevron icon click correctly toggles folding
+- **Fix: Collapsible section heading click occasionally not triggering fold** — Removed the separately registered `onClick` handler from the chevron extra button and the `.clickable-icon` early-return guard. The heading text area and chevron icon area now share a single click listener, eliminating race conditions between two competing click paths
+
 **2.1.9** (2026-07-21)
 
 - **New: Open wiki link in new tab** — Added "Open wiki link in new tab" toggle (default on) under Tab Enhancement in settings. When clicking a wiki link (including plain `[[page]]`, aliased `[[page|alias]]`, and block references `[[page#^blockid]]`) in a document, the plugin detects whether the target file already has an open tab: if so, switches to that tab with block-level scroll positioning (for block references); otherwise opens in a new tab. Ctrl/Meta+click bypasses to native Obsidian behavior.

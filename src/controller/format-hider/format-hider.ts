@@ -21,7 +21,7 @@ import {
 	DecorationSet,
 	EditorView,
 } from '@codemirror/view';
-import { Prec, RangeSetBuilder } from '@codemirror/state';
+import { Prec, RangeSet, RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 
@@ -167,6 +167,25 @@ function buildDecorations(view: EditorView): DecorationSet {
 			}
 		},
 	});
+
+	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
+	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
+	// 单独 builder 避免与 tree 迭代的 add 顺序冲突。
+	if (formattingConfig.hideHtmlColorTagFormatting) {
+		const colorBuilder = new RangeSetBuilder<Decoration>();
+		const docStr = view.state.doc.toString();
+		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
+		let m: RegExpExecArray | null;
+		while ((m = colorTagRe.exec(docStr)) !== null) {
+			const isClose = m[0].charAt(1) === '/';
+			colorBuilder.add(
+				m.index,
+				m.index + m[0].length,
+				Decoration.replace({ markerType: isClose ? 'close' : 'open' }),
+			);
+		}
+		return RangeSet.join([builder.finish(), colorBuilder.finish()]);
+	}
 
 	return builder.finish();
 }
