@@ -102,6 +102,7 @@ export default class MDRazorPlugin extends Plugin {
 				this.settings.verticalTabsViewActive = active;
 				void this.saveSettings();
 			},
+			() => this.settings.tabExpansionAssociatedFolders,
 		);
 		// 如果设置已启用，添加 ribbon 图标
 		if (this.settings.orphanImageCleanerEnabled) {

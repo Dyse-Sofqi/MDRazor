@@ -108,6 +108,12 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 ### Changelog
 
+**2.3.0** (2026-07-24)
+
+- **Fix: All folders collapsed when switching from VT back to file list (toggle OFF)** — Removed the flawed snapshot-restore cycle. Real fileItems are never modified during VT (hidden via CSS `display:none`), and Obsidian's virtual scrolling means many folders have no DOM nodes — snapshot defaulted them to collapsed. Now toggle OFF skips sync entirely; original collapse states remain intact
+- **Fix: Directory focus toggle required Obsidian restart to take effect** — Removed early `if (!enabled()) return` in `registerDirFocus()`. Handler is always registered; `enabled()` guard is checked per-click, so toggling is instant
+- **Refactor: Decoration building changed to collect → sort → single-pass RangeSetBuilder** — Eliminated separate `colorBuilder` branch and `RangeSet.join()`, ensuring deterministic write order
+
 **2.2.0** (2026-07-23)
 
 - **New: Hide HTML color tags** — Added "Hide HTML Color Tags" toggle (default on) under Style Hiding in settings. Hides `<font color="#c00000">` and `</font>` Hex color tag pairs in live preview. Uses regex scanning instead of CM6 syntax tree iteration, supporting any Hex color value (3-8 hex digits). Included in the format toggle button's toggle-all list

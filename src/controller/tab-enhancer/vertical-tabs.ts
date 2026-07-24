@@ -13,7 +13,7 @@
  */
 
 import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon, Menu } from 'obsidian';
-import { getAllFolderPaths, applyStates, type CollapseState } from '../list-enhancer/dir-focus';
+import { getAllFolderPaths, type CollapseState } from '../list-enhancer/dir-focus';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
@@ -28,10 +28,6 @@ interface FileExplorerView {
 	fileItems: Map<string, FileExplorerItem> | Record<string, FileExplorerItem>;
 	requestUpdate?: () => void;
 }
-
-/* ---- cross-window-safe type guard ---- */
-
-const isHTMLElement = (n: Node): n is HTMLElement => n.nodeType === Node.ELEMENT_NODE;
 
 /* ------------------------------------------------------------------ */
 /*  Tree node (custom filtered list)                                    */
@@ -54,6 +50,7 @@ export function registerVerticalTabs(
 	enabled: () => boolean,
 	isViewActive: () => boolean,
 	setViewActive: (active: boolean) => void,
+	_foldersSyncedOnExit: () => boolean,
 ): void {
 	if (!enabled()) return;
 	const { app } = plugin;
@@ -222,9 +219,6 @@ export function registerVerticalTabs(
 				if (!existing) {
 					title.appendChild(buildCloseBtn(path));
 				} else {
-					// Update in-place: DOM element survive rename (data-path change).
-					// MutationObserver fire on remove/append, never on attribute set →
-					// no infinite loop. Click handler reads data-path at click time.
 					existing.setAttribute('data-path', path);
 				}
 			} else {
@@ -274,7 +268,6 @@ export function registerVerticalTabs(
 
 	/**
 	 * Path of the file currently active in the workspace (displayed tab).
-	 * Triggered by leaf-change listener too.
 	 */
 	const getActiveFilePath = (): string | null => {
 		const al = app.workspace.getMostRecentLeaf();
@@ -286,15 +279,11 @@ export function registerVerticalTabs(
 				if (vs?.state?.file && typeof vs.state.file === 'string') return vs.state.file;
 			} catch { /* skip */ }
 		}
-		// Fallback: cache from last known active file. Prevents highlight
-		// loss when sidebar/blank-area click triggers leaf-change to a
-		// non-file leaf (file-explorer, search, etc.).
 		return lastActiveFilePath;
 	};
 
 	/**
 	 * Highlight a file title in custom list by setting is-active class.
-	 * Set highlight to null to clear all.
 	 */
 	const setFileHighlight = (newPath: string | null): void => {
 		if (!customListEl) return;
@@ -482,7 +471,6 @@ export function registerVerticalTabs(
 						} else {
 							openOrSwitchTab(path);
 						}
-						// Update is-active immediately — don't wait for leaf-change rebuild
 						setFileHighlight(path);
 					}
 				}
@@ -524,7 +512,7 @@ export function registerVerticalTabs(
 		};
 		collectFolderPaths(tree);
 
-			const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
+		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
 
 		const wrapper = doc.createElement('div');
 		wrapper.className = 'nav-files-container mdr-vt-custom-list';
@@ -540,26 +528,47 @@ export function registerVerticalTabs(
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 		customCollapsed.clear();
 	};
+
 	/**
 	 * Sync VT folder expand/collapse states back to the real file-explorer.
-	 * Folders expanded in VT stay expanded; everything else collapses.
-	 * Must run BEFORE destroyCustomList() which clears customCollapsed.
+	 *
+	 * Only called when toggle ON — VT folders are expanded, all others
+	 * collapsed. Runs BEFORE destroyCustomList() which clears
+	 * customCollapsed and customFolderPaths.
+	 *
+	 * Toggle OFF: real fileItems are never modified during VT (hidden by
+	 * CSS `display:none`, not removed). No sync is needed — the original
+	 * collapse states are still intact after classList.remove().
 	 */
 	const syncCollapseStatesOnExit = (): void => {
 		if (!containerEl) return;
+
 		const leaves = app.workspace.getLeavesOfType('file-explorer');
 		const leaf = leaves[0];
 		if (!leaf) return;
 		const view = leaf.view as unknown as FileExplorerView;
+		const items = view.fileItems;
+
 		const allPaths = getAllFolderPaths(view);
 		if (allPaths.length === 0) return;
 
 		const states: CollapseState = {};
 		for (const path of allPaths) {
-			// Expanded in VT = in tree AND not collapsed by user
 			states[path] = customCollapsed.has(path) || !customFolderPaths.has(path);
 		}
-		applyStates(view, states, containerEl);
+		setAllCollapsed(items, states);
+	};
+
+	const setAllCollapsed = (
+		items: Map<string, FileExplorerItem> | Record<string, FileExplorerItem>,
+		states: CollapseState,
+	): void => {
+		for (const [path, collapsed] of Object.entries(states)) {
+			const item = items instanceof Map ? items.get(path) : items[path];
+			if (item?.setCollapsed) {
+				try { item.setCollapsed(collapsed); } catch { /* skip */ }
+			}
+		}
 	};
 
 	/* ---- apply / remove view state ---- */
@@ -569,8 +578,11 @@ export function registerVerticalTabs(
 		if (!enabled() || !isViewActive()) {
 			const wasActive = containerEl.classList.contains('mdr-vertical-tabs-view');
 			if (!wasActive) return;
+			const shouldSync = _foldersSyncedOnExit();
+			if (shouldSync) {
+				syncCollapseStatesOnExit();
+			}
 			containerEl.classList.remove('mdr-vertical-tabs-view');
-			syncCollapseStatesOnExit();
 			destroyCustomList();
 			return;
 		}
@@ -579,7 +591,6 @@ export function registerVerticalTabs(
 		const openPaths = getOpenFilePaths();
 		if (openPaths.size === 0) { renderCustomList([], null); return; }
 
-		// Resolve active path: try workspace activeLeaf, fall back to first open tab
 		let activePath = getActiveFilePath();
 		if (!activePath) {
 			activePath = openPaths.values().next().value ?? null;

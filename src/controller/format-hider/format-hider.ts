@@ -21,7 +21,7 @@ import {
 	DecorationSet,
 	EditorView,
 } from '@codemirror/view';
-import { Prec, RangeSet, RangeSetBuilder } from '@codemirror/state';
+import { Prec, RangeSetBuilder } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 
@@ -35,9 +35,19 @@ import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
  */
 export const formattingConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
+/** 单条待写入的 decoration（{from, to, spec}）。 */
+interface DecorationEntry {
+	from: number;
+	to: number;
+	spec: { markerType: 'open' | 'close' };
+}
+
 /**
  * 构建一个 `DecorationSet`，替换（隐藏）当前视口中所有已启用的
  * 格式化标记。
+ *
+ * 流程：收集全部 Decoration → 按 from 排序 → 一次性写入同一个
+ *        RangeSetBuilder。
  *
  * 每个 replace 装饰在其 spec 中携带 `markerType` 属性（`'open'`
  * 或 `'close'`），光标修正逻辑据此区分一对标记的左右部分，
@@ -53,7 +63,9 @@ function buildDecorations(view: EditorView): DecorationSet {
 		return Decoration.none;
 	}
 
-	const builder = new RangeSetBuilder<Decoration>();
+	/* ---- Phase 1: 收集全部 decoration 到 entries 数组 ---- */
+
+	const entries: DecorationEntry[] = [];
 	const tree = syntaxTree(view.state);
 
 	tree.iterate({
@@ -125,7 +137,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 				}
 			}
 
-			// ── 对起始和结束标记应用 replace 装饰 ──
+			// ── 收集起始和结束标记的 replace 装饰 ──
 
 			if (markerLen > 0) {
 				const isEscape = typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape');
@@ -135,33 +147,25 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 				if (isWikiEnd) {
 					// ]] close marker only — this node is the 2-char end bracket
-					builder.add(
-						node.from,
-						node.to,
-						Decoration.replace({ markerType: 'close' }),
-					);
+					entries.push({ from: node.from, to: node.to, spec: { markerType: 'close' } });
 				} else if (isWikiStart) {
 					// [[ open marker only — this node is the 2-char start bracket
-					builder.add(
-						node.from,
-						node.to,
-						Decoration.replace({ markerType: 'open' }),
-					);
+					entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
 				} else {
 					// 起始标记：从节点开始到内容起始
-					builder.add(
-						node.from,
-						node.from + markerLen,
-						Decoration.replace({ markerType: 'open' }),
-					);
+					entries.push({
+						from: node.from,
+						to: node.from + markerLen,
+						spec: { markerType: 'open' },
+					});
 					// 结束标记：从内容结束到节点结束。
 					// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
 					if (!isEscape && !isHeading) {
-						builder.add(
-							node.to - markerLen,
-							node.to,
-							Decoration.replace({ markerType: 'close' }),
-						);
+						entries.push({
+							from: node.to - markerLen,
+							to: node.to,
+							spec: { markerType: 'close' },
+						});
 					}
 				}
 			}
@@ -170,21 +174,29 @@ function buildDecorations(view: EditorView): DecorationSet {
 
 	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
 	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
-	// 单独 builder 避免与 tree 迭代的 add 顺序冲突。
 	if (formattingConfig.hideHtmlColorTagFormatting) {
-		const colorBuilder = new RangeSetBuilder<Decoration>();
 		const docStr = view.state.doc.toString();
 		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
 		let m: RegExpExecArray | null;
 		while ((m = colorTagRe.exec(docStr)) !== null) {
 			const isClose = m[0].charAt(1) === '/';
-			colorBuilder.add(
-				m.index,
-				m.index + m[0].length,
-				Decoration.replace({ markerType: isClose ? 'close' : 'open' }),
-			);
+			entries.push({
+				from: m.index,
+				to: m.index + m[0].length,
+				spec: { markerType: isClose ? 'close' : 'open' },
+			});
 		}
-		return RangeSet.join([builder.finish(), colorBuilder.finish()]);
+	}
+
+	/* ---- Phase 2: 按 from 排序 ---- */
+
+	entries.sort((a, b) => a.from - b.from);
+
+	/* ---- Phase 3: 一次性写入同一个 RangeSetBuilder ---- */
+
+	const builder = new RangeSetBuilder<Decoration>();
+	for (const { from, to, spec } of entries) {
+		builder.add(from, to, Decoration.replace(spec));
 	}
 
 	return builder.finish();

@@ -302,7 +302,6 @@ export function detachHandler(containerEl: HTMLElement): void {
  * - Plugin.registerEvent() ensures cleanup on unload
  */
 export function registerDirFocus(plugin: Plugin, enabled: () => boolean): void {
-	if (!enabled()) return;
 	const { app } = plugin;
 	let containerEl: HTMLElement | null = null;
 

@@ -108,6 +108,12 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 版本历史
 
+**2.3.0** (2026-07-24)
+
+- **修复：垂直标签页切换回文件列表时全部文件夹被折叠（开关关闭时）** — 移除有缺陷的 snapshot-restore 循环。VT 模式下真实 fileItems 仅被 CSS `display:none` 隐藏从未被修改，且 Obsidian 虚拟滚动导致大量文件夹不在 DOM 中，snapshot 误判为 collapsed。现在 toggle 关闭时跳过同步，原始折叠状态完好保留
+- **修复：目录聚焦开关切换后需重启 Obsidian 才生效** — 移除 `registerDirFocus` 中的 `if (!enabled()) return` 提前返回。handler 始终注册，每次点击时检查 `enabled()` 守卫，开关切换即时生效
+- **重构：Decoration 构建改为先收集 → 排序 → 一次性写入同一个 RangeSetBuilder** — 消除多余分支（colorBuilder + RangeSet.join()），确保写入顺序正确
+
 **2.2.0** (2026-07-23)
 
 - **新增：隐藏 HTML 颜色标签** — 隐藏样式设置区新增「隐藏 HTML 颜色标签」开关（默认开启）。在实时预览中隐藏 `<font color="#c00000">` 和 `</font>` 等 Hex 颜色标签对。基于正则扫描，不依赖 CM6 语法树，支持任意 Hex 颜色值。格式启闭按钮一并控制此项

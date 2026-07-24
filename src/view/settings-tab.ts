@@ -1,4 +1,4 @@
-﻿/**
+/**
  * MDRazor — 设置面板视图
  *
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
@@ -150,6 +150,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
 		new Setting(hideSection)
 			.setName('隐藏 HTML 颜色标签')
 			.setDesc('在实时预览中隐藏 <font color="#c00000"> 和 </font> 等 Hex 颜色标签对')
@@ -329,13 +330,28 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(tabSection)
+			.setName('目录展开关联标签页')
+			.setDesc('开启后，从垂直标签页视图切换回文件列表时，仅展开包含标签页的文件夹；关闭后，切换时将恢复文件列表原来的展开结构')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.tabExpansionAssociatedFolders)
+					.onChange(async (value) => {
+						this.plugin.settings.tabExpansionAssociatedFolders = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		// ═══════════════════════════════════════════
 		// 状态栏增强 配置区
 		// ═══════════════════════════════════════════
 
-		const statusBarSection = this.createCollapsibleSection(containerEl, '状态栏增强', true);
+		new Setting(containerEl)
+			.setName('状态栏增强')
+			.setHeading()
+			.setDesc('在状态栏添加工作区切换等增强功能');
 
-		new Setting(statusBarSection)
+		new Setting(containerEl)
 			.setName('工作区切换')
 			.setDesc('在右下角状态栏显示工作区切换按钮，点击快速切换工作区')
 			.addToggle((toggle) =>
@@ -352,7 +368,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusBarSection)
+		new Setting(containerEl)
 			.setName('自动更新工作区布局')
 			.setDesc('切换或加载工作区时，自动保存当前工作区布局。与 Obsidian 原生"加载工作区"功能及本插件工作区切换联动')
 			.addToggle((toggle) =>
@@ -364,7 +380,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusBarSection)
+		new Setting(containerEl)
 			.setName('侧边栏伸缩按钮')
 			.setDesc('在状态栏最左侧显示按钮，点击一键折叠/展开左右侧边栏。')
 			.addToggle((toggle) =>
@@ -381,7 +397,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusBarSection)
+		new Setting(containerEl)
 			.setName('隐藏样式启闭按钮')
 			.setDesc('在状态栏显示按钮，一键开启/关闭各类格式隐藏样式（不包括空格可视化）')
 			.addToggle((toggle) =>
@@ -426,12 +442,16 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setHeading()
 			.addExtraButton((btn) => {
 				extraBtn = btn;
-				btn.setIcon(expanded ? 'chevron-down' : 'chevron-right');
+				btn.setIcon(expanded ? 'chevron-down' : 'chevron-right')
+					.onClick(toggleSection);
 			});
 
 		headingSetting.settingEl.classList.add('mdrazor-section-heading');
 
-		headingSetting.settingEl.addEventListener('click', toggleSection);
+		headingSetting.settingEl.addEventListener('click', (e) => {
+			if ((e.target as HTMLElement).closest('.clickable-icon')) return;
+			toggleSection();
+		});
 
 		headingSetting.settingEl.after(wrapperEl);
 

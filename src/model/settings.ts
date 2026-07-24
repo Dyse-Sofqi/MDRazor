@@ -45,6 +45,7 @@ export interface MDRazorSettings {
 	tabEnhancerOpenLink: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
+	tabExpansionAssociatedFolders: boolean;
 
 	// ── 状态栏增强 (controller/status-bar-enhancer/) ──
 	statusBarEnhancement: boolean;
@@ -77,6 +78,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	tabEnhancerOpenLink: true,
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
+	tabExpansionAssociatedFolders: true,
 
 	statusBarEnhancement: true,
 	autoSaveWorkspaceLayout: true,
