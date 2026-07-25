@@ -56,7 +56,7 @@ interface DecorationEntry {
  * @param view  当前的 CodeMirror EditorView
  * @returns     覆盖所有待隐藏标记的 DecorationSet
  */
-function buildDecorations(view: EditorView): DecorationSet {
+export function buildDecorations(view: EditorView): DecorationSet {
 	// 仅实时预览模式生效，源码模式跳过。
 	const cmContainer = view.dom.closest('.markdown-source-view');
 	if (!cmContainer || !cmContainer.classList.contains('is-live-preview')) {

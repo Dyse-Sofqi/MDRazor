@@ -326,6 +326,10 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.verticalTabsEnabled)
 					.onChange(async (value) => {
 						this.plugin.settings.verticalTabsEnabled = value;
+						this.plugin.verticalTabsManager?.refreshUI();
+						if (!value) {
+							this.plugin.verticalTabsManager?.toggleView();
+						}
 						await this.plugin.saveSettings();
 					}),
 			);

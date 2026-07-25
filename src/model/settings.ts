@@ -27,6 +27,9 @@ export interface MDRazorSettings {
 	hideWikiLinkFormatting: boolean;
 	hideHtmlColorTagFormatting: boolean;
 
+	// ── 光标边界提示 ──
+	symbolBoundaryHint: boolean;
+
 	// ── 列表增强 (controller/list-enhancer/) ──
 	listIntegration: boolean;
 	enterSoftBreak: boolean;
@@ -65,6 +68,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHeadingFormatting: true,
 	hideWikiLinkFormatting: true,
 	hideHtmlColorTagFormatting: true,
+	symbolBoundaryHint: true,
 	listIntegration: true,
 	enterSoftBreak: true,
 	listFocusOption: true,

@@ -56,6 +56,9 @@ export default class MDRazorPlugin extends Plugin {
 	/** 目录文件计数强制刷新 */
 	dirFileCountRefresher!: { forceRefresh: () => void };
 
+	/** 垂直标签页管理（命令调用） */
+	verticalTabsManager!: { toggleView: () => void; refreshUI: () => void };
+
 	async onload() {
 		await this.loadSettings();
 
@@ -94,7 +97,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册链接打开增强（文档内双链 → 已有标签页则跳转）
 		registerLinkOpener(this, () => this.settings.tabEnhancerOpenLink);
 		// 注册垂直标签页（文件列表关闭按钮 + 标签页列表视图）
-		registerVerticalTabs(
+		this.verticalTabsManager = registerVerticalTabs(
 			this,
 			() => this.settings.verticalTabsEnabled,
 			() => this.settings.verticalTabsViewActive,
@@ -104,6 +107,21 @@ export default class MDRazorPlugin extends Plugin {
 			},
 			() => this.settings.tabExpansionAssociatedFolders,
 		);
+
+		// 注册切换标签页视图命令（verticalTabsEnabled 开启时可绑定快捷键）
+		this.addCommand({
+			id: 'toggle-vertical-tabs-view',
+			name: '切换标签页视图',
+			icon: 'arrow-left-right',
+			checkCallback: (checking: boolean) => {
+				if (!this.settings.verticalTabsEnabled) return false;
+				if (!checking) {
+					this.verticalTabsManager.toggleView();
+				}
+				return true;
+			},
+		});
+
 		// 如果设置已启用，添加 ribbon 图标
 		if (this.settings.orphanImageCleanerEnabled) {
 			this.orphanImageRibbon.addRibbon();

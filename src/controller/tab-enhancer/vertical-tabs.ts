@@ -51,8 +51,8 @@ export function registerVerticalTabs(
 	isViewActive: () => boolean,
 	setViewActive: (active: boolean) => void,
 	_foldersSyncedOnExit: () => boolean,
-): void {
-	if (!enabled()) return;
+): { toggleView: () => void; refreshUI: () => void } {
+	if (!enabled()) return { toggleView: () => {}, refreshUI: () => {} };
 	const { app } = plugin;
 
 	let containerEl: HTMLElement | null = null;
@@ -676,4 +676,21 @@ export function registerVerticalTabs(
 	plugin.registerEvent(app.workspace.on('active-leaf-change', () => onLeafChange()));
 
 	plugin.register(() => detach());
+
+	return {
+		toggleView: () => {
+			if (!containerEl) return;
+			const next = !isViewActive();
+			setViewActive(next);
+			if (toggleBtn) {
+				toggleBtn.classList.toggle('is-active', next);
+			}
+			applyViewState();
+		},
+		refreshUI: () => {
+			if (!containerEl) return;
+			injectToggleButton();
+			refreshCloseButtons();
+		},
+	};
 }

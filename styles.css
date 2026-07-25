@@ -154,3 +154,21 @@ div.nav-folder-title {
 .mdrazor-workspace-menu-item:hover {
 	background: var(--background-modifier-hover);
 }
+
+/* ── 符号边界提示 ── */
+.mdrazor-boundary-hint {
+	position: fixed;
+	font-family: var(--font-monospace);
+	font-size: 13px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	padding: 2px 6px;
+	z-index: 1000;
+	white-space: pre;
+	pointer-events: none;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.mdrazor-hint-cursor {
+	color: var(--text-accent);
+}
