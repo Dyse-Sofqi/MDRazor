@@ -60,6 +60,8 @@ All hidden formats share these behaviors:
 
 👁️ **Space Visualization** — Display spaces as translucent `·` markers, making indentation and alignment visible at a glance. Based on CM6 viewport iteration — only visible lines are processed, minimal performance overhead. Translucent style won't interfere with editing. Listed as an independent toggle within the Style Hiding section.
 
+🔍 **Symbol Boundary Hint** — When the cursor is at the boundary between a formatting marker and content, a small tooltip appears below the cursor displaying the hidden markers on either side. Built on CM6's `showTooltip` system — automatically tracks cursor position, follows scrolling, and cleans up on editor destroy. Independent toggle under the Style Hiding section.
+
 ---
 
 #### 🗑️ Orphan Image Cleaner
@@ -100,13 +102,22 @@ File tab management with the following independent toggles:
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
-- **Style Hiding** — 8 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Space Visualization
+- **Style Hiding** — 11 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, Space Visualization, Symbol Boundary Hint
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
 - **Statusbar Enhancement** — 2 toggles: Workspace Switch, Auto-save Workspace Layout
 
 ### Changelog
+
+**2.3.1** (2026-07-26)
+
+- **New: Symbol Boundary Hint** — Added "Symbol Boundary Hint" toggle under Style Hiding in settings. When the cursor is at the boundary between a hidden formatting marker and its content, a small tooltip appears below the cursor showing the markers on both sides. Uses CM6 `showTooltip` system — auto-repositions on scroll and cleans up on editor destroy
+- **Fix: Tooltip scroll tracking + tab-switch persistence** — Replaced manual `position: fixed` tooltip DOM management with CM6's native `showTooltip` system, which handles scroll repositioning and editor lifecycle automatically
+- **Fix: Duplicate characters in bold/italic/highlight/strikethrough tooltip** — Added `seenRanges` dedup in `getHintMarkers()` to skip open+close decorations at identical ranges
+- **Fix: Error "Calls to EditorView.update are not allowed while an update is in progress"** — Wrapped `view.dispatch()` in `updateHint()` and `clearHint()` inside `queueMicrotask` to prevent recursive dispatch during update cycles
+- **Fix: Duplicate CM6 instances from incorrect build config** — Switched from inline `--external:obsidian` esbuild command to `esbuild.config.mjs` which properly externalizes all CM6 packages
+- **Refactor: cursor-boundary-hint.ts rewritten to CM6 StateEffect/StateField/showTooltip architecture** — Removed manual DOM management, fully leverages CM6 built-in tooltip system
 
 **2.3.0** (2026-07-24)
 

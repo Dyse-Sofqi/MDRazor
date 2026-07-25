@@ -157,7 +157,6 @@ div.nav-folder-title {
 
 /* ── 符号边界提示 ── */
 .mdrazor-boundary-hint {
-	position: fixed;
 	font-family: var(--font-monospace);
 	font-size: 13px;
 	background: var(--background-primary);

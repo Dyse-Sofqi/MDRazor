@@ -142,6 +142,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 			if (markerLen > 0) {
 				const isEscape = typeName === 'Escape' || typeName === 'escape' || typeName.includes('formatting-escape');
 				const isHeading = typeName.includes('formatting-header') || typeName.includes('formatting-heading') || typeName.includes('HeadingMark') || typeName.includes('HeaderMark');
+				const isInlineCode = typeName.includes('formatting-code') && typeName.includes('inline-code');
 				const isWikiStart = typeName.includes('formatting-link_formatting-link-start');
 				const isWikiEnd = typeName.includes('formatting-link_formatting-link-end');
 
@@ -150,6 +151,10 @@ export function buildDecorations(view: EditorView): DecorationSet {
 					entries.push({ from: node.from, to: node.to, spec: { markerType: 'close' } });
 				} else if (isWikiStart) {
 					// [[ open marker only — this node is the 2-char start bracket
+					entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+				} else if (isInlineCode) {
+					// 行内代码：node 仅覆盖单个 ` 本身，而非整个标记->内容->标记跨度。
+					// 只需一个 decoration 覆盖整个 node 范围。
 					entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
 				} else {
 					// 起始标记：从节点开始到内容起始
