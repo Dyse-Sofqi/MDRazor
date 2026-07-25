@@ -175,6 +175,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(hideSection)
+			.setName('符号边界提示')
+			.setDesc('光标处于格式标识符边界时，在光标下方弹出提示，展示光标与隐藏标识符的位置关系')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.symbolBoundaryHint)
+					.onChange(async (value) => {
+						this.plugin.settings.symbolBoundaryHint = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		// ═══════════════════════════════════════════
 		// 列表增强 配置区
 		// ═══════════════════════════════════════════

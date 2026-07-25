@@ -19,6 +19,7 @@ import { EditorView } from '@codemirror/view';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
 import { formattingConfig, createFormatHiderExtension } from './format-hider/format-hider';
+import { createCursorBoundaryHintExtension } from './format-hider/cursor-boundary-hint';
 import { spaceConfig, createSpaceVisualizationExtension } from './format-hider/whitespace-visible';
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer/list-enhancer';
 import { registerDirFocus } from './list-enhancer/dir-focus';
@@ -81,6 +82,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染
 		this.registerEditorExtension(createFormatHiderExtension());
 		this.registerEditorExtension(createSpaceVisualizationExtension());
+		this.registerEditorExtension(createCursorBoundaryHintExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
 		// 注册目录聚焦（非 CM6 扩展 — 直接操作文件列表 DOM）
 		registerDirFocus(this, () => this.settings.dirFocusOption);
