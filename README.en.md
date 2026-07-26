@@ -52,6 +52,9 @@ Each format below can be toggled independently:
 - **Inline Code** — hides `` ` `` inline code markers
 - **Escape** — hides `\` escape character markers
 - **Heading** — hides `#` heading markers (H1–H6); standalone `#` without trailing space is not hidden
+- **Wiki Link Brackets** — hides `[[` and `]]` wiki link formatting markers
+- **HTML Color Tags** — hides `<font color="#c00000">` and `</font>` Hex color tag pairs
+- **HTML Underline Tags** — hides `<u>` and `</u>` HTML underline tag pairs in live preview
 
 All hidden formats share these behaviors:
 
@@ -102,13 +105,17 @@ File tab management with the following independent toggles:
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
-- **Style Hiding** — 11 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, Space Visualization, Symbol Boundary Hint
+- **Style Hiding** — 12 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, Space Visualization, Symbol Boundary Hint
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
 - **Tab Enhancer** — 2 toggles: Default New Tab Open, Vertical Tabs
 - **Statusbar Enhancement** — 2 toggles: Workspace Switch, Auto-save Workspace Layout
 
 ### Changelog
+
+**2.3.2** (2026-07-26)
+
+- **New: Hide HTML underline tags** — Added "Hide HTML Underline Tags" toggle (default on) under Style Hiding in settings. Hides `<u>` and `</u>` HTML underline tag pairs in live preview. Uses regex scanning instead of CM6 syntax tree iteration. Included in the format toggle button's toggle-all list
 
 **2.3.1** (2026-07-26)
 

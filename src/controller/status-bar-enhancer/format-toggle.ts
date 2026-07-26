@@ -23,6 +23,7 @@ const FORMATTING_KEYS: Array<keyof MDRazorSettings> = [
 	'hideHeadingFormatting',
 	'hideWikiLinkFormatting',
 	'hideHtmlColorTagFormatting',
+	'hideHtmlUnderlineFormatting',
 ];
 
 /** 检查当前是否任一格式隐藏开关已开启 */

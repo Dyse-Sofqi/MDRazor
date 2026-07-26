@@ -193,6 +193,21 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		}
 	}
 
+	// ── HTML 下划线标签（<u>、</u>）──
+	if (formattingConfig.hideHtmlUnderlineFormatting) {
+		const docStr = view.state.doc.toString();
+		const underlineTagRe = /<\/?u\s*>/gi;
+		let m: RegExpExecArray | null;
+		while ((m = underlineTagRe.exec(docStr)) !== null) {
+			const isClose = m[0].charAt(1) === '/';
+			entries.push({
+				from: m.index,
+				to: m.index + m[0].length,
+				spec: { markerType: isClose ? 'close' : 'open' },
+			});
+		}
+	}
+
 	/* ---- Phase 2: 按 from 排序 ---- */
 
 	entries.sort((a, b) => a.from - b.from);

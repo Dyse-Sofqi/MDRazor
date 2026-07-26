@@ -164,6 +164,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				);
 
 		new Setting(hideSection)
+			.setName('隐藏 HTML 下划线符号')
+			.setDesc('在实时预览中隐藏 <u> 和 </u> 下划线 HTML 标签对')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.hideHtmlUnderlineFormatting)
+					.onChange(async (value) => {
+						this.plugin.settings.hideHtmlUnderlineFormatting = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(hideSection)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>
