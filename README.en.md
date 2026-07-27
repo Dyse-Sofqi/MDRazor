@@ -99,7 +99,7 @@ File tab management with the following independent toggles:
 
 - **Default New Tab Open** — Click a file in the file explorer: if a tab for that file already exists, switch to it; otherwise open a new tab. Prevents duplicate tabs for more efficient file navigation. Ctrl/Meta+click restores native Obsidian behavior (open in new tab).
 
-- **🗂️ Vertical Tabs** — Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles. Supports "tabs-only" and "full directory" view toggle. Tabs-only view hides unopened files and empty folders, focuses on active files. Close button displayed on the right of each open file title.
+- **🗂️ Vertical Tabs** — Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles. Supports "tabs-only" and "full directory" view toggle. Tabs-only view hides unopened files and empty folders, focuses on active files. Close button displayed on the right of each open file title. Closing the active tab auto-focuses the previous tab, matching native tab bar behavior.
 
 ### Settings
 
@@ -112,6 +112,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Statusbar Enhancement** — 2 toggles: Workspace Switch, Auto-save Workspace Layout
 
 ### Changelog
+
+**2.3.3** (2026-07-27)
+
+- **Fix: Vertical tab close button no longer closes sidebar note properties panel** — `closeTab()` uses `isInMainArea` DOM containment check to skip sidebar leaves, preventing wrongful detachment of the note properties view
+- **New: Close active tab auto-focuses previous tab** — Clicking the close button on the currently active tab in vertical tabs now automatically activates the previous tab (left neighbor in tab order; if first tab was closed, activates the next). Matches Obsidian native top tab bar behavior
 
 **2.3.2** (2026-07-26)
 

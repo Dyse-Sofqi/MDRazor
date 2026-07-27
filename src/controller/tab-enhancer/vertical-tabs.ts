@@ -227,8 +227,41 @@ export function registerVerticalTabs(
 		});
 	};
 
+	const isInMainArea = (leaf: WorkspaceLeaf): boolean => {
+		const rootEl = app.workspace.containerEl.querySelector('.workspace-split.mod-root');
+		return !rootEl || rootEl.contains(leaf.view.containerEl);
+	};
+
+	/** Get open file paths in visual tab order (left-to-right). */
+	const getOrderedOpenPaths = (): string[] => {
+		const paths: string[] = [];
+		const walk = (item: any): void => {
+			if (!item) return;
+			if (item.children && Array.isArray(item.children)) {
+				for (const child of item.children) walk(child);
+				return;
+			}
+			if ('view' in item) {
+				if (!isInMainArea(item as WorkspaceLeaf)) return;
+				const file = ((item as WorkspaceLeaf).view as { file?: TFile })?.file;
+				if (file instanceof TFile) { paths.push(file.path); return; }
+				try {
+					const vs = (item as WorkspaceLeaf).getViewState?.();
+					if (vs?.state?.file && typeof vs.state.file === 'string') paths.push(vs.state.file);
+				} catch { /* skip */ }
+			}
+		};
+		walk(app.workspace.rootSplit);
+		return paths;
+	};
+
 	const closeTab = (path: string): void => {
+		const orderedPaths = getOrderedOpenPaths();
+		const closedIndex = orderedPaths.indexOf(path);
+		const wasActive = getActiveFilePath() === path;
+
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
+			if (!isInMainArea(leaf)) return;
 			if ((leaf.view as { file?: { path: string } })?.file?.path === path) {
 				leaf.detach();
 				return;
@@ -236,10 +269,16 @@ export function registerVerticalTabs(
 			if (!(leaf.view as { file?: unknown })?.file) {
 				try {
 					const vs = leaf.getViewState?.();
-					if (vs?.state?.file === path) leaf.detach();
+					if (vs?.state?.file === path && leaf.view.getViewType?.() === 'markdown') leaf.detach();
 				} catch { /* leaf not ready */ }
 			}
 		});
+
+		if (wasActive && closedIndex >= 0) {
+			const targetIdx = closedIndex > 0 ? closedIndex - 1 : (orderedPaths.length > 1 ? closedIndex + 1 : -1);
+			const prevPath = orderedPaths[targetIdx];
+			if (prevPath) openOrSwitchTab(prevPath);
+		}
 	};
 
 	/**
