@@ -156,7 +156,7 @@ div.nav-folder-title {
 }
 
 /* ── 符号边界提示 ── */
-.mdrazor-boundary-hint {
+.mdrazor-boundary-hint.mdrazor-boundary-hint {
 	font-family: var(--font-monospace);
 	font-size: 13px;
 	background: var(--background-primary);

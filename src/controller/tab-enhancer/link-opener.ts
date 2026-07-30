@@ -192,6 +192,8 @@ export function registerLinkOpener(
 		if (handled) { e.preventDefault(); e.stopPropagation(); return; }
 		if (!enabled()) return;
 		if (e.ctrlKey || e.metaKey) return;
+		// Left click only — right-click must show context menu
+		if (e.button !== 0) return;
 
 		const linkEl = (e.target as HTMLElement).closest(
 			'.cm-hmd-internal-link, .cm-hmd-blockref-link, .internal-link',
