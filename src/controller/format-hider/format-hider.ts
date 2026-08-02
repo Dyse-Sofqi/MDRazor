@@ -146,31 +146,61 @@ export function buildDecorations(view: EditorView): DecorationSet {
 				const isWikiStart = typeName.includes('formatting-link_formatting-link-start');
 				const isWikiEnd = typeName.includes('formatting-link_formatting-link-end');
 
+				// 防御：Obsidian 解析器在行内 math（$..$）与加粗（**..**）等标记共存时，
+				// 会生成范围错误的格式化节点 —— 节点本应只覆盖标记字符本身，实际却可能
+				// 包含 latex 正文。校验即将隐藏的切片确实是标记字符；不匹配则跳过该节点。
+				// 绝不隐藏非标记内容，同时防止光标边界提示弹框把 latex 误当标记显示。
+				const validMarker = (from: number, to: number): boolean => {
+					const text = view.state.doc.sliceString(from, to);
+					if (isWikiEnd) return text === ']]';
+					if (isWikiStart) return text === '[[';
+					if (isInlineCode) return /^`+$/.test(text);
+					if (isEscape) return text === '\\';
+					if (isHeading) return /^#+\s?$/.test(text);
+					if (typeName.includes('formatting-strong')) return /^[*_]+$/.test(text);
+					if (typeName.includes('formatting-em')) return /^[*_]+$/.test(text);
+					if (typeName.includes('formatting-highlight')) return /^=+$/.test(text);
+					if (typeName.includes('formatting-strikethrough')) return /^~+$/.test(text);
+					return true; // 未知类型 —— 不拦截
+				};
+
 				if (isWikiEnd) {
 					// ]] close marker only — this node is the 2-char end bracket
-					entries.push({ from: node.from, to: node.to, spec: { markerType: 'close' } });
+					if (validMarker(node.from, node.to)) {
+						entries.push({ from: node.from, to: node.to, spec: { markerType: 'close' } });
+					}
 				} else if (isWikiStart) {
 					// [[ open marker only — this node is the 2-char start bracket
-					entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+					if (validMarker(node.from, node.to)) {
+						entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+					}
 				} else if (isInlineCode) {
 					// 行内代码：node 仅覆盖单个 ` 本身，而非整个标记->内容->标记跨度。
 					// 只需一个 decoration 覆盖整个 node 范围。
-					entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+					if (validMarker(node.from, node.to)) {
+						entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+					}
 				} else {
-					// 起始标记：从节点开始到内容起始
-					entries.push({
-						from: node.from,
-						to: node.from + markerLen,
-						spec: { markerType: 'open' },
-					});
-					// 结束标记：从内容结束到节点结束。
-					// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
-					if (!isEscape && !isHeading) {
+					// 起始/结束标记需同时通过校验，否则跳过整个节点。
+					if (
+						validMarker(node.from, node.from + markerLen) &&
+						(isEscape || isHeading || validMarker(node.to - markerLen, node.to))
+					) {
+						// 起始标记：从节点开始到内容起始
 						entries.push({
-							from: node.to - markerLen,
-							to: node.to,
-							spec: { markerType: 'close' },
+							from: node.from,
+							to: node.from + markerLen,
+							spec: { markerType: 'open' },
 						});
+						// 结束标记：从内容结束到节点结束。
+						// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
+						if (!isEscape && !isHeading) {
+							entries.push({
+								from: node.to - markerLen,
+								to: node.to,
+								spec: { markerType: 'close' },
+							});
+						}
 					}
 				}
 			}
@@ -216,6 +246,14 @@ export function buildDecorations(view: EditorView): DecorationSet {
 
 	const builder = new RangeSetBuilder<Decoration>();
 	for (const { from, to, spec } of entries) {
+		// CM6 禁止 replace 装饰跨越换行符。Obsidian 的解析器在数学符号
+		// （$..$）与加粗（**..**）等标记共存于一行时会生成异常的语法树
+		// 节点，其标记范围可能跨越 \n。若直接写入 replace 装饰，ViewPlugin
+		// 初始化会抛异常，导致整个编辑器（乃至文件）无法打开。
+		// 防御：跳过任何跨越行边界的范围 —— 宁可保留标记可见，不可崩溃。
+		const line = view.state.doc.lineAt(from);
+		if (to > line.to) continue;
+
 		builder.add(from, to, Decoration.replace(spec));
 	}
 

@@ -1,5 +1,10 @@
 ### Changelog
 
+**2.3.5** (2026-08-02)
+
+- **Fix: Files containing lines with coexisting math and bold markers fail to open** — When inline math (`$..$`) and bold (`**..**`) coexist on one line (e.g. `` `- $f(x)$的**周期**$l$` ``), Obsidian's parser emits an anomalous syntax-tree node spanning a line break. The format hider built a `Decoration.replace()` whose range contains `\n`, making CodeMirror 6 throw and fail editor (and file) initialization. Ranges crossing a line boundary are now skipped, so the file opens normally
+- **Fix: Wrong symbol boundary hint content at the bold/latex boundary** — The same parser anomaly lets formatting-node ranges include latex content (e.g. `$l$`), so the tooltip displayed math text as if it were a hidden marker. Markers are now validated against their real marker characters (`**`/`*`/`==`/`~~`/`` ` ``/`\`/`[[`/`]]`/`#`) before hiding; non-matching nodes are skipped, so non-marker content is never hidden
+
 **2.3.4** (2026-07-31)
 
 - **Fix: Right-click on wiki link no longer opens new tab** — Added `e.button !== 0` check to `pointerdown`/`mousedown`/`click` handler; only left-click triggers tab opening, context menu works correctly on right-click

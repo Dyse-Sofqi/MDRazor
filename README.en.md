@@ -12,30 +12,14 @@ Designed to refine your writing experience with precision like a razor.
 
 ---
 
-### Installation
-
-#### Via Community Plugins (Recommended)
-
-1. Open Obsidian → Settings → Community plugins → Browse
-2. Search for **MDRazor** and install
-3. Enable in Installed plugins list
-
-#### Via BRAT (Preview builds)
-
-1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) plugin
-2. Add `Dyse-Sofqi/MDRazor` in BRAT settings
-3. Enable MDRazor manually
-
----
-
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **Style Hiding**, **List Enhancements**, and **Tab Enhancer** — three major feature modules, with more in development.
+Currently provides **Style Hiding**, **List Enhancements**, **Tab Enhancer**, **Statusbar Enhancement**, and **Orphan Image Cleaner** — five feature modules, with more in development.
 
 ### Features
 
-Features are organized by the three settings-panel sections. Each toggle is independently switchable in settings.
+Features are organized by the five settings-panel sections. Each toggle is independently switchable in settings.
 
 ---
 
@@ -60,6 +44,7 @@ All hidden formats share these behaviors:
 
 - Clicking near the boundary of formatted content places the cursor outside the markers, preventing accidental format entry
 - Since markers are hidden, cursor movement distance can be inferred from the cursor blink trail
+- **Robustness** — Compatible with inline content where math (`$..$`) coexists with formatting markers (`**..**`, etc.). Even when Obsidian's parser produces an anomalous syntax tree on such lines, the editor never crashes and math content is never mistaken for a hidden marker.
 
 👁️ **Space Visualization** — Display spaces as translucent `·` markers, making indentation and alignment visible at a glance. Based on CM6 viewport iteration — only visible lines are processed, minimal performance overhead. Translucent style won't interfere with editing. Listed as an independent toggle within the Style Hiding section.
 
@@ -103,15 +88,44 @@ File tab management with the following independent toggles:
 
 - **🗂️ Vertical Tabs** — Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles. Supports "tabs-only" and "full directory" view toggle. Tabs-only view hides unopened files and empty folders, focuses on active files. Close button displayed on the right of each open file title. Closing the active tab auto-focuses the previous tab, matching native tab bar behavior.
 
+- **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
+
+---
+
+#### 🖥️ Statusbar Enhancement
+
+Status bar enhancements with the following independent toggles:
+
+- **Workspace Switch** — Shows a workspace-switch button in the bottom-right status bar: no button for 0-1 workspaces, direct switch for 2, popup list for 3+. Tracks and highlights the current workspace name.
+- **Auto-save Workspace Layout** — Automatically saves the current workspace layout when switching to or loading another workspace. Integrates with Obsidian's native "Load Workspace" and the plugin's workspace switch.
+- **Sidebar Toggle Button** — Shows a button at the leftmost position of the status bar to collapse/expand both sidebars with one click.
+- **Format Toggle Button** — Shows a "标识" button at the leftmost position of the status bar to toggle all format hiding styles (bold, italic, highlight, strikethrough, inline code, escape, heading, wiki link brackets) at once; space visualization is excluded. The command `mdrazor-toggle-formatting` can be bound to a hotkey.
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 12 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, Space Visualization, Symbol Boundary Hint
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
-- **List Enhancements** — 6 toggles + 1 sub-setting: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count
-- **Tab Enhancer** — 3 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab
-- **Statusbar Enhancement** — 3 toggles: Workspace Switch, Auto-save Workspace Layout, Format Toggle Button
+- **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
+- **Tab Enhancer** — 4 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Tab Expansion Associated Folders
+- **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
+
+---
+
+### Installation
+
+#### Via Community Plugins (Recommended)
+
+1. Open Obsidian → Settings → Community plugins → Browse
+2. Search for **MDRazor** and install
+3. Enable in Installed plugins list
+
+#### Via BRAT (Preview builds)
+
+1. Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) plugin
+2. Add `Dyse-Sofqi/MDRazor` in BRAT settings
+3. Enable MDRazor manually
 
 ## Technical Stack
 
