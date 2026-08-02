@@ -176,6 +176,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(hideSection)
+			.setName('Callout 所见即所得')
+			.setDesc('编辑 callout 时隐藏 > 与 [!类型] 源码标记，并保持类型图标、标题和盒状外观')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.calloutWysiwygEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.calloutWysiwygEnabled = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(hideSection)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>

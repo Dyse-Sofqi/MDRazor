@@ -26,6 +26,7 @@ export interface MDRazorSettings {
 	hideHeadingFormatting: boolean;
 	hideWikiLinkFormatting: boolean;
 	hideHtmlColorTagFormatting: boolean;
+	calloutWysiwygEnabled: boolean;
 
 	// ── 隐藏 HTML 下划线符号 ──
 	hideHtmlUnderlineFormatting: boolean;
@@ -71,6 +72,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHeadingFormatting: true,
 	hideWikiLinkFormatting: true,
 	hideHtmlColorTagFormatting: true,
+	calloutWysiwygEnabled: true,
 	hideHtmlUnderlineFormatting: true,
 	symbolBoundaryHint: true,
 	listIntegration: true,

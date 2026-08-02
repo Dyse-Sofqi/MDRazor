@@ -19,6 +19,89 @@
 	opacity: 0.35;
 }
 
+/* ── Callout：保留主 CodeMirror 编辑能力的行级渲染 ── */
+.mdrazor-callout-theme-probe {
+	position: fixed;
+	visibility: hidden;
+	pointer-events: none;
+	inset-inline-start: -10000px;
+	width: 600px;
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-line {
+	box-sizing: border-box;
+	margin-block: 0;
+	background: var(--mdrazor-callout-bg, var(--callout-background));
+	border-top: 0;
+	border-right: var(--mdrazor-callout-border-right, var(--callout-border-width) solid rgba(var(--callout-color), var(--callout-border-opacity)));
+	border-bottom: 0;
+	border-left: var(--mdrazor-callout-border-left, var(--callout-border-width) solid rgba(var(--callout-color), var(--callout-border-opacity)));
+	border-radius: 0;
+	color: var(--mdrazor-callout-color, var(--text-normal));
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-title-line {
+	min-height: var(--mdrazor-title-min-height, auto);
+	padding: var(--mdrazor-title-padding-top, 0)
+		var(--mdrazor-title-padding-right, 0)
+		var(--mdrazor-title-padding-bottom, 0)
+		var(--mdrazor-title-padding-left, 0);
+	background: var(--mdrazor-title-bg, transparent);
+	border-bottom: var(--mdrazor-title-border-bottom, 0);
+	color: var(--mdrazor-title-color, var(--callout-title-color));
+	font-family: var(--mdrazor-title-font-family, inherit);
+	font-size: var(--mdrazor-title-font-size, inherit);
+	font-weight: var(--mdrazor-title-font-weight, var(--callout-title-weight));
+	line-height: var(--mdrazor-title-line-height, inherit);
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-content-line {
+	padding: 0 var(--mdrazor-content-padding-right, 0) 0 var(--mdrazor-content-padding-left, 0);
+	background: var(--mdrazor-content-bg, transparent);
+	color: var(--mdrazor-content-color, var(--text-normal));
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-first-content-line {
+	padding-top: var(--mdrazor-content-padding-top, 0);
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-last-content-line {
+	padding-bottom: var(--mdrazor-content-padding-bottom, 0);
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-first-line {
+	margin-top: var(--mdrazor-callout-margin-top, var(--size-4-3, 12px));
+	border-top: var(--mdrazor-callout-border-top, var(--callout-border-width) solid rgba(var(--callout-color), var(--callout-border-opacity)));
+	border-start-start-radius: var(--mdrazor-callout-radius-tl, var(--callout-radius));
+	border-start-end-radius: var(--mdrazor-callout-radius-tr, var(--callout-radius));
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-last-line {
+	margin-bottom: var(--mdrazor-callout-margin-bottom, var(--size-4-3, 12px));
+	border-bottom: var(--mdrazor-callout-border-bottom, var(--callout-border-width) solid rgba(var(--callout-color), var(--callout-border-opacity)));
+	border-end-start-radius: var(--mdrazor-callout-radius-bl, var(--callout-radius));
+	border-end-end-radius: var(--mdrazor-callout-radius-br, var(--callout-radius));
+}
+.markdown-source-view.mod-cm6.is-live-preview .cm-line.mdrazor-callout-nested-quote {
+	padding-inline-start: calc(var(--mdrazor-content-padding-left, 0px) + var(--mdrazor-quote-padding-left, 0px));
+	padding-inline-end: calc(var(--mdrazor-content-padding-right, 0px) + var(--mdrazor-quote-padding-right, 0px));
+	background: var(--mdrazor-quote-bg, var(--background-secondary));
+	box-shadow: inset var(--mdrazor-quote-border-left-width, var(--blockquote-border-thickness)) 0 0
+		var(--mdrazor-quote-border-left-color, var(--blockquote-border-color));
+	color: var(--mdrazor-quote-color, var(--text-normal));
+}
+.markdown-source-view.mod-cm6.is-live-preview .mdrazor-callout-line.HyperMD-quote::before,
+.markdown-source-view.mod-cm6.is-live-preview .mdrazor-callout-line .cm-blockquote-border {
+	display: none;
+}
+.mdrazor-callout-title-prefix {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--callout-title-gap, var(--size-4-1, 4px));
+	margin-inline-end: var(--size-4-2, 8px);
+	vertical-align: text-bottom;
+}
+.mdrazor-callout-icon {
+	display: inline-flex;
+	align-items: center;
+}
+.mdrazor-callout-checkbox {
+	vertical-align: middle;
+}
+
 /* ── 软换行续行隐藏折叠符号 ──
  * 列表项软换行后，子项折叠符号不应出现在续行上，仅首行保留。
  * 默认隐藏所有 .collapse-indicator，再对含列表符号的行（首行）显示。

@@ -24,6 +24,7 @@ const FORMATTING_KEYS: Array<keyof MDRazorSettings> = [
 	'hideWikiLinkFormatting',
 	'hideHtmlColorTagFormatting',
 	'hideHtmlUnderlineFormatting',
+	'calloutWysiwygEnabled',
 ];
 
 /** 检查当前是否任一格式隐藏开关已开启 */
