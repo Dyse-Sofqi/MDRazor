@@ -30,6 +30,9 @@ export interface MDRazorSettings {
 	// ── 隐藏 HTML 下划线符号 ──
 	hideHtmlUnderlineFormatting: boolean;
 
+	// ── 隐藏 HTML 行标签（span）──
+	hideHtmlSpanFormatting: boolean;
+
 	// ── 光标边界提示 ──
 	symbolBoundaryHint: boolean;
 
@@ -72,6 +75,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideWikiLinkFormatting: true,
 	hideHtmlColorTagFormatting: true,
 	hideHtmlUnderlineFormatting: true,
+	hideHtmlSpanFormatting: true,
 	symbolBoundaryHint: true,
 	listIntegration: true,
 	enterSoftBreak: true,

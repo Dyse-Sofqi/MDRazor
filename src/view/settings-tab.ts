@@ -7,6 +7,7 @@
 
 import { App, ExtraButtonComponent, PluginSettingTab, Setting } from 'obsidian';
 import type MDRazorPlugin from '../controller/main';
+import type { MDRazorSettings } from '../model/settings';
 
 /**
  * 在 Obsidian 设置中显示的设置面板：设置 → 第三方插件 → MDRazor。
@@ -19,6 +20,9 @@ import type MDRazorPlugin from '../controller/main';
 export class MDRazorSettingTab extends PluginSettingTab {
 	plugin: MDRazorPlugin;
 
+	/** 隐藏样式开关组件引用（受状态栏"隐藏样式启闭按钮"管辖的开关） */
+	private hideToggles: Array<{ key: keyof MDRazorSettings; toggle: import('obsidian').ToggleComponent }> = [];
+
 	constructor(app: App, plugin: MDRazorPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -27,6 +31,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+
+		// 每次重建界面时重置开关引用（旧组件已被 empty() 销毁）
+		this.hideToggles = [];
 
 		// ═══════════════════════════════════════════
 		// 失联图片清理 配置区
@@ -55,125 +62,27 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		const hideSection = this.createCollapsibleSection(containerEl, '隐藏样式', true);
 
-		new Setting(hideSection)
-			.setName('隐藏加粗符号')
-			.setDesc('在实时预览中隐藏 ** 加粗标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideBoldFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideBoldFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏加粗符号', '在实时预览中隐藏 ** 加粗标记符号', 'hideBoldFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏斜体符号')
-			.setDesc('在实时预览中隐藏 * 斜体标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideItalicFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideItalicFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏斜体符号', '在实时预览中隐藏 * 斜体标记符号', 'hideItalicFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏高亮符号')
-			.setDesc('在实时预览中隐藏 == 高亮标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideHighlightFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideHighlightFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏高亮符号', '在实时预览中隐藏 == 高亮标记符号', 'hideHighlightFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏删除线符号')
-			.setDesc('在实时预览中隐藏 ~~ 删除线标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideStrikethroughFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideStrikethroughFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏删除线符号', '在实时预览中隐藏 ~~ 删除线标记符号', 'hideStrikethroughFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏行内代码符号')
-			.setDesc('在实时预览中隐藏 ` 行内代码标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideCodeFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideCodeFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏行内代码符号', '在实时预览中隐藏 ` 行内代码标记符号', 'hideCodeFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏转义符号')
-			.setDesc('在实时预览中隐藏 \\ 转义符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideEscapeFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideEscapeFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏转义符号', '在实时预览中隐藏 \\ 转义符号', 'hideEscapeFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏标题符号')
-			.setDesc('在实时预览中隐藏 # 标题标记符号')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideHeadingFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideHeadingFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏标题符号', '在实时预览中隐藏 # 标题标记符号', 'hideHeadingFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏双链符号')
-			.setDesc('在实时预览中隐藏 [[ 和 ]] 双链格式标记')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideWikiLinkFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideWikiLinkFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏双链符号', '在实时预览中隐藏 [[ 和 ]] 双链格式标记', 'hideWikiLinkFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏 HTML 颜色标签')
-			.setDesc('在实时预览中隐藏 <font color="#c00000"> 和 </font> 等 Hex 颜色标签对')
-			.addToggle((toggle) =>
-					toggle
-						.setValue(this.plugin.settings.hideHtmlColorTagFormatting)
-						.onChange(async (value) => {
-							this.plugin.settings.hideHtmlColorTagFormatting = value;
-							await this.plugin.saveSettings();
-						}),
-				);
+		this.addHideToggle(hideSection, '隐藏 HTML 颜色标签', '在实时预览中隐藏 <font color="#c00000"> 和 </font> 等 Hex 颜色标签对', 'hideHtmlColorTagFormatting');
 
-		new Setting(hideSection)
-			.setName('隐藏 HTML 下划线符号')
-			.setDesc('在实时预览中隐藏 <u> 和 </u> 下划线 HTML 标签对')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.hideHtmlUnderlineFormatting)
-					.onChange(async (value) => {
-						this.plugin.settings.hideHtmlUnderlineFormatting = value;
-						await this.plugin.saveSettings();
-					}),
-			);
+		this.addHideToggle(hideSection, '隐藏 HTML 下划线符号', '在实时预览中隐藏 <u> 和 </u> 下划线 HTML 标签对', 'hideHtmlUnderlineFormatting');
+
+		this.addHideToggle(hideSection, '隐藏 HTML 行标签', '在实时预览中隐藏 <span> 和 </span> HTML 标签对（含 style 等属性）', 'hideHtmlSpanFormatting');
 
 		new Setting(hideSection)
 			.setName('空格可视化')
@@ -441,6 +350,52 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
+
+	/**
+	 * 创建受状态栏"隐藏样式启闭按钮"管辖的隐藏样式开关。
+	 *
+	 * 与按钮双向同步：
+	 *   - 开关变化 → 刷新按钮图标（refreshIcon）
+	 *   - 按钮一键切换 → 经 syncHideTogglesFromSettings() 反向刷新这些开关显示
+	 *
+	 * @param hideSection  隐藏样式配置区容器
+	 * @param name         开关名称
+	 * @param desc         开关描述
+	 * @param key          对应的设置键（必须为 boolean 字段）
+	 */
+	private addHideToggle(
+		hideSection: HTMLElement,
+		name: string,
+		desc: string,
+		key: keyof MDRazorSettings,
+	): void {
+		new Setting(hideSection)
+			.setName(name)
+			.setDesc(desc)
+			.addToggle((toggle) => {
+				this.hideToggles.push({ key, toggle });
+				toggle
+					.setValue(this.plugin.settings[key] as boolean)
+					.onChange(async (value) => {
+						(this.plugin.settings as unknown as Record<string, boolean>)[key] = value;
+						await this.plugin.saveSettings();
+						// 单项开关变化 → 同步状态栏一键按钮图标
+						this.plugin.formatToggle?.refreshIcon();
+					});
+			});
+	}
+
+	/**
+	 * 从当前设置值刷新受一键按钮管辖的隐藏样式开关显示。
+	 *
+	 * 由按钮/命令一键切换全部隐藏样式后调用，使设置界面的开关
+	 * 与按钮（settings 对象）实际状态保持一致。
+	 */
+	syncHideTogglesFromSettings(): void {
+		for (const { key, toggle } of this.hideToggles) {
+			toggle.setValue(this.plugin.settings[key] as boolean);
+		}
 	}
 
 	/**

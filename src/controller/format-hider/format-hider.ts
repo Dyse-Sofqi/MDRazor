@@ -21,7 +21,7 @@ import {
 	DecorationSet,
 	EditorView,
 } from '@codemirror/view';
-import { Prec, RangeSetBuilder } from '@codemirror/state';
+import { Prec, RangeSetBuilder, type Text } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 
@@ -39,7 +39,103 @@ export const formattingConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 interface DecorationEntry {
 	from: number;
 	to: number;
-	spec: { markerType: 'open' | 'close' };
+	spec: {
+		markerType: 'open' | 'close';
+		/**
+		 * 是否以 mark 装饰隐藏（HTML 标签用）。
+		 * HTML 标签若用 replace 装饰，会在同一起点遮蔽 Obsidian 的内联
+		 * HTML 渲染 widget（cm-html-embed），导致标签对内的渲染文本在
+		 * 光标经过后消失。改用 mark + CSS 隐藏可避免该冲突。
+		 */
+		hideAsMark?: boolean;
+	};
+}
+
+/** 文档中的一段连续区间。 */
+interface DocRange {
+	from: number;
+	to: number;
+}
+
+/**
+ * 收集 span 标签隐藏的排除区段：围栏代码块、行内代码、数学公式。
+ *
+ * 在这些区域内 `<span>` 是字面文本（如代码示例），不是真实 HTML 标签，
+ * 隐藏它们会错误地删除可见内容。任何误判都只会让标签保持可见，不会崩溃
+ * （正确性优先）。
+ *
+ * 策略（多重保险，不依赖任何单一具体节点名）：
+ *   1. 围栏代码块 —— 行扫描 ``` / ~~~（确定性）
+ *   2. 行内代码 / 数学 —— 语法树中匹配对应元素节点，覆盖整段范围
+ *   3. 行内代码标记 —— `formatting-code`+`inline-code` 标记按行配对，
+ *      兜底覆盖元素节点命名差异（标记必然存在，见 buildDecorations 中
+ *      对行内代码的处理逻辑）
+ */
+function collectSpanExclusions(
+	doc: Text,
+	tree: ReturnType<typeof syntaxTree>,
+): DocRange[] {
+	const ranges: DocRange[] = [];
+
+	// ── 1. 围栏代码块：行扫描（确定性，不依赖节点名）──
+	let inFence = false;
+	let fenceFrom = 0;
+	for (let i = 1; i <= doc.lines; i++) {
+		const line = doc.line(i);
+		if (/^\s*(?:```+|~~~+)/.test(line.text)) {
+			if (!inFence) {
+				inFence = true;
+				fenceFrom = line.from;
+			} else {
+				ranges.push({ from: fenceFrom, to: line.to });
+				inFence = false;
+			}
+		}
+	}
+	// 未闭合的围栏 —— 延伸到文档末尾
+	if (inFence) {
+		ranges.push({ from: fenceFrom, to: doc.line(doc.lines).to });
+	}
+
+	// ── 2 + 3. 语法树：元素节点 + 行内代码标记 ──
+	const inlineMarkers: DocRange[] = [];
+	tree.iterate({
+		enter(node) {
+			const typeName = node.type.name;
+
+			// 行内代码标记（单个 ` 等）：先收集，随后配对为完整元素范围
+			if (typeName.includes('formatting-code') && typeName.includes('inline-code')) {
+				inlineMarkers.push({ from: node.from, to: node.to });
+				return undefined;
+			}
+
+			// 代码块 / 行内代码元素 / 数学元素 —— 覆盖整段范围
+			if (
+				typeName.includes('inline-code') ||
+				typeName.includes('codeblock') ||
+				typeName.includes('FencedCode') ||
+				typeName.includes('CodeText') ||
+				typeName.includes('hmd-code') ||
+				typeName.includes('math')
+			) {
+				ranges.push({ from: node.from, to: node.to });
+				return false; // 不再深入子节点，避免重复收集
+			}
+			return undefined;
+		},
+	});
+
+	// 行内代码标记按位置配对，得出完整元素范围（open ` 到 close `）
+	inlineMarkers.sort((a, b) => a.from - b.from);
+	for (let i = 0; i + 1 < inlineMarkers.length; i += 2) {
+		const open = inlineMarkers[i]!;
+		const close = inlineMarkers[i + 1]!;
+		if (open.to <= close.from) {
+			ranges.push({ from: open.from, to: close.to });
+		}
+	}
+
+	return ranges;
 }
 
 /**
@@ -209,6 +305,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 
 	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
 	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
+	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
 	if (formattingConfig.hideHtmlColorTagFormatting) {
 		const docStr = view.state.doc.toString();
 		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
@@ -218,12 +315,13 @@ export function buildDecorations(view: EditorView): DecorationSet {
 			entries.push({
 				from: m.index,
 				to: m.index + m[0].length,
-				spec: { markerType: isClose ? 'close' : 'open' },
+				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
 			});
 		}
 	}
 
 	// ── HTML 下划线标签（<u>、</u>）──
+	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
 		const docStr = view.state.doc.toString();
 		const underlineTagRe = /<\/?u\s*>/gi;
@@ -233,7 +331,31 @@ export function buildDecorations(view: EditorView): DecorationSet {
 			entries.push({
 				from: m.index,
 				to: m.index + m[0].length,
-				spec: { markerType: isClose ? 'close' : 'open' },
+				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
+			});
+		}
+	}
+
+	// ── HTML 行标签（<span ...>、</span>）──
+	// 与 <u> 一样不由 syntax tree 解析，需正则扫描。span 标签可能携带
+	// style 等任意属性，故开标签匹配 <span> 或 <span 属性...>。
+	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
+	if (formattingConfig.hideHtmlSpanFormatting) {
+		const docStr = view.state.doc.toString();
+		const exclusions = collectSpanExclusions(view.state.doc, tree);
+		const spanTagRe = /<span(?:\s[^>]*)?>|<\/span\s*>/gi;
+		let m: RegExpExecArray | null;
+		while ((m = spanTagRe.exec(docStr)) !== null) {
+			const from = m.index;
+			const to = from + m[0].length;
+			// 代码区内的 <span> 是字面文本而非真实标签，跳过（误判仅保留可见，不崩溃）
+			const inExcluded = exclusions.some((r) => from < r.to && to > r.from);
+			if (inExcluded) continue;
+			const isClose = m[0].charAt(1) === '/';
+			entries.push({
+				from,
+				to,
+				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
 			});
 		}
 	}
@@ -253,6 +375,18 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		// 防御：跳过任何跨越行边界的范围 —— 宁可保留标记可见，不可崩溃。
 		const line = view.state.doc.lineAt(from);
 		if (to > line.to) continue;
+
+		// HTML 标签用 mark 隐藏（CSS 使标签文本不可见），避免 replace 装饰
+		// 与 Obsidian 内联 HTML 渲染 widget 在同一起点冲突而遮蔽 widget。
+		// mark 不参与 replace 优先级竞争，widget 覆盖范围内不渲染，二者兼容。
+		if (spec.hideAsMark) {
+			builder.add(
+				from,
+				to,
+				Decoration.mark({ ...spec, class: 'mdrazor-html-tag-hidden' }),
+			);
+			continue;
+		}
 
 		builder.add(from, to, Decoration.replace(spec));
 	}

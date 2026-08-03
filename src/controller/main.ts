@@ -52,7 +52,10 @@ export default class MDRazorPlugin extends Plugin {
 	sidebarToggle!: { addButton: () => void; removeButton: () => void };
 
 	/** 格式隐藏启闭控制 */
-	formatToggle!: { addButton: () => void; removeButton: () => void };
+	formatToggle!: { addButton: () => void; removeButton: () => void; refreshIcon: () => void };
+
+	/** 设置面板（用于按钮切换后同步设置开关显示） */
+	settingTab?: MDRazorSettingTab;
 
 	/** 目录文件计数强制刷新 */
 	dirFileCountRefresher!: { forceRefresh: () => void };
@@ -64,7 +67,8 @@ export default class MDRazorPlugin extends Plugin {
 		await this.loadSettings();
 
 		// 注册设置面板（Obsidian PluginSettingTab）
-		this.addSettingTab(new MDRazorSettingTab(this.app, this));
+		this.settingTab = new MDRazorSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		// 注册失联图片清理功能（获得 ribbon 控制句柄）
 		this.orphanImageRibbon = registerOrphanImageCleaner(this);
@@ -76,7 +80,11 @@ export default class MDRazorPlugin extends Plugin {
 		this.sidebarToggle = registerSidebarToggle(this);
 
 		// 注册格式隐藏启闭（注册 Obsidian 命令 + 状态栏按钮控制）
-		this.formatToggle = registerFormatToggle(this, this.settings, () => this.saveSettings());
+		this.formatToggle = registerFormatToggle(this, this.settings, async () => {
+			await this.saveSettings();
+			// 按钮/命令一键切换后，同步设置面板中隐藏样式开关的显示状态
+			this.settingTab?.syncHideTogglesFromSettings();
+		});
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染

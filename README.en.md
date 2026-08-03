@@ -39,6 +39,7 @@ Each format below can be toggled independently:
 - **Wiki Link Brackets** — hides `[[` and `]]` wiki link formatting markers
 - **HTML Color Tags** — hides `<font color="#c00000">` and `</font>` Hex color tag pairs
 - **HTML Underline Tags** — hides `<u>` and `</u>` HTML underline tag pairs in live preview
+- **HTML Inline Tags** — hides `<span>` and `</span>` HTML tag pairs in live preview, covering opening tags with arbitrary attributes (e.g. `style="color:var(--color-yellow)"`, `style="color:#b58900"`, `style="background-color:rgba(...)"`, `style="text-decoration:underline"`). `<span>` inside fenced code blocks, inline code, and math is treated as literal text and skipped
 
 All hidden formats share these behaviors:
 
@@ -99,13 +100,13 @@ Status bar enhancements with the following independent toggles:
 - **Workspace Switch** — Shows a workspace-switch button in the bottom-right status bar: no button for 0-1 workspaces, direct switch for 2, popup list for 3+. Tracks and highlights the current workspace name.
 - **Auto-save Workspace Layout** — Automatically saves the current workspace layout when switching to or loading another workspace. Integrates with Obsidian's native "Load Workspace" and the plugin's workspace switch.
 - **Sidebar Toggle Button** — Shows a button at the leftmost position of the status bar to collapse/expand both sidebars with one click.
-- **Format Toggle Button** — Shows a "标识" button at the leftmost position of the status bar to toggle all format hiding styles (bold, italic, highlight, strikethrough, inline code, escape, heading, wiki link brackets) at once; space visualization is excluded. The command `mdrazor-toggle-formatting` can be bound to a hotkey.
+- **Format Toggle Button** — Shows a "标识" button at the leftmost position of the status bar to toggle all format hiding styles (bold, italic, highlight, strikethrough, inline code, escape, heading, wiki link brackets, HTML color tags, HTML underline tags, HTML inline tags) at once; space visualization is excluded. The button icon stays bidirectionally in sync with the Style Hiding switches in settings. The command `mdrazor-toggle-formatting` can be bound to a hotkey.
 
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
-- **Style Hiding** — 12 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, Space Visualization, Symbol Boundary Hint
+- **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
 - **Tab Enhancer** — 4 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Tab Expansion Associated Folders

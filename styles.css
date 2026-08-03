@@ -155,6 +155,19 @@ div.nav-folder-title {
 	background: var(--background-modifier-hover);
 }
 
+/* ── 隐藏 HTML 标签（<span>/<u>/<font>）──
+ * 用 mark 装饰 + 此样式隐藏标签文本，而非 replace 装饰：
+ * replace 会与 Obsidian 内联 HTML 渲染 widget（cm-html-embed）在同一起点
+ * 冲突并遮蔽 widget，导致标签对内的渲染文本在光标经过后消失。
+ * 采用与 Obsidian 原生隐藏标记相同的字体技巧，保持光标映射稳定。
+ */
+.markdown-source-view.mod-cm6 .mdrazor-html-tag-hidden {
+	font-size: 1px !important;
+	letter-spacing: -1ch;
+	font-family: monospace;
+	color: transparent;
+}
+
 /* ── 符号边界提示 ── */
 .mdrazor-boundary-hint.mdrazor-boundary-hint {
 	font-family: var(--font-monospace);

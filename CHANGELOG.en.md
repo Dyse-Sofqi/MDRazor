@@ -1,5 +1,11 @@
 ### Changelog
 
+**2.3.6** (2026-08-03)
+
+- **New: Hide HTML inline tags** — Added "Hide HTML Inline Tags" toggle (default on) under Style Hiding in settings. Hides `<span>` and `</span>` HTML tag pairs in live preview, covering opening tags with arbitrary attributes (e.g. `style="color:var(--color-yellow)"`, `style="color:#b58900"`, `style="background-color:rgba(...)"`, `style="text-decoration:underline"`). Uses regex scanning instead of CM6 syntax tree; `<span>` inside fenced code blocks, inline code, and math is treated as literal text and skipped. Included in the format toggle button's toggle-all list; the symbol boundary hint shows the full tag string (with attributes) verbatim, no truncation
+- **Fix: Text inside HTML tags disappeared after the cursor passed through** — HTML tag hiding switched from `Decoration.replace` to `Decoration.mark` + CSS. Root cause: the opening tag's replace decoration collided with Obsidian's inline-HTML render widget (`cm-html-embed`) at the same start position, shadowing the widget so its rendered text vanished after cursor interaction. All three HTML tag types (`<span>`/`<u>`/`<font>`) now hide via marks, compatible with Obsidian's rendering mechanism
+- **Fix: Format toggle button and settings switches fell out of sync** — The status bar "Format Toggle Button" and the Style Hiding switches in settings are now bidirectionally synchronized: toggling any individual switch instantly refreshes the button icon; a one-click toggle from the button or command re-syncs the settings switches' display
+
 **2.3.5** (2026-08-02)
 
 - **Fix: Files containing lines with coexisting math and bold markers fail to open** — When inline math (`$..$`) and bold (`**..**`) coexist on one line (e.g. `` `- $f(x)$的**周期**$l$` ``), Obsidian's parser emits an anomalous syntax-tree node spanning a line break. The format hider built a `Decoration.replace()` whose range contains `\n`, making CodeMirror 6 throw and fail editor (and file) initialization. Ranges crossing a line boundary are now skipped, so the file opens normally

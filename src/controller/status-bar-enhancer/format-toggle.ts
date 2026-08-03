@@ -2,7 +2,7 @@
  * MDRazor — 格式隐藏启闭按钮
  *
  * 在状态栏添加按钮，一键切换所有格式隐藏样式（加粗、斜体、高亮、删除线、
- * 行内代码、转义符号、标题符号、双链符号）的启闭状态。
+ * 行内代码、转义符号、标题符号、双链符号、HTML 标签）的启闭状态。
  * 不控制空格可视化（showWhitespace）。
  */
 
@@ -24,6 +24,7 @@ const FORMATTING_KEYS: Array<keyof MDRazorSettings> = [
 	'hideWikiLinkFormatting',
 	'hideHtmlColorTagFormatting',
 	'hideHtmlUnderlineFormatting',
+	'hideHtmlSpanFormatting',
 ];
 
 /** 检查当前是否任一格式隐藏开关已开启 */
@@ -49,7 +50,7 @@ export function registerFormatToggle(
 	plugin: Plugin,
 	settings: MDRazorSettings,
 	save: () => Promise<void>,
-): { addButton: () => void; removeButton: () => void } {
+): { addButton: () => void; removeButton: () => void; refreshIcon: () => void } {
 	let statusBarEl: HTMLElement | null = null;
 	let iconEl: HTMLElement | null = null;
 
@@ -99,5 +100,10 @@ export function registerFormatToggle(
 		callback: toggle,
 	});
 
-	return { addButton, removeButton };
+	return {
+		addButton,
+		removeButton,
+		// 供设置面板调用：单项开关变化后同步按钮图标状态
+		refreshIcon: updateIcon,
+	};
 }
