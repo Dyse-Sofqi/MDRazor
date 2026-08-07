@@ -21,6 +21,7 @@ import {
 } from '@codemirror/view';
 import { RangeSetBuilder } from '@codemirror/state';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
+import { getHiddenRanges } from './format-hider';
 
 export const spaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
@@ -46,6 +47,25 @@ function buildDecorations(view: EditorView): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
 	const doc = view.state.doc;
 
+	// 隐藏格式符号（如 <span style="...">）内的空格 —— 这些区间已被
+	// format-hider 隐藏（mark/replace 装饰），若再渲染空格 widget 会让
+	// 隐藏内容里的空格以 `·` 重新显示出来。收集这些空格位置并在下方跳过。
+	const hiddenSpaces = new Set<number>();
+	for (const range of getHiddenRanges()) {
+		const { from, to } = range;
+		if (from >= to) continue;
+		const startLine = doc.lineAt(from);
+		const endLine = doc.lineAt(to);
+		for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
+			const line = doc.line(lineNum);
+			const segStart = Math.max(line.from, from) - line.from;
+			const segEnd = Math.min(line.to, to) - line.from;
+			for (let i = segStart; i < segEnd; i++) {
+				if (line.text[i] === ' ') hiddenSpaces.add(line.from + i);
+			}
+		}
+	}
+
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
 
@@ -61,6 +81,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 			for (let i = lineFrom - line.from; i < lineTo - line.from; i++) {
 				if (line.text[i] !== ' ') continue;
 				const pos = line.from + i;
+				if (hiddenSpaces.has(pos)) continue;
 				builder.add(
 					pos, pos + 1,
 					Decoration.replace({ widget: new SpaceWidget() }),

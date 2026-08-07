@@ -25,6 +25,7 @@ import {
 } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import { formattingConfig, buildDecorations } from './format-hider';
+import { spaceConfig } from './whitespace-visible';
 
 /* ── Tooltip 状态管理 ── */
 
@@ -54,9 +55,14 @@ function buildBoundaryTooltip(
 	const dom = document.createElement('div');
 	dom.className = 'mdrazor-boundary-hint';
 
+	// 弹框展示被隐藏的标记原文。仅当空格可视化开启时才用 `·` 替代空格，
+	// 与编辑器内的空格展示保持一致；关闭时保留原文空格。
+	const display = (text: string): string =>
+		spaceConfig.showWhitespace ? text.replace(/ /g, '·') : text;
+
 	const leftSpan = document.createElement('span');
 	leftSpan.className = 'mdrazor-hint-left';
-	leftSpan.textContent = left;
+	leftSpan.textContent = display(left);
 
 	const cursorSpan = document.createElement('span');
 	cursorSpan.className = 'mdrazor-hint-cursor';
@@ -64,7 +70,7 @@ function buildBoundaryTooltip(
 
 	const rightSpan = document.createElement('span');
 	rightSpan.className = 'mdrazor-hint-right';
-	rightSpan.textContent = right;
+	rightSpan.textContent = display(right);
 
 	dom.appendChild(leftSpan);
 	dom.appendChild(cursorSpan);
@@ -127,37 +133,16 @@ function getHintMarkers(
 
 	if (leftBound === pos && rightBound === pos) return null;
 
-	// ── 收集两侧文本片段 ──
-
-	const leftParts: string[] = [];
-	const rightParts: string[] = [];
-	const seenRanges = new Set<number>();
-	let hasAny = false;
-
-	decorations.between(leftBound, rightBound, (from, to) => {
-		hasAny = true;
-
-		// 跳同 range 重复 decoration（format-hider 对加粗/斜体等产生 open+close 同范围条目）
-		if (seenRanges.has(from) && seenRanges.has(to)) return;
-		seenRanges.add(from);
-		seenRanges.add(to);
-
-		if (to <= pos) {
-			leftParts.push(view.state.doc.sliceString(from, to).replace(/\s+$/, ''));
-		} else if (from >= pos) {
-			rightParts.push(view.state.doc.sliceString(from, to).replace(/\s+$/, ''));
-		} else {
-			const lt = view.state.doc.sliceString(from, pos).replace(/\s+$/, '');
-			const rt = view.state.doc.sliceString(pos, to).replace(/\s+$/, '');
-			if (lt) leftParts.push(lt);
-			if (rt) rightParts.push(rt);
-		}
-	});
-
-	if (!hasAny) return null;
-
-	const left = leftParts.join('');
-	const right = rightParts.join('');
+	// 连续块内可能存在重叠/相邻的装饰（如 `***` = 加粗 `**` 与斜体 `*`
+	// 同起点或相邻）。若逐条装饰切片再拼接，重叠部分会被重复计入，
+	// 导致弹框多显示字符（`***` 变成 `****`）。
+	// 改为对整个连续块一次性切片 —— 弹框显示的字符即文档中真实的隐藏标记。
+	const blockText = view.state.doc.sliceString(leftBound, rightBound);
+	const offset = pos - leftBound;
+	// 左侧片段不裁剪尾随空格：光标右边的空格在左侧是尾字符，裁剪会让
+	// 它消失。右侧片段才裁剪 —— 那是块末尾（标题 `# ` 等场景）。
+	const left = blockText.slice(0, offset);
+	const right = blockText.slice(offset).replace(/\s+$/, '');
 	if (!left && !right) return null;
 
 	return { left, right };
@@ -190,6 +175,7 @@ export function createCursorBoundaryHintExtension() {
 				private lastPos: number | null = null;
 				private lastLeft = '';
 				private lastRight = '';
+				private lastWhitespace = spaceConfig.showWhitespace;
 
 				constructor(view: EditorView) {
 					this.decorations = buildDecorations(view);
@@ -215,10 +201,17 @@ export function createCursorBoundaryHintExtension() {
 						return;
 					}
 
+					// 空格可视化开关翻转时强制重建弹框：否则左/右文本未变，
+					// 早退会让已显示的弹框保留旧 `·`/空格 渲染。
+					const wsChanged =
+						this.lastWhitespace !== spaceConfig.showWhitespace;
+					this.lastWhitespace = spaceConfig.showWhitespace;
+
 					if (
 						pos === this.lastPos &&
 						info.left === this.lastLeft &&
-						info.right === this.lastRight
+						info.right === this.lastRight &&
+						!wsChanged
 					) {
 						return;
 					}
@@ -242,6 +235,7 @@ export function createCursorBoundaryHintExtension() {
 					this.lastPos = null;
 					this.lastLeft = '';
 					this.lastRight = '';
+					this.lastWhitespace = spaceConfig.showWhitespace;
 
 					// queueMicrotask 避免在 update() 中 dispatch 导致递归
 					queueMicrotask(() => {

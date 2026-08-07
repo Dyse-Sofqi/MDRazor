@@ -1,5 +1,12 @@
 ### Changelog
 
+**2.3.7** (2026-08-07)
+
+- **Fix: Space visualization collided with hidden HTML tags** — Space visualization also rendered spaces inside hidden format markers (e.g. `<span style="...">`) as `·`, leaving visible dots inside hidden tags. Spaces within hidden ranges are now skipped and hidden along with the tag
+- **Fix: Boundary hint tooltip did not render spaces as `·`** — When the cursor is at a hidden-marker boundary, spaces inside the marker text shown in the tooltip were unreadable. With space visualization enabled, tooltip spaces now render as `·` too; toggling the switch refreshes the tooltip immediately, no stale rendering
+- **Fix: Boundary hint tooltip showed duplicate characters (`***` → `****`)** — Combined markers (e.g. bold+italic `***`) consist of overlapping/adjacent decorations; concatenating per-decoration slices double-counted the overlap. The tooltip now slices the whole contiguous hidden block once, so displayed characters exactly match the real markers
+- **Fix: Space left of the cursor disappeared in the boundary hint tooltip** — The left segment was trimmed of trailing whitespace, deleting a space when the cursor sat to its right. Only the block's trailing whitespace is trimmed now (e.g. heading markers), the left segment is preserved verbatim
+
 **2.3.6** (2026-08-03)
 
 - **New: Hide HTML inline tags** — Added "Hide HTML Inline Tags" toggle (default on) under Style Hiding in settings. Hides `<span>` and `</span>` HTML tag pairs in live preview, covering opening tags with arbitrary attributes (e.g. `style="color:var(--color-yellow)"`, `style="color:#b58900"`, `style="background-color:rgba(...)"`, `style="text-decoration:underline"`). Uses regex scanning instead of CM6 syntax tree; `<span>` inside fenced code blocks, inline code, and math is treated as literal text and skipped. Included in the format toggle button's toggle-all list; the symbol boundary hint shows the full tag string (with attributes) verbatim, no truncation

@@ -58,6 +58,22 @@ interface DocRange {
 }
 
 /**
+ * 最近一次 buildDecorations 收集的隐藏区间（含 mark 与 replace 装饰）。
+ *
+ * 供空格可视化模块（whitespace-visible）读取：跳过这些区间内的空格，
+ * 避免 `<span ...>` 等已被隐藏的格式符号内的空格被 `·` widget 覆盖而
+ * 重新显示出来。
+ */
+let currentHiddenRanges: DocRange[] = [];
+
+/**
+ * 返回最近一次 buildDecorations 生成的隐藏区间（只读）。
+ */
+export function getHiddenRanges(): readonly DocRange[] {
+	return currentHiddenRanges;
+}
+
+/**
  * 收集 span 标签隐藏的排除区段：围栏代码块、行内代码、数学公式。
  *
  * 在这些区域内 `<span>` 是字面文本（如代码示例），不是真实 HTML 标签，
@@ -156,6 +172,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	// 仅实时预览模式生效，源码模式跳过。
 	const cmContainer = view.dom.closest('.markdown-source-view');
 	if (!cmContainer || !cmContainer.classList.contains('is-live-preview')) {
+		currentHiddenRanges = [];
 		return Decoration.none;
 	}
 
@@ -367,6 +384,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	/* ---- Phase 3: 一次性写入同一个 RangeSetBuilder ---- */
 
 	const builder = new RangeSetBuilder<Decoration>();
+	const hiddenRanges: DocRange[] = [];
 	for (const { from, to, spec } of entries) {
 		// CM6 禁止 replace 装饰跨越换行符。Obsidian 的解析器在数学符号
 		// （$..$）与加粗（**..**）等标记共存于一行时会生成异常的语法树
@@ -375,6 +393,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		// 防御：跳过任何跨越行边界的范围 —— 宁可保留标记可见，不可崩溃。
 		const line = view.state.doc.lineAt(from);
 		if (to > line.to) continue;
+		hiddenRanges.push({ from, to });
 
 		// HTML 标签用 mark 隐藏（CSS 使标签文本不可见），避免 replace 装饰
 		// 与 Obsidian 内联 HTML 渲染 widget 在同一起点冲突而遮蔽 widget。
@@ -391,6 +410,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		builder.add(from, to, Decoration.replace(spec));
 	}
 
+	currentHiddenRanges = hiddenRanges;
 	return builder.finish();
 }
 
