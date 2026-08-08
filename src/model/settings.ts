@@ -52,6 +52,7 @@ export interface MDRazorSettings {
 	// ── 标签页增强 (controller/tab-enhancer/) ──
 	tabEnhancerDefaultOpen: boolean;
 	tabEnhancerOpenLink: boolean;
+	tabEnhancerOpenBookmark: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
 	tabExpansionAssociatedFolders: boolean;
@@ -88,6 +89,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	showWhitespace: false,
 	tabEnhancerDefaultOpen: true,
 	tabEnhancerOpenLink: true,
+	tabEnhancerOpenBookmark: true,
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
 	tabExpansionAssociatedFolders: true,

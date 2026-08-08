@@ -26,6 +26,7 @@ import { registerDirFocus } from './list-enhancer/dir-focus';
 import { registerDirFileCount } from './list-enhancer/dir-file-count';
 import { registerTabEnhancer } from './tab-enhancer/tab-enhancer';
 import { registerLinkOpener } from './tab-enhancer/link-opener';
+import { registerBookmarkOpener } from './tab-enhancer/bookmark-opener';
 import { registerVerticalTabs } from './tab-enhancer/vertical-tabs';
 import { registerOrphanImageCleaner } from './orphan-image-cleaner/orphan-image-cleaner';
 import { registerStatusBarEnhancer } from './status-bar-enhancer/status-bar-enhancer';
@@ -106,6 +107,8 @@ export default class MDRazorPlugin extends Plugin {
 		registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
 		// 注册链接打开增强（文档内双链 → 已有标签页则跳转）
 		registerLinkOpener(this, () => this.settings.tabEnhancerOpenLink);
+		// 注册书签打开增强（书签文件 → 已有标签页则跳转）
+		registerBookmarkOpener(this, () => this.settings.tabEnhancerOpenBookmark);
 		// 注册垂直标签页（文件列表关闭按钮 + 标签页列表视图）
 		this.verticalTabsManager = registerVerticalTabs(
 			this,

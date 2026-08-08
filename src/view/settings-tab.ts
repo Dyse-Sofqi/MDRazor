@@ -252,6 +252,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(tabSection)
+			.setName('新标签页打开书签')
+			.setDesc('点击 Obsidian 书签中的文件时，检测目标文件是否已存在标签页，若存在则跳转，不存在则新建标签页')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.tabEnhancerOpenBookmark)
+					.onChange(async (value) => {
+						this.plugin.settings.tabEnhancerOpenBookmark = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(tabSection)
 			.setName('垂直标签页')
 			.setDesc('在文件列表中为已打开的文件显示关闭按钮，并提供标签页列表切换视图')
 			.addToggle((toggle) =>

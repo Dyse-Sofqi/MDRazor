@@ -1,16 +1,21 @@
 /**
  * MDRazor — Tab Enhancer
  *
- * Intercept file clicks in file explorer. If tab for that file already exists,
- * switch to it. Otherwise open in a new tab.
+ * File-explorer clicks: if a tab for the file already exists, switch to it;
+ * otherwise open in a new tab. The native Obsidian click is NOT blocked —
+ * its selection/anchor bookkeeping (including shift+click range multi-select)
+ * must run. Instead, WorkspaceLeaf.openFile is scoped-patched to re-route the
+ * resulting open to the enhancer target.
  *
  * Ctrl/Meta+click bypasses enhancer → native Obsidian behavior (open in new tab).
+ * Shift+click bypasses enhancer → native range multi-select.
  *
  * Also intercepts right-click → new file (context menu create): opens
  * newly created file in a new tab instead of default current-tab behavior.
  */
 
-import { type Plugin, TFile, type WorkspaceLeaf } from 'obsidian';
+import { type Plugin, TFile } from 'obsidian';
+import { initOpenInTab, requestOpenInTab } from './open-in-tab';
 
 /* ------------------------------------------------------------------ */
 /*  Lifecycle                                                          */
@@ -27,8 +32,15 @@ export function registerTabEnhancer(
 	plugin: Plugin,
 	enabled: () => boolean,
 ): void {
-	if (!enabled()) return;
+	// NOTE: no early return here. Handlers must be attached unconditionally
+	// so toggling tabEnhancerDefaultOpen in settings takes effect immediately.
+	// Each handler re-reads enabled() at event time (same pattern as
+	// registerLinkOpener). An early return would leave the handlers
+	// permanently unattached when the setting was off at plugin load.
 	const { app } = plugin;
+
+	// Shared WorkspaceLeaf.openFile re-route (idempotent)
+	initOpenInTab(plugin);
 
 	let containerEl: HTMLElement | null = null;
 	let clickHandler: ((e: MouseEvent) => void) | null = null;
@@ -89,8 +101,9 @@ export function registerTabEnhancer(
 			// Skip clicks on vertical-tabs close button
 			if ((e.target as HTMLElement).closest('.mdr-vertical-tab-close')) return;
 
-			// Ctrl/Meta+click → restore native Obsidian behavior (open in new tab)
-			if (e.ctrlKey || e.metaKey) return;
+			// Ctrl/Meta+click → restore native Obsidian behavior (open in new tab).
+			// Shift+click → restore native multi-select.
+			if (e.ctrlKey || e.metaKey || e.shiftKey) return;
 
 			const el = (e.target as HTMLElement).closest('.nav-file-title');
 			if (!el) return;
@@ -108,35 +121,10 @@ export function registerTabEnhancer(
 			const abstractFile = app.vault.getAbstractFileByPath(path);
 			if (!(abstractFile instanceof TFile)) return;
 
-			// Check if file is already open in any leaf
-			let existingLeaf: WorkspaceLeaf | null = null;
-			app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-				// Leaf with loaded view
-				const file = (leaf.view as { file?: TFile })?.file;
-				if (file instanceof TFile && file.path === path) {
-					existingLeaf = leaf;
-					return;
-				}
-				// Unloaded leaf — match via view state
-				try {
-					const vs = leaf.getViewState?.();
-					if (vs?.state?.file === path) {
-						existingLeaf = leaf;
-					}
-				} catch { /* leaf not ready */ }
-			});
-
-			if (existingLeaf) {
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-				app.workspace.setActiveLeaf(existingLeaf, { focus: true });
-			} else {
-				// No existing tab — open in new tab
-				e.stopPropagation();
-				e.stopImmediatePropagation();
-				const leaf = app.workspace.getLeaf(true);
-				if (leaf) void leaf.openFile(abstractFile);
-			}
+			// Do NOT stop propagation: let Obsidian's native handler run so it
+			// updates the explorer selection (and the shift+click range anchor).
+			// The shared openFile re-route then redirects the native open.
+			requestOpenInTab(path);
 		};
 
 		containerEl.addEventListener('click', clickHandler, true);

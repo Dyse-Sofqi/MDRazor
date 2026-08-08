@@ -1,5 +1,13 @@
 ### Changelog
 
+**2.3.8** (2026-08-09)
+
+- **New: Open bookmark in new tab** — Added "Open Bookmark in New Tab" toggle (default on) under Tab Enhancer in settings. Clicking a file bookmark in Obsidian's core Bookmarks view follows the wiki-link logic: if the target file already has an open tab, switch to it; otherwise open in a new tab. Ctrl/Meta/Shift+click, middle/right click restore native Obsidian behavior
+- **Fix: "Default New Tab Open" toggle did not take effect immediately** — The old implementation skipped handler registration entirely when the toggle was off at plugin load, so re-enabling it later left the file-explorer click handler absent and the feature dead until reload. Handlers are now attached unconditionally and re-read the toggle at event time (same pattern as the wiki-link opener), so the toggle takes effect instantly in both directions
+- **Fix: File explorer Shift+click multi-select broke with "Default New Tab Open" on** — The old implementation intercepted native clicks with `stopImmediatePropagation`, which also blocked Obsidian's native selection and Shift+click range-select anchor updates, corrupting range selection. Native clicks are no longer blocked; a scoped `WorkspaceLeaf.openFile` patch re-routes the native open to the enhancer target (switch to existing tab / open new tab), preserving native selection and the range-select anchor
+- **Refactor: Open re-route extracted to a shared module** — The `WorkspaceLeaf.openFile` / `Workspace.openLinkText` patches moved into the shared `open-in-tab.ts` module, reused by both the file-explorer and bookmark features
+- **Fix: Bookmark item data-path holds the note title, not the file path** — A bookmark item's `data-path` stores the note title (filename minus extension), so exact-path resolution failed and bookmark interception was dead. Resolution now uses `metadataCache.getFirstLinkpathDest()` (the wiki-link resolver) to map the title to the real file path
+
 **2.3.7** (2026-08-07)
 
 - **Fix: Space visualization collided with hidden HTML tags** — Space visualization also rendered spaces inside hidden format markers (e.g. `<span style="...">`) as `·`, leaving visible dots inside hidden tags. Spaces within hidden ranges are now skipped and hidden along with the tag
