@@ -4,6 +4,42 @@
 
 ---
 
+## 2.4.1 (2026-08-10)
+
+### 目录聚焦：首击快捷折叠
+
+**需求：** 二击（同文件夹二次点击）仅 toggle 该文件夹折叠。现新增：首击时若目录折叠状态已与聚焦目标一致，直接执行二击动作（toggle 本文件夹），不再全量规范。
+
+**实现位置：** `src/controller/list-enhancer/dir-focus.ts` — handler else 分支（首击/不同文件夹）。
+
+**流程：**
+
+```text
+首击 folder F：
+  focusedFolderPath = F.path
+  target = computeCollapseStates(F, allPaths)        // keepExpanded(祖先+点击) 展开，余全折叠
+  current = getCurrentCollapseStates(...)            // 逐文件夹读当前态
+  isAlreadyNormalized(current, target) 全等
+    ├─ 是 → item.setCollapsed(!isCollapsed)          // 等同二击
+    └─ 否 → processFocus(...)                        // 原全量规范
+```
+
+**读取当前折叠态（getCurrentCollapseStates）— 关键避坑：**
+
+1. **主源 DOM `.is-collapsed` class**（`querySelectorAll('.nav-folder')` 单遍收集 path→collapsed）。与二击 toggle 分支信任同一 class，跨版本可靠。
+2. **FileItem `.collapsed` 仅兜底** DOM 缺失的文件夹（obsidian-typings 证实 `FolderTreeItem.collapsed: boolean` 存在，但属内部 API）。
+3. **仍未知 → 默认 collapsed（true）**。绝不返回 null / bail。
+
+**踩过的坑（v1 实现失败原因）：** 初版优先读 `item.collapsed`，任一文件夹读不到就返回 null → 判「未规范」→ 退回全量 focus。实测场景 A→B→B折叠→点A：此时 B 已折叠，B/C 的子级全为隐藏文件夹，DOM 不可见且 `item.collapsed` 运行时不可靠 → 判 null → 快捷 toggle 永不触发，仍走全量规范。**bail 即失败。**
+
+**为何隐藏文件夹可默认 collapsed：** 隐藏 ⇒ 祖先已折叠 ⇒ 该文件夹必不在 keepExpanded ⇒ 其聚焦目标态必为折叠。默认 true 与规范树相符，且该假设仅在「此前 focus 已规范全树」的常见路径下生效。
+
+**遗留角例（已知限制）：** 隐藏文件夹内部实际展开时（先 focus 该子级 → 折叠其父级 → 再点其他文件夹），默认折叠会误判相符 → toggle 而非 focus。不可见差异，展开该分支后才显现，可接受。
+
+**其他：** 首击 toggle 分支同样设 `focusedFolderPath = path`，后续点击继续走二击逻辑，与真二击行为一致。`isCollapsed` 在 click handler 同步读（DOM 于拦截后未变），RAF 内仅执行 `setCollapsed`。
+
+---
+
 ## 2.4.0 (2026-08-09)
 
 ### 清理失联图片改造

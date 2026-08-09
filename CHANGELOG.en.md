@@ -1,5 +1,10 @@
 ### Changelog
 
+**2.4.1** (2026-08-10)
+
+- **New: Directory Focus first-click quick toggle** — On the first click of a folder, if every folder's collapse state already matches the focus target (the tree is already in the focused shape), the clicked folder's collapse state toggles directly — the same effect as clicking the folder twice; otherwise the full focus normalization runs as before
+- **Fix: First click still ran full normalization when the tree was already focused** — The quick toggle depends on reading every folder's current collapse state; a hidden folder (nested under a collapsed ancestor) whose state could not be determined caused a bail-out to full focus, so the quick toggle never fired. State is now read from the DOM `is-collapsed` class first, with the FileItem `collapsed` flag as fallback; an unknown hidden folder is assumed collapsed (its focus target state is always collapsed), making the quick toggle reliable
+
 **2.4.0** (2026-08-09)
 
 - **New: Collapsible "Statusbar Enhancement" settings section** — Now folds/unfolds like the Style Hiding, List Enhancements, and Tab Enhancer sections (heading click or chevron)

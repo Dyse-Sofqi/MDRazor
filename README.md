@@ -72,7 +72,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
   - **二级子项最大展开数** — 选项聚焦的子设置（滑块 1-9 + 开关）。开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响。选项聚焦关闭时此设置自动禁用。
 
-- **目录聚焦** — 点击文件列表中的文件夹名称时，仅展开该文件夹及其祖先链，同时折叠所有无关分支（同级、父同级、祖父同级等），专注当前目录结构。点击文件夹名称（非折叠箭头）触发，触发后再次点击同一个文件夹仅触发折叠状态的改变。折叠箭头可正常独立控制单层展开/折叠。
+- **目录聚焦** — 点击文件列表中的文件夹名称时，仅展开该文件夹及其祖先链，同时折叠所有无关分支（同级、父同级、祖父同级等），专注当前目录结构。点击文件夹名称（非折叠箭头）触发，触发后再次点击同一个文件夹仅触发折叠状态的改变。若首次点击时目录已处于聚焦后的展开结构（无关分支均已折叠），则直接切换该文件夹的折叠状态，效果等同连续点击两次。折叠箭头可正常独立控制单层展开/折叠。
 
   - 🖱️ **空白区域展开** — 与目录聚焦共用开关（目录聚焦开启时可用）。点击文件列表空白区域时，展开所有一级文件夹，快速浏览全局目录结构。点击排序/筛选等操作区域不会误触。
 
@@ -218,7 +218,7 @@ Optimized list editing experience with the following independent toggles:
 
   - **Second-level Max Expand Count** — Sub-setting of List Focus Option (slider 1-9 + toggle). When enabled, top-level items with ≤ threshold second-level children will be expanded during focus. Affects top-level items only; descendants still follow normal focus-fold behavior. Disabled when List Focus Option is off.
 
-- **Directory Focus** — Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure. Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state. The chevron still works independently for normal single-level toggle.
+- **Directory Focus** — Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure. Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state. If the tree is already in the focused shape (all unrelated branches collapsed) on first click, the folder's collapse state toggles directly — the same effect as clicking twice. The chevron still works independently for normal single-level toggle.
 
   - 🖱️ **Blank-area Expand** — Shares toggle with Directory Focus (available when Directory Focus is enabled). Click empty area in the file list to expand all top-level folders. Quickly browse the full directory structure. Won't trigger on sort/filter buttons or other interactive areas.
 
@@ -282,7 +282,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 If this plugin helps you, feel free to scan the QR code to sponsor ❤️
 
-![Sponsor](https://raw.githubusercontent.com/Dyse-Sofqi/MDRazor/main/zanshang.jpg)
+[PayPal](https://paypal.me/Sofqi)
 
 ## License
 

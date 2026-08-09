@@ -19,6 +19,8 @@ import { type App, TFolder, type Plugin, type TFile } from 'obsidian';
 interface FileExplorerItem {
 	file: TFolder | TFile;
 	setCollapsed(collapsed: boolean): void;
+	/** Current collapse flag (present on FileItem in recent Obsidian). */
+	collapsed?: boolean;
 }
 
 /** Minimal shape of the file-explorer view's internal API surface. */
@@ -90,6 +92,56 @@ export function computeCollapseStates(
 		states[path] = path === clicked.path ? false : !keepExpanded.has(path);
 	}
 	return states;
+}
+
+/**
+ * Read each folder's current collapse state.
+ *
+ * DOM `.is-collapsed` is the primary, version-agnostic source — the same
+ * class the second-click toggle already trusts. When a folder is not
+ * rendered (hidden under a collapsed ancestor), fall back to the
+ * FileItem's own `collapsed` flag; if even that is unavailable, assume
+ * collapsed: a hidden folder is never a focus-kept folder, so its target
+ * state is always collapsed and the assumption matches the normalized
+ * tree. Never returns null — an undeterminable folder is treated as
+ * already-collapsed rather than bailing out of the toggle shortcut.
+ */
+function getCurrentCollapseStates(
+	view: FileExplorerView,
+	containerEl: HTMLElement | null,
+	allPaths: string[],
+): CollapseState {
+	// One pass over rendered .nav-folder elements.
+	const domStates: CollapseState = {};
+	if (containerEl) {
+		containerEl.querySelectorAll('.nav-folder').forEach((el) => {
+			const p = el.getAttribute('data-path');
+			if (p) domStates[p] = el.classList.contains('is-collapsed');
+		});
+	}
+
+	const items = view.fileItems;
+	const states: CollapseState = {};
+	for (const path of allPaths) {
+		let collapsed: boolean | undefined = domStates[path];
+		if (collapsed === undefined) {
+			const item = items instanceof Map ? items.get(path) : items[path];
+			if (item && typeof item.collapsed === 'boolean') collapsed = item.collapsed;
+		}
+		states[path] = collapsed ?? true;
+	}
+	return states;
+}
+
+/** True when every folder already sits in the target collapse state. */
+function isAlreadyNormalized(
+	current: CollapseState,
+	target: CollapseState,
+): boolean {
+	for (const [path, collapsed] of Object.entries(target)) {
+		if (current[path] !== collapsed) return false;
+	}
+	return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -266,11 +318,29 @@ export function attachHandler(
 			const isCollapsed = navFolderEl?.classList.contains('is-collapsed') ?? false;
 			window.requestAnimationFrame(() => item?.setCollapsed(!isCollapsed));
 		} else {
-			// Different folder (or first ever click): run full focus
+			// Different folder (or first ever click): run full focus —
+			// unless every folder already matches the focus target. In that
+			// case the focus would be a no-op, so treat this click as a
+			// toggle (the same effect as clicking the same folder twice).
 			focusedFolderPath = path;
-			window.requestAnimationFrame(() =>
-				processFocus(view, folder, currentContainerEl ?? undefined),
-			);
+			const navFolderEl = el.closest('.nav-folder');
+			const isCollapsed = navFolderEl?.classList.contains('is-collapsed') ?? false;
+
+			const allPaths = getAllFolderPaths(view);
+			const target = allPaths.length > 0 ? computeCollapseStates(folder, allPaths) : null;
+			const alreadyNormalized = target !== null
+				&& isAlreadyNormalized(
+					getCurrentCollapseStates(view, currentContainerEl, allPaths),
+					target,
+				);
+
+			window.requestAnimationFrame(() => {
+				if (alreadyNormalized) {
+					item?.setCollapsed(!isCollapsed);
+				} else {
+					processFocus(view, folder, currentContainerEl ?? undefined);
+				}
+			});
 		}
 	};
 
