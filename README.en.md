@@ -114,6 +114,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
 - **Tab Enhancer** — 5 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders
 - **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
+- **Collapsible sections** — Style Hiding, List Enhancements, Tab Enhancer, and Statusbar Enhancement section headings can be collapsed/expanded on demand
 
 ---
 

@@ -1,5 +1,9 @@
 ### 版本历史
 
+**2.3.10** (2026-08-09)
+
+- **修复：清理失联图片审核错误** — 确认弹框 35 处内联样式改为 CSS 类（`.mdrazor-orphan-table*` 等），便于主题适配与维护；`ButtonComponent.setDisabled`（需 Obsidian v1.2.3）改为直接操作 `buttonEl.disabled`，保持 minAppVersion 1.0.0 兼容；确认回调 Promise 处理规范（`void | Promise<void>` 类型 + `void` 标记），消除 lint 错误
+
 **2.3.9** (2026-08-09)
 
 - **新增：设置面板「状态栏增强」区域可折叠** — 与隐藏样式、列表增强、标签页增强区域一致，标题点击 / chevron 折叠展开

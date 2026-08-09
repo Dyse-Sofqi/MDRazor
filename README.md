@@ -114,6 +114,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **列表增强** — 7 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数）、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
 - **标签页增强** — 5 个开关：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页
 - **状态栏增强** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
+- **区域折叠** — 隐藏样式、列表增强、标签页增强、状态栏增强各区域标题可点击折叠/展开，按需收放
 
 ---
 
@@ -259,6 +260,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
 - **Tab Enhancer** — 5 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders
 - **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
+- **Collapsible sections** — Style Hiding, List Enhancements, Tab Enhancer, and Statusbar Enhancement section headings can be collapsed/expanded on demand
 
 ---
 

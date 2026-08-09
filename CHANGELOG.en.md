@@ -1,5 +1,9 @@
 ### Changelog
 
+**2.3.10** (2026-08-09)
+
+- **Fix: Orphan image cleaner audit errors** — The confirm dialog's 35 inline styles moved to CSS classes (`.mdrazor-orphan-table*` etc.) for theming and maintainability; `ButtonComponent.setDisabled` (requires Obsidian v1.2.3) replaced with direct `buttonEl.disabled` to stay compatible with minAppVersion 1.0.0; confirm callback promise handling normalized (`void | Promise<void>` type + `void` operator), eliminating lint errors
+
 **2.3.9** (2026-08-09)
 
 - **New: Collapsible "Statusbar Enhancement" settings section** — Now folds/unfolds like the Style Hiding, List Enhancements, and Tab Enhancer sections (heading click or chevron)
