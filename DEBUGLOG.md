@@ -4,19 +4,7 @@
 
 ---
 
-## 2.3.10 (2026-08-09)
-
-### 清理失联图片审核修复
-
-- **内联样式 → CSS 类** — `no-static-styles-assignment` 禁止 `el.style.X = ...`。弹框表格样式全部移入 styles.css（`.mdrazor-orphan-table` / `-col-check` / `-col-status` / `-col-thumb` / `-whitelisted` / `-whitelist-badge` / `-thumb`）。动态差异（白名单行半透明）用 `addClass` 控制，不写 style。
-- **setDisabled 版本门槛** — `ButtonComponent.setDisabled` 需 Obsidian v1.2.3，minAppVersion 1.0.0 会被 `no-unsupported-api` 拦截。改 `confirmBtn.buttonEl.disabled = count === 0`（DOM 属性，非样式，不触发规则）。
-- **Promise 规范** — 弹框 `onConfirm` 回调类型 `(selected, keptPaths) => void | Promise<void>`；调用处 `void this.onConfirm(...)`。否则 async 回调触发 `no-misused-promises`，未 await 的 Promise 触发 `no-floating-promises`。
-- **避坑**：`createEl('tag', { cls, text })` 组合属性。th/td 赋值后不引用会触发 `no-unused-vars` —— 不需持有引用时直接调用不赋值。
-- 保留 warning：`prefer-file-manager-trash-file`（`trashFile` 需 1.1.x）——minApp 1.0.0 下必须用 `Vault.trash`，勿换。
-
----
-
-## 2.3.9 (2026-08-09)
+## 2.4.0 (2026-08-09)
 
 ### 清理失联图片改造
 
@@ -36,6 +24,14 @@
 ### 设置面板折叠
 
 - 状态栏增强此前漏用 `createCollapsibleSection`，子项直接挂 `containerEl`。统一：标题经 `createCollapsibleSection` 返回 wrapper 再挂子 Setting。`mdrazor-collapsed` CSS 已有（styles.css），无需新增。
+
+### 清理失联图片审核修复
+
+- **内联样式 → CSS 类** — `no-static-styles-assignment` 禁止 `el.style.X = ...`。弹框表格样式全部移入 styles.css（`.mdrazor-orphan-table` / `-col-check` / `-col-status` / `-col-thumb` / `-whitelisted` / `-whitelist-badge` / `-thumb`）。动态差异（白名单行半透明）用 `addClass` 控制，不写 style。
+- **setDisabled 版本门槛** — `ButtonComponent.setDisabled` 需 Obsidian v1.2.3，minAppVersion 1.0.0 会被 `no-unsupported-api` 拦截。改 `confirmBtn.buttonEl.disabled = count === 0`（DOM 属性，非样式，不触发规则）。
+- **Promise 规范** — 弹框 `onConfirm` 回调类型 `(selected, keptPaths) => void | Promise<void>`；调用处 `void this.onConfirm(...)`。否则 async 回调触发 `no-misused-promises`，未 await 的 Promise 触发 `no-floating-promises`。
+- **避坑**：`createEl('tag', { cls, text })` 组合属性。th/td 赋值后不引用会触发 `no-unused-vars` —— 不需持有引用时直接调用不赋值。
+- 保留 warning：`prefer-file-manager-trash-file`（`trashFile` 需 1.1.x）——minApp 1.0.0 下必须用 `Vault.trash`，勿换。
 
 ---
 

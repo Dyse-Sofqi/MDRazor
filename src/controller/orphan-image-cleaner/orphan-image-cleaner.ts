@@ -80,22 +80,22 @@ class OrphanImageConfirmModal extends Modal {
 			(a, b) => Number(this.whitelist.has(a.path)) - Number(this.whitelist.has(b.path)),
 		);
 
-		// 四列表格：勾选 | 文件路径 | 状态 | 缩略图（默认表格样式）
-		const listEl = contentEl.createDiv();
+		// 四列表格：勾选 | 文件路径 | 状态 | 缩略图（超出部分可滚动）
+		const listEl = contentEl.createDiv({ cls: 'mdrazor-orphan-table-wrap' });
 
-		const table = listEl.createEl('table');
+		const table = listEl.createEl('table', { cls: 'mdrazor-orphan-table' });
 
 		const headRow = table.createEl('thead').createEl('tr');
 
 		// 第 1 列列首：全选 / 取消全选 勾选框
-		const thCheck = headRow.createEl('th');
+		const thCheck = headRow.createEl('th', { cls: 'mdrazor-orphan-col-check' });
 		const allCb = thCheck.createEl('input', { type: 'checkbox', title: '全选 / 取消全选' });
 
 		headRow.createEl('th', { text: '文件路径' });
 
-		headRow.createEl('th', { text: '状态' });
+		headRow.createEl('th', { text: '状态', cls: 'mdrazor-orphan-col-status' });
 
-		headRow.createEl('th', { text: '缩略图' });
+		headRow.createEl('th', { text: '缩略图', cls: 'mdrazor-orphan-col-thumb' });
 
 		const tbody = table.createEl('tbody');
 		const rows: Array<{ cb: HTMLInputElement; file: TFile }> = [];
@@ -103,8 +103,9 @@ class OrphanImageConfirmModal extends Modal {
 			const isWhitelisted = this.whitelist.has(file.path);
 
 			const tr = tbody.createEl('tr');
+			if (isWhitelisted) tr.addClass('mdrazor-orphan-whitelisted');
 
-			const tdCheck = tr.createEl('td');
+			const tdCheck = tr.createEl('td', { cls: 'mdrazor-orphan-col-check' });
 			const cb = tdCheck.createEl('input', { type: 'checkbox' });
 			cb.checked = !isWhitelisted; // 白名单默认不勾选
 			rows.push({ cb, file });
@@ -113,14 +114,13 @@ class OrphanImageConfirmModal extends Modal {
 
 			const tdStatus = tr.createEl('td');
 			if (isWhitelisted) {
-				tdStatus.createSpan({ text: '白名单' });
+				tdStatus.createSpan({ text: '白名单', cls: 'mdrazor-orphan-whitelist-badge' });
 			}
 
 			const tdImg = tr.createEl('td');
-			const img = tdImg.createEl('img');
+			const img = tdImg.createEl('img', { cls: 'mdrazor-orphan-thumb' });
 			img.alt = file.name;
 			img.setAttribute('src', this.app.vault.getResourcePath(file));
-			img.setAttribute('width', '40'); // 默认样式下限制缩略图尺寸
 
 			// 点击行任意处切换勾选状态（勾选框自身不重复触发）
 			tr.addEventListener('click', (e) => {

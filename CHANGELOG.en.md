@@ -1,16 +1,13 @@
 ### Changelog
 
-**2.3.10** (2026-08-09)
-
-- **Fix: Orphan image cleaner audit errors** — The confirm dialog's 35 inline styles moved to CSS classes (`.mdrazor-orphan-table*` etc.) for theming and maintainability; `ButtonComponent.setDisabled` (requires Obsidian v1.2.3) replaced with direct `buttonEl.disabled` to stay compatible with minAppVersion 1.0.0; confirm callback promise handling normalized (`void | Promise<void>` type + `void` operator), eliminating lint errors
-
-**2.3.9** (2026-08-09)
+**2.4.0** (2026-08-09)
 
 - **New: Collapsible "Statusbar Enhancement" settings section** — Now folds/unfolds like the Style Hiding, List Enhancements, and Tab Enhancer sections (heading click or chevron)
 - **New: Orphan image cleaner confirm dialog** — After scanning, images are no longer deleted directly; a multi-select dialog (all checked by default) asks for confirmation before deletion. Images left unchecked are added to a whitelist — on the next dialog they stay unchecked and are pinned to the bottom of the list; re-checking removes them from the whitelist
 - **New: Four-column table in the confirm dialog** — Columns for checkbox / file path / status (whitelist badge) / thumbnail; clicking a row toggles that row's checkbox; the header checkbox selects/deselects all (with indeterminate state)
 - **Change: Single persistent progress notice for scanning** — Consecutive stacked Notices replaced by one persistent notice updated via `setMessage`, no longer flooding the right side
 - **Fix: Unpaired HTML tags are not hidden** — For `<font>`/`<u>`/`<span>`, hiding applies only when the opening and closing tags both exist; a lone tag (e.g. `<u>` without `</u>`, or a stray `</u>`) stays visible so unclosed tags are easy to spot
+- **Fix: Orphan image cleaner audit errors** — The confirm dialog's inline styles moved to CSS classes (`.mdrazor-orphan-table*` etc.) for theming and maintainability; `ButtonComponent.setDisabled` (requires Obsidian v1.2.3) replaced with direct `buttonEl.disabled` to stay compatible with minAppVersion 1.0.0; confirm callback promise handling normalized (`void | Promise<void>` type + `void` operator), eliminating lint errors
 - **Docs: README improvements** — Orphan cleaner now documents the bare wiki-link `[[path]]` reference (four syntaxes total); sponsor image switched to a raw link; removed Technical Stack; merged the English README into the end of the Chinese one; added an English notice at the top
 
 **2.3.8** (2026-08-09)
