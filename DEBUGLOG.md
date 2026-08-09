@@ -4,6 +4,29 @@
 
 ---
 
+## 2.4.0 (2026-08-09)
+
+### 清理失联图片改造
+
+- **进度提示** — `new Notice(msg, 0)`（duration 0 = 常驻）+ `notice.setMessage()` 原地刷新，扫描结束 `hide()`。禁止连续 `new Notice()` —— 会堆满右侧。
+- **确认弹框** — `Modal` 子类 + `contentEl` 构建列表；确认在按钮 `onClick` 内 `this.close()` 后执行，`await vault.trash(file, true)` 逐文件 try/catch 计数，汇总单条 Notice，勿逐文件弹。
+- **白名单** — 存 `plugin.settings.orphanImageWhitelist: string[]`（新增 settings 字段，随 `saveData` 全量持久化）。**签名必须收 `MDRazorPlugin` 而非基类 `Plugin`**，否则 `.settings`/`.saveSettings` 编译报错。每次确认用本次未勾选路径**整体替换**白名单 —— 重新勾选即自动解除。
+- **缩略图** — `app.vault.getResourcePath(file)` 生成资源 URL。
+- **行点击切换勾选** — `tr` click listener 内 `(e.target as HTMLElement).closest('input')` 守卫，避免点 checkbox 自身双重切换。
+- **列首全选** — `allCb.indeterminate` 表达半选态；行 `change` 刷新按钮计数 + 列首状态。
+
+### HTML 标签成对隐藏
+
+- `collectPairedHtmlTags(docStr, tagPattern, exclusions?)`：按出现顺序开闭标签配对（`m[0].charAt(1) === '/'` 判闭），`Math.min(opens.length, closes.length)` 取配，多余单边不返回。font/u/span 三个隐藏块统一走它。
+- **避坑**：正则须含 `g` 标志；函数内 `tagPattern.lastIndex = 0` 重置，防复用残留。span 在配对**前**用 `collectSpanExclusions` 过滤代码区字面标签。
+- 语义：配对基于全文出现顺序，非 DOM/嵌套匹配；单边标签保持可见（正确性优先，误判只多显示不误删）。
+
+### 设置面板折叠
+
+- 状态栏增强此前漏用 `createCollapsibleSection`，子项直接挂 `containerEl`。统一：标题经 `createCollapsibleSection` 返回 wrapper 再挂子 Setting。`mdrazor-collapsed` CSS 已有（styles.css），无需新增。
+
+---
+
 ## 2.3.8 (2026-08-09)
 
 ### 新增功能：新标签页打开书签

@@ -15,6 +15,8 @@
 export interface MDRazorSettings {
 	// ── 失联图片清理 (controller/orphan-image-cleaner/) ──
 	orphanImageCleanerEnabled: boolean;
+	/** 清理弹框中用户选择保留（白名单）的失联图片路径，下次弹框默认不勾选并置底 */
+	orphanImageWhitelist: string[];
 
 	// ── 隐藏样式 (controller/format-hider/) ──
 	hideBoldFormatting: boolean;
@@ -66,6 +68,7 @@ export interface MDRazorSettings {
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
 	orphanImageCleanerEnabled: false,
+	orphanImageWhitelist: [],
 	hideBoldFormatting: true,
 	hideItalicFormatting: true,
 	hideHighlightFormatting: true,

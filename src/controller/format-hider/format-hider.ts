@@ -57,6 +57,11 @@ interface DocRange {
 	to: number;
 }
 
+/** 单条 HTML 标签匹配（区间 + 是否为闭标签）。 */
+interface HtmlTagMatch extends DocRange {
+	isClose: boolean;
+}
+
 /**
  * 最近一次 buildDecorations 收集的隐藏区间（含 mark 与 replace 装饰）。
  *
@@ -152,6 +157,46 @@ function collectSpanExclusions(
 	}
 
 	return ranges;
+}
+
+/**
+ * 配对 HTML 标签对：仅返回能配成对的标签区间，不成对的单边标签不返回。
+ *
+ * 扫描全文，按出现顺序将开标签与闭标签一一配对，保留配成对的部分，
+ * 多余的（多出的开标签或闭标签）保持可见 —— 例如 `<u>` 后缺失 `</u>`，
+ * 或孤立的 `</u>`，不再被单独隐藏。
+ *
+ * @param docStr      全文
+ * @param tagPattern  匹配开/闭标签的正则（须含 g 标志）
+ * @param exclusions  需跳过的区段（如代码区内的字面标签）；默认不跳过
+ * @returns           应隐藏的标签区间列表（仅成对部分）
+ */
+function collectPairedHtmlTags(
+	docStr: string,
+	tagPattern: RegExp,
+	exclusions: readonly DocRange[] = [],
+): HtmlTagMatch[] {
+	const opens: HtmlTagMatch[] = [];
+	const closes: HtmlTagMatch[] = [];
+
+	tagPattern.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	while ((m = tagPattern.exec(docStr)) !== null) {
+		const from = m.index;
+		const to = from + m[0].length;
+		// 排除区段内的标签是字面文本（如代码示例），跳过（误判仅保留可见，不崩溃）
+		const inExcluded = exclusions.some((r) => from < r.to && to > r.from);
+		if (inExcluded) continue;
+		(m[0].charAt(1) === '/' ? closes : opens).push({ from, to, isClose: m[0].charAt(1) === '/' });
+	}
+
+	// 开/闭标签按出现顺序一一配对；无法配成对的多余标签不隐藏
+	const paired: HtmlTagMatch[] = [];
+	const pairCount = Math.min(opens.length, closes.length);
+	for (let i = 0; i < pairCount; i++) {
+		paired.push(opens[i]!, closes[i]!);
+	}
+	return paired;
 }
 
 /**
@@ -326,12 +371,10 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	if (formattingConfig.hideHtmlColorTagFormatting) {
 		const docStr = view.state.doc.toString();
 		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
-		let m: RegExpExecArray | null;
-		while ((m = colorTagRe.exec(docStr)) !== null) {
-			const isClose = m[0].charAt(1) === '/';
+		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, colorTagRe)) {
 			entries.push({
-				from: m.index,
-				to: m.index + m[0].length,
+				from,
+				to,
 				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
 			});
 		}
@@ -342,12 +385,10 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
 		const docStr = view.state.doc.toString();
 		const underlineTagRe = /<\/?u\s*>/gi;
-		let m: RegExpExecArray | null;
-		while ((m = underlineTagRe.exec(docStr)) !== null) {
-			const isClose = m[0].charAt(1) === '/';
+		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, underlineTagRe)) {
 			entries.push({
-				from: m.index,
-				to: m.index + m[0].length,
+				from,
+				to,
 				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
 			});
 		}
@@ -361,14 +402,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		const docStr = view.state.doc.toString();
 		const exclusions = collectSpanExclusions(view.state.doc, tree);
 		const spanTagRe = /<span(?:\s[^>]*)?>|<\/span\s*>/gi;
-		let m: RegExpExecArray | null;
-		while ((m = spanTagRe.exec(docStr)) !== null) {
-			const from = m.index;
-			const to = from + m[0].length;
-			// 代码区内的 <span> 是字面文本而非真实标签，跳过（误判仅保留可见，不崩溃）
-			const inExcluded = exclusions.some((r) => from < r.to && to > r.from);
-			if (inExcluded) continue;
-			const isClose = m[0].charAt(1) === '/';
+		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, spanTagRe, exclusions)) {
 			entries.push({
 				from,
 				to,

@@ -40,6 +40,7 @@ Each format below can be toggled independently:
 - **HTML Color Tags** — hides `<font color="#c00000">` and `</font>` Hex color tag pairs
 - **HTML Underline Tags** — hides `<u>` and `</u>` HTML underline tag pairs in live preview
 - **HTML Inline Tags** — hides `<span>` and `</span>` HTML tag pairs in live preview, covering opening tags with arbitrary attributes (e.g. `style="color:var(--color-yellow)"`, `style="color:#b58900"`, `style="background-color:rgba(...)"`, `style="text-decoration:underline"`). `<span>` inside fenced code blocks, inline code, and math is treated as literal text and skipped
+- **Paired HTML Tags Only** — `<font>`/`<u>`/`<span>` are hidden only when the opening and closing tags appear as a pair; a lone tag (e.g. `<u>` without `</u>`, or a stray `</u>`) stays visible, making unclosed tags easy to spot
 
 All hidden formats share these behaviors:
 
@@ -55,7 +56,7 @@ All hidden formats share these behaviors:
 
 #### 🗑️ Orphan Image Cleaner
 
-- **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via three syntaxes (`![[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and moves them to the system recycle bin. Reports each processed filename via Notice.
+- **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via four syntaxes (`![[path]]`, `[[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and shows a multi-select confirm dialog (columns for checkbox, path, status, and thumbnail; all checked by default) before moving the selected ones to the system recycle bin. Images left unchecked are added to a whitelist — on subsequent dialogs they stay unchecked and are pinned to the bottom of the list; re-checking them removes them from the whitelist.
 
 ---
 
@@ -130,17 +131,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 2. Add `Dyse-Sofqi/MDRazor` in BRAT settings
 3. Enable MDRazor manually
 
-## Technical Stack
-
-- Built on [Obsidian API](https://github.com/obsidianmd/obsidian-api)
-- Uses CodeMirror 6 (`ViewPlugin`, `Decoration`, `syntaxTree`, `domEventHandlers`) for editor-level manipulation
-- Modular architecture: each feature resides in its own source file under `src/`
-
 ## Sponsorship
 
 If this plugin helps you, feel free to scan the QR code to sponsor ❤️
 
-![Sponsor](https://github.com/Dyse-Sofqi/MDRazor/blob/main/zanshang.jpg)
+![Sponsor](https://raw.githubusercontent.com/Dyse-Sofqi/MDRazor/main/zanshang.jpg)
 
 ## License
 
