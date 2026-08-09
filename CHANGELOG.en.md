@@ -1,6 +1,6 @@
 ### Changelog
 
-**2.4.0** (2026-08-09)
+**2.3.9** (2026-08-09)
 
 - **New: Collapsible "Statusbar Enhancement" settings section** — Now folds/unfolds like the Style Hiding, List Enhancements, and Tab Enhancer sections (heading click or chevron)
 - **New: Orphan image cleaner confirm dialog** — After scanning, images are no longer deleted directly; a multi-select dialog (all checked by default) asks for confirmation before deletion. Images left unchecked are added to a whitelist — on the next dialog they stay unchecked and are pinned to the bottom of the list; re-checking removes them from the whitelist
