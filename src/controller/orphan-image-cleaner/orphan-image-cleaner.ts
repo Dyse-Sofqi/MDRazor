@@ -51,13 +51,13 @@ export function registerOrphanImageCleaner(
 class OrphanImageConfirmModal extends Modal {
 	private files: TFile[];
 	private whitelist: ReadonlySet<string>;
-	private onConfirm: (selected: TFile[], keptPaths: string[]) => void;
+	private onConfirm: (selected: TFile[], keptPaths: string[]) => void | Promise<void>;
 
 	constructor(
 		app: App,
 		files: TFile[],
 		whitelist: ReadonlySet<string>,
-		onConfirm: (selected: TFile[], keptPaths: string[]) => void,
+		onConfirm: (selected: TFile[], keptPaths: string[]) => void | Promise<void>,
 	) {
 		super(app);
 		this.files = files;
@@ -82,40 +82,20 @@ class OrphanImageConfirmModal extends Modal {
 
 		// 四列表格：勾选 | 文件路径 | 状态 | 缩略图（超出部分可滚动）
 		const listEl = contentEl.createDiv({ cls: 'mdrazor-orphan-table-wrap' });
-		listEl.style.maxHeight = '320px';
-		listEl.style.overflowY = 'auto';
-		listEl.style.border = '1px solid var(--background-modifier-border)';
-		listEl.style.borderRadius = '6px';
-		listEl.style.margin = '8px 0';
 
-		const table = listEl.createEl('table');
-		table.style.width = '100%';
-		table.style.borderCollapse = 'collapse';
-		table.style.fontSize = 'var(--font-ui-small)';
+		const table = listEl.createEl('table', { cls: 'mdrazor-orphan-table' });
 
 		const headRow = table.createEl('thead').createEl('tr');
-		headRow.style.background = 'var(--background-secondary)';
 
 		// 第 1 列列首：全选 / 取消全选 勾选框
-		const thCheck = headRow.createEl('th');
-		thCheck.style.padding = '4px 8px';
-		thCheck.style.textAlign = 'center';
-		thCheck.style.width = '36px';
+		const thCheck = headRow.createEl('th', { cls: 'mdrazor-orphan-col-check' });
 		const allCb = thCheck.createEl('input', { type: 'checkbox', title: '全选 / 取消全选' });
 
-		const thPath = headRow.createEl('th', { text: '文件路径' });
-		thPath.style.padding = '4px 8px';
-		thPath.style.textAlign = 'left';
+		headRow.createEl('th', { text: '文件路径' });
 
-		const thStatus = headRow.createEl('th', { text: '状态' });
-		thStatus.style.padding = '4px 8px';
-		thStatus.style.textAlign = 'left';
-		thStatus.style.width = '80px';
+		headRow.createEl('th', { text: '状态', cls: 'mdrazor-orphan-col-status' });
 
-		const thImg = headRow.createEl('th', { text: '缩略图' });
-		thImg.style.padding = '4px 8px';
-		thImg.style.textAlign = 'left';
-		thImg.style.width = '64px';
+		headRow.createEl('th', { text: '缩略图', cls: 'mdrazor-orphan-col-thumb' });
 
 		const tbody = table.createEl('tbody');
 		const rows: Array<{ cb: HTMLInputElement; file: TFile }> = [];
@@ -123,34 +103,22 @@ class OrphanImageConfirmModal extends Modal {
 			const isWhitelisted = this.whitelist.has(file.path);
 
 			const tr = tbody.createEl('tr');
-			tr.style.cursor = 'pointer';
-			if (isWhitelisted) tr.style.opacity = '0.7';
+			if (isWhitelisted) tr.addClass('mdrazor-orphan-whitelisted');
 
-			const tdCheck = tr.createEl('td');
-			tdCheck.style.padding = '2px 8px';
-			tdCheck.style.textAlign = 'center';
+			const tdCheck = tr.createEl('td', { cls: 'mdrazor-orphan-col-check' });
 			const cb = tdCheck.createEl('input', { type: 'checkbox' });
 			cb.checked = !isWhitelisted; // 白名单默认不勾选
 			rows.push({ cb, file });
 
-			const tdPath = tr.createEl('td', { text: file.path });
-			tdPath.style.padding = '2px 8px';
+			tr.createEl('td', { text: file.path });
 
 			const tdStatus = tr.createEl('td');
-			tdStatus.style.padding = '2px 8px';
 			if (isWhitelisted) {
-				const badge = tdStatus.createSpan({ text: '白名单' });
-				badge.style.fontSize = '0.85em';
-				badge.style.color = 'var(--text-muted)';
+				tdStatus.createSpan({ text: '白名单', cls: 'mdrazor-orphan-whitelist-badge' });
 			}
 
 			const tdImg = tr.createEl('td');
-			tdImg.style.padding = '2px 8px';
-			const img = tdImg.createEl('img');
-			img.style.height = '28px'; // 缩略图高度适应列表行高
-			img.style.width = 'auto';
-			img.style.objectFit = 'contain';
-			img.style.display = 'block';
+			const img = tdImg.createEl('img', { cls: 'mdrazor-orphan-thumb' });
 			img.alt = file.name;
 			img.setAttribute('src', this.app.vault.getResourcePath(file));
 
@@ -167,7 +135,9 @@ class OrphanImageConfirmModal extends Modal {
 		const updateConfirmText = (): void => {
 			const count = rows.filter((r) => r.cb.checked).length;
 			const total = rows.length;
-			confirmBtn.setButtonText(`确认删除 (${count})`).setDisabled(count === 0);
+			confirmBtn.setButtonText(`确认删除 (${count})`);
+			// setDisabled 需 Obsidian v1.2.3+，minAppVersion 1.0.0 兼容：直接操作 buttonEl
+			confirmBtn.buttonEl.disabled = count === 0;
 			// 列首勾选框与各行状态同步（含半选状态）
 			allCb.checked = count === total;
 			allCb.indeterminate = count > 0 && count < total;
@@ -188,7 +158,7 @@ class OrphanImageConfirmModal extends Modal {
 				const selected = rows.filter((r) => r.cb.checked).map((r) => r.file);
 				const keptPaths = rows.filter((r) => !r.cb.checked).map((r) => r.file.path);
 				this.close();
-				this.onConfirm(selected, keptPaths);
+				void this.onConfirm(selected, keptPaths);
 			});
 		updateConfirmText();
 
