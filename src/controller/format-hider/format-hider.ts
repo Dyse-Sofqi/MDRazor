@@ -10,8 +10,7 @@
  *   - `formattingConfig` — 模块级可变配置，由 controller/main.ts 在设置变更时写入，
  *     ViewPlugin 在每一帧更新时读取。
  *   - `createFormatHiderExtension()` — 工厂函数，返回一个 `Prec.high`
- *     CM6 扩展，它（a）为格式化标记提供 replace 装饰，（b）在鼠标点击后
- *     修正光标位置。
+ *     CM6 扩展，为格式化标记提供 replace 装饰。
  */
 
 import {
@@ -40,7 +39,6 @@ interface DecorationEntry {
 	from: number;
 	to: number;
 	spec: {
-		markerType: 'open' | 'close';
 		/**
 		 * 是否以 mark 装饰隐藏（HTML 标签用）。
 		 * HTML 标签若用 replace 装饰，会在同一起点遮蔽 Obsidian 的内联
@@ -206,10 +204,6 @@ function collectPairedHtmlTags(
  * 流程：收集全部 Decoration → 按 from 排序 → 一次性写入同一个
  *        RangeSetBuilder。
  *
- * 每个 replace 装饰在其 spec 中携带 `markerType` 属性（`'open'`
- * 或 `'close'`），光标修正逻辑据此区分一对标记的左右部分，
- * 从而正确计算推送方向。
- *
  * @param view  当前的 CodeMirror EditorView
  * @returns     覆盖所有待隐藏标记的 DecorationSet
  */
@@ -325,18 +319,18 @@ export function buildDecorations(view: EditorView): DecorationSet {
 				if (isWikiEnd) {
 					// ]] close marker only — this node is the 2-char end bracket
 					if (validMarker(node.from, node.to)) {
-						entries.push({ from: node.from, to: node.to, spec: { markerType: 'close' } });
+						entries.push({ from: node.from, to: node.to, spec: {} });
 					}
 				} else if (isWikiStart) {
 					// [[ open marker only — this node is the 2-char start bracket
 					if (validMarker(node.from, node.to)) {
-						entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+						entries.push({ from: node.from, to: node.to, spec: {} });
 					}
 				} else if (isInlineCode) {
 					// 行内代码：node 仅覆盖单个 ` 本身，而非整个标记->内容->标记跨度。
 					// 只需一个 decoration 覆盖整个 node 范围。
 					if (validMarker(node.from, node.to)) {
-						entries.push({ from: node.from, to: node.to, spec: { markerType: 'open' } });
+						entries.push({ from: node.from, to: node.to, spec: {} });
 					}
 				} else {
 					// 起始/结束标记需同时通过校验，否则跳过整个节点。
@@ -348,7 +342,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 						entries.push({
 							from: node.from,
 							to: node.from + markerLen,
-							spec: { markerType: 'open' },
+							spec: {},
 						});
 						// 结束标记：从内容结束到节点结束。
 						// 转义符号和标题仅隐藏修饰符，不隐藏被修饰的字符，因此跳过结束标记。
@@ -356,7 +350,7 @@ export function buildDecorations(view: EditorView): DecorationSet {
 							entries.push({
 								from: node.to - markerLen,
 								to: node.to,
-								spec: { markerType: 'close' },
+								spec: {},
 							});
 						}
 					}
@@ -371,11 +365,11 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	if (formattingConfig.hideHtmlColorTagFormatting) {
 		const docStr = view.state.doc.toString();
 		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
-		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, colorTagRe)) {
+		for (const { from, to } of collectPairedHtmlTags(docStr, colorTagRe)) {
 			entries.push({
 				from,
 				to,
-				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
+				spec: { hideAsMark: true },
 			});
 		}
 	}
@@ -385,11 +379,11 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
 		const docStr = view.state.doc.toString();
 		const underlineTagRe = /<\/?u\s*>/gi;
-		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, underlineTagRe)) {
+		for (const { from, to } of collectPairedHtmlTags(docStr, underlineTagRe)) {
 			entries.push({
 				from,
 				to,
-				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
+				spec: { hideAsMark: true },
 			});
 		}
 	}
@@ -402,11 +396,11 @@ export function buildDecorations(view: EditorView): DecorationSet {
 		const docStr = view.state.doc.toString();
 		const exclusions = collectSpanExclusions(view.state.doc, tree);
 		const spanTagRe = /<span(?:\s[^>]*)?>|<\/span\s*>/gi;
-		for (const { from, to, isClose } of collectPairedHtmlTags(docStr, spanTagRe, exclusions)) {
+		for (const { from, to } of collectPairedHtmlTags(docStr, spanTagRe, exclusions)) {
 			entries.push({
 				from,
 				to,
-				spec: { markerType: isClose ? 'close' : 'open', hideAsMark: true },
+				spec: { hideAsMark: true },
 			});
 		}
 	}
@@ -453,9 +447,6 @@ export function buildDecorations(view: EditorView): DecorationSet {
  *
  * 使用 `Prec.high` 确保我们的装饰优先级高于 Obsidian 内部的格式化装饰，
  * 使标记真正消失，而不是被内置的"光标移入时显示"逻辑覆盖。
- *
- * ViewPlugin 还会捕获 `select.pointer` 事务并通过 `adjustCursor()`
- * 修正光标位置 —— 详见该方法。
  */
 export function createFormatHiderExtension() {
 	return Prec.high(
@@ -469,81 +460,6 @@ export function createFormatHiderExtension() {
 
 				update(update: ViewUpdate) {
 					this.decorations = buildDecorations(update.view);
-					this.correctCursorAfterClick(update);
-				}
-
-				/**
-				 * 鼠标点击后，如果光标落在隐藏标记的边界处（标记与内容之间），
-				 * 将其推出整个格式化区域，使体验与视觉外观一致。
-				 *
-				 * 仅处理 `select.pointer` 事务中的简单点击（非拖拽选择）。
-				 * 使用 `queueMicrotask` 确保修正 dispatch 不会干扰原始事务。
-				 */
-				private correctCursorAfterClick(update: ViewUpdate) {
-					for (const tr of update.transactions) {
-						if (!tr.isUserEvent('select.pointer')) continue;
-
-						const sel = tr.state.selection.main;
-						if (sel.anchor !== sel.head) continue; // 拖拽选择 —— 跳过
-
-						const pos = sel.head;
-						const adjusted = this.adjustCursor(pos);
-						if (adjusted === pos) continue;
-
-						const view = update.view;
-						// 微任务中已使用 this（箭头函数捕获上层作用域）
-						queueMicrotask(() => {
-							// 重新检查：微任务执行时装饰集可能已被 rebuild（设置变更等）。
-							// 如果装饰集变了（例如标记不再隐藏），跳到标记外的修正就不需要了。
-							const curPos = view.state.selection.main.head;
-							const curAdjusted = this.adjustCursor(curPos);
-							if (curAdjusted === curPos) return;
-
-							view.dispatch({
-								selection: { anchor: curAdjusted, head: curAdjusted },
-								scrollIntoView: false,
-							});
-						});
-					}
-				}
-
-				/**
-				 * 扫描 `pos` 附近的装饰集：
-				 *   - 光标在起始标记右侧 → 返回标记起始位置
-				 *   - 光标在结束标记左侧 → 返回标记结束位置
-				 *   - 否则 → 返回原位置
-				 *
-				 * 先检查起始标记（光标左侧），再检查结束标记（光标右侧）。
-				 * 由于标记是不重叠的区间，最多只有一个能匹配。
-				 */
-				private adjustCursor(pos: number): number {
-					let adjusted = pos;
-
-					// 检查光标左侧是否有结束位置 == 光标位置的起始标记。
-					// 查询区间 [pos-1, pos) —— 光标前一个字符。
-					this.decorations.between(pos - 1, pos, (from, to, value) => {
-						const spec = value.spec as Record<string, unknown>;
-						if (to === pos && spec.markerType === 'open') {
-							adjusted = from;
-							return false; // 停止遍历
-						}
-						return;
-					});
-
-					if (adjusted !== pos) return adjusted;
-
-					// 检查光标右侧是否有开始位置 == 光标位置的结束标记。
-					// 查询区间 [pos, pos+1) —— 光标后一个字符。
-					this.decorations.between(pos, pos + 1, (from, to, value) => {
-						const spec = value.spec as Record<string, unknown>;
-						if (from === pos && spec.markerType === 'close') {
-							adjusted = to;
-							return false; // 停止遍历
-						}
-						return;
-					});
-
-					return adjusted;
 				}
 			},
 			{

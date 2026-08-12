@@ -44,7 +44,6 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 所有隐藏格式共享以下特性：
 
-- 鼠标点击格式内容边界时，光标会自动落在标记符号之外，避免输入时误判格式。
 - 由于格式符号被隐藏，可以根据光标经过时光标的闪烁判断光标途径的距离。
 - **健壮性** — 兼容数学公式（`$..$`）与格式标记（`**..**` 等）共存的行内内容。即使 Obsidian 解析器在此类行上产生异常语法树，也不会导致编辑器崩溃，公式正文绝不会被误当作格式标记隐藏。
 
@@ -94,6 +93,8 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **目录展开关联标签页** — 开启后，从垂直标签页视图切换回文件列表时，仅展开包含已打开标签页的文件夹；关闭后，切换时恢复文件列表原来的展开结构。
 
+- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。
+
 ---
 
 #### 🖥️ 状态栏增强
@@ -112,7 +113,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
 - **清理失联图片** — 1 个开关：启用后 ribbon 显示垃圾桶图标，扫描未引用图片
 - **列表增强** — 7 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数）、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
-- **标签页增强** — 5 个开关：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页
+- **标签页增强** — 6 个开关：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化
 - **状态栏增强** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **区域折叠** — 隐藏样式、列表增强、标签页增强、状态栏增强各区域标题可点击折叠/展开，按需收放
 
@@ -190,7 +191,6 @@ Each format below can be toggled independently:
 
 All hidden formats share these behaviors:
 
-- Clicking near the boundary of formatted content places the cursor outside the markers, preventing accidental format entry
 - Since markers are hidden, cursor movement distance can be inferred from the cursor blink trail
 - **Robustness** — Compatible with inline content where math (`$..$`) coexists with formatting markers (`**..**`, etc.). Even when Obsidian's parser produces an anomalous syntax tree on such lines, the editor never crashes and math content is never mistaken for a hidden marker.
 
@@ -240,6 +240,8 @@ File tab management with the following independent toggles:
 
 - **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
 
+- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low.
+
 ---
 
 #### 🖥️ Statusbar Enhancement
@@ -258,7 +260,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
 - **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
 - **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
-- **Tab Enhancer** — 5 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders
+- **Tab Enhancer** — 6 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence
 - **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Collapsible sections** — Style Hiding, List Enhancements, Tab Enhancer, and Statusbar Enhancement section headings can be collapsed/expanded on demand
 

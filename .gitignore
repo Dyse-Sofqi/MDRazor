@@ -17,6 +17,7 @@ main.js
 
 # obsidian
 data.json
+position-cache.json
 
 # Claude Code metadata
 .agents/

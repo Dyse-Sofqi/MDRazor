@@ -58,6 +58,7 @@ export interface MDRazorSettings {
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
 	tabExpansionAssociatedFolders: boolean;
+	positionPersistenceEnabled: boolean;
 
 	// ── 状态栏增强 (controller/status-bar-enhancer/) ──
 	statusBarEnhancement: boolean;
@@ -96,6 +97,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
 	tabExpansionAssociatedFolders: true,
+	positionPersistenceEnabled: true,
 
 	statusBarEnhancement: true,
 	autoSaveWorkspaceLayout: true,

@@ -1,5 +1,10 @@
 ### Changelog
 
+**2.4.2** (2026-08-12)
+
+- **New: MD document cursor & scroll position persistence** — New "MD Document Cursor and Scroll Position Persistence" toggle (default on) under Tab Enhancer in settings. Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Data is stored in a dedicated `position-cache.json` in the plugin folder, separate from user settings
+- **Removed: Push cursor out of hidden-marker boundary on click** — The logic that pushed the cursor out of the entire formatting area when a click landed on a hidden-marker boundary (between marker and content) is removed; clicks now land where Obsidian natively places them
+
 **2.4.1** (2026-08-10)
 
 - **New: Directory Focus first-click quick toggle** — On the first click of a folder, if every folder's collapse state already matches the focus target (the tree is already in the focused shape), the clicked folder's collapse state toggles directly — the same effect as clicking the folder twice; otherwise the full focus normalization runs as before

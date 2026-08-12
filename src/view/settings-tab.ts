@@ -291,6 +291,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		new Setting(tabSection)
+			.setName('Md文档光标和滚轴位置持久化')
+			.setDesc('开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.positionPersistenceEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.positionPersistenceEnabled = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		// ═══════════════════════════════════════════
 		// 状态栏增强 配置区
 		// ═══════════════════════════════════════════

@@ -28,6 +28,7 @@ import { registerTabEnhancer } from './tab-enhancer/tab-enhancer';
 import { registerLinkOpener } from './tab-enhancer/link-opener';
 import { registerBookmarkOpener } from './tab-enhancer/bookmark-opener';
 import { registerVerticalTabs } from './tab-enhancer/vertical-tabs';
+import { registerPositionPersistence } from './tab-enhancer/position-persistence';
 import { registerOrphanImageCleaner } from './orphan-image-cleaner/orphan-image-cleaner';
 import { registerStatusBarEnhancer } from './status-bar-enhancer/status-bar-enhancer';
 import { registerSidebarToggle } from './status-bar-enhancer/sidebar-toggle';
@@ -120,6 +121,8 @@ export default class MDRazorPlugin extends Plugin {
 			},
 			() => this.settings.tabExpansionAssociatedFolders,
 		);
+		// 注册 MD 文档光标和滚轴位置持久化
+		registerPositionPersistence(this, () => this.settings.positionPersistenceEnabled);
 
 		// 注册切换标签页视图命令（verticalTabsEnabled 开启时可绑定快捷键）
 		this.addCommand({

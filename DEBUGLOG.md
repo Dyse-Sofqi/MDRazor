@@ -4,6 +4,30 @@
 
 ---
 
+## 2.4.2 (2026-08-12)
+
+### MD 文档光标和滚轴位置持久化
+
+**需求：** 记录 MD 文档光标+滚动位置，重开文档还原；位置变更 250ms 防抖一次性落盘。
+
+**实现位置：** `src/controller/tab-enhancer/position-persistence.ts` — CM6 ViewPlugin（追踪光标/滚动）+ workspace 叶子定位（路径解析）+ vault adapter 写独立缓存文件 position-cache.json。
+
+**避坑记录：**
+
+1. **路径解析勿依赖 DOM `data-path` 属性** — 该属性归属元素跨 Obsidian 版本不稳定，首版用 `closest('.view-content')` 读 data-path 恒为 null，跟踪/恢复全空转（缓存文件都不生成）。改 `app.workspace.getLeavesOfType('markdown')` 遍历，找 `contentEl.contains(view.dom)` 的叶子读 `view.file.path`，官方 API 可靠。
+2. **`manifest.id` ≠ 插件目录名** — id=`md-razor`、目录=`MDRazor`。用 `configDir/plugins/${id}` 拼写路径报 ENOENT。必须用 `plugin.manifest.dir`（文件夹 vault 相对路径）。
+3. **恢复时机不可只靠 constructor / docChanged** — Obsidian 常把文档内容直接写进 CM6 初始 state（无 docChanged 事务），`update()` 不触发；叶子复用切换文件时 ViewPlugin 不重建、constructor 不跑。解法：constructor 后 rAF 补一次恢复（此时 DOM 已挂载、路径可解析）+ `update()` 整档替换检测（`isFullDocReplace`，比较变更是否覆盖整篇旧文档）兜底切换场景。
+4. **叶子视图切换瞬间 view 不完整** — `leaf.view.contentEl` 可能 undefined，直接 `.contains` 抛 `Cannot read properties of undefined (reading 'contains')`。`instanceof MarkdownView` + 可选链 + try/catch 三连防崩。
+5. **滚动恢复需重试** — 长文档布局分帧完成，直接设 `scrollDOM.scrollTop` 会被后续测量覆盖。rAF 校验未到位则重试（≤8 帧）。
+6. **路径每次现取** — 同一 ViewPlugin 实例会因叶子复用切换文件，`this.path` 固化会写错记录。每次 `saveNow` 现解析路径。
+
+### 移除：隐藏标记边界点击光标推出
+
+- 删 `format-hider.ts` 的 `correctCursorAfterClick` + `adjustCursor` 及装饰 spec 的 `markerType` 字段（仅该功能在用）。随之清理 3 处无用 `isClose` 解构。
+- 不影响：边界提示 tooltip（`getHiddenRanges`）、list-enhancer 各自的独立光标修正。
+
+---
+
 ## 2.4.1 (2026-08-10)
 
 ### 目录聚焦：首击快捷折叠
