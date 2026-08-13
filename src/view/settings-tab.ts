@@ -3,9 +3,12 @@
  *
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
  * 純 UI 層，不包含資料定義或業務邏輯。
+ *
+ * 五大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页增强 /
+ * 状态栏增强 / 功能区增强。当前激活标签页在插件生命周期内记忆。
  */
 
-import { App, ExtraButtonComponent, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting } from 'obsidian';
 import type MDRazorPlugin from '../controller/main';
 import type { MDRazorSettings } from '../model/settings';
 
@@ -23,6 +26,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/** 隐藏样式开关组件引用（受状态栏"隐藏样式启闭按钮"管辖的开关） */
 	private hideToggles: Array<{ key: keyof MDRazorSettings; toggle: import('obsidian').ToggleComponent }> = [];
 
+	/** 当前激活的标签页索引（会话内记忆，设置面板重开时保留） */
+	private activeTabIndex = 0;
+
 	constructor(app: App, plugin: MDRazorPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -35,11 +41,25 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		// 每次重建界面时重置开关引用（旧组件已被 empty() 销毁）
 		this.hideToggles = [];
 
-		// ═══════════════════════════════════════════
-		// 失联图片清理 配置区
-		// ═══════════════════════════════════════════
+		this.createTabbedSection(
+			containerEl,
+			['隐藏样式', '列表增强', '标签页增强', '状态栏增强', '功能区增强'],
+			(panel, index) => {
+				if (index === 0) this.buildHideSection(panel);
+				else if (index === 1) this.buildListSection(panel);
+				else if (index === 2) this.buildTabSection(panel);
+				else if (index === 3) this.buildStatusSection(panel);
+				else this.buildRibbonSection(panel);
+			},
+		);
+	}
 
-		new Setting(containerEl)
+	/* ------------------------------------------------------------------ */
+	/*  功能区增强（清理失联图片等左侧功能区功能）                          */
+	/* ------------------------------------------------------------------ */
+
+	private buildRibbonSection(panel: HTMLElement): void {
+		new Setting(panel)
 			.setName('清理失联图片')
 			.setDesc('启用后，左侧功能区显示垃圾桶图标按钮。点击后扫描库中未被任何笔记引用过的图片（JPG/JPEG/PNG/GIF/SVG），将其移入系统回收站')
 			.addToggle((toggle) =>
@@ -55,36 +75,36 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
 
-		// ═══════════════════════════════════════════
-		// 隐藏样式 配置区
-		// ═══════════════════════════════════════════
+	/* ------------------------------------------------------------------ */
+	/*  隐藏样式                                                           */
+	/* ------------------------------------------------------------------ */
 
-		const hideSection = this.createCollapsibleSection(containerEl, '隐藏样式', true);
+	private buildHideSection(panel: HTMLElement): void {
+		this.addHideToggle(panel, '隐藏加粗符号', '在实时预览中隐藏 ** 加粗标记符号', 'hideBoldFormatting');
 
-		this.addHideToggle(hideSection, '隐藏加粗符号', '在实时预览中隐藏 ** 加粗标记符号', 'hideBoldFormatting');
+		this.addHideToggle(panel, '隐藏斜体符号', '在实时预览中隐藏 * 斜体标记符号', 'hideItalicFormatting');
 
-		this.addHideToggle(hideSection, '隐藏斜体符号', '在实时预览中隐藏 * 斜体标记符号', 'hideItalicFormatting');
+		this.addHideToggle(panel, '隐藏高亮符号', '在实时预览中隐藏 == 高亮标记符号', 'hideHighlightFormatting');
 
-		this.addHideToggle(hideSection, '隐藏高亮符号', '在实时预览中隐藏 == 高亮标记符号', 'hideHighlightFormatting');
+		this.addHideToggle(panel, '隐藏删除线符号', '在实时预览中隐藏 ~~ 删除线标记符号', 'hideStrikethroughFormatting');
 
-		this.addHideToggle(hideSection, '隐藏删除线符号', '在实时预览中隐藏 ~~ 删除线标记符号', 'hideStrikethroughFormatting');
+		this.addHideToggle(panel, '隐藏行内代码符号', '在实时预览中隐藏 ` 行内代码标记符号', 'hideCodeFormatting');
 
-		this.addHideToggle(hideSection, '隐藏行内代码符号', '在实时预览中隐藏 ` 行内代码标记符号', 'hideCodeFormatting');
+		this.addHideToggle(panel, '隐藏转义符号', '在实时预览中隐藏 \\ 转义符号', 'hideEscapeFormatting');
 
-		this.addHideToggle(hideSection, '隐藏转义符号', '在实时预览中隐藏 \\ 转义符号', 'hideEscapeFormatting');
+		this.addHideToggle(panel, '隐藏标题符号', '在实时预览中隐藏 # 标题标记符号', 'hideHeadingFormatting');
 
-		this.addHideToggle(hideSection, '隐藏标题符号', '在实时预览中隐藏 # 标题标记符号', 'hideHeadingFormatting');
+		this.addHideToggle(panel, '隐藏双链符号', '在实时预览中隐藏 [[ 和 ]] 双链格式标记', 'hideWikiLinkFormatting');
 
-		this.addHideToggle(hideSection, '隐藏双链符号', '在实时预览中隐藏 [[ 和 ]] 双链格式标记', 'hideWikiLinkFormatting');
+		this.addHideToggle(panel, '隐藏 HTML 颜色标签', '在实时预览中隐藏 <font color="#c00000"> 和 </font> 等 Hex 颜色标签对', 'hideHtmlColorTagFormatting');
 
-		this.addHideToggle(hideSection, '隐藏 HTML 颜色标签', '在实时预览中隐藏 <font color="#c00000"> 和 </font> 等 Hex 颜色标签对', 'hideHtmlColorTagFormatting');
+		this.addHideToggle(panel, '隐藏 HTML 下划线符号', '在实时预览中隐藏 <u> 和 </u> 下划线 HTML 标签对', 'hideHtmlUnderlineFormatting');
 
-		this.addHideToggle(hideSection, '隐藏 HTML 下划线符号', '在实时预览中隐藏 <u> 和 </u> 下划线 HTML 标签对', 'hideHtmlUnderlineFormatting');
+		this.addHideToggle(panel, '隐藏 HTML 行标签', '在实时预览中隐藏 <span> 和 </span> HTML 标签对（含 style 等属性）', 'hideHtmlSpanFormatting');
 
-		this.addHideToggle(hideSection, '隐藏 HTML 行标签', '在实时预览中隐藏 <span> 和 </span> HTML 标签对（含 style 等属性）', 'hideHtmlSpanFormatting');
-
-		new Setting(hideSection)
+		new Setting(panel)
 			.setName('空格可视化')
 			.setDesc('以半透明 · 标记显示空格位置')
 			.addToggle((toggle) =>
@@ -96,7 +116,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(hideSection)
+		new Setting(panel)
 			.setName('符号边界提示')
 			.setDesc('光标处于格式标识符边界时，在光标下方弹出提示，展示光标与隐藏标识符的位置关系')
 			.addToggle((toggle) =>
@@ -107,14 +127,14 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
 
-		// ═══════════════════════════════════════════
-		// 列表增强 配置区
-		// ═══════════════════════════════════════════
+	/* ------------------------------------------------------------------ */
+	/*  列表增强                                                           */
+	/* ------------------------------------------------------------------ */
 
-		const listSection = this.createCollapsibleSection(containerEl, '列表增强', true);
-
-		new Setting(listSection)
+	private buildListSection(panel: HTMLElement): void {
+		new Setting(panel)
 			.setName('列一体化')
 			.setDesc('将列表标识符与后方空格视为一个整体，点击时光标只能落在标识符之前或空格之后')
 			.addToggle((toggle) =>
@@ -126,7 +146,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(listSection)
+		new Setting(panel)
 			.setName('回车软换行')
 			.setDesc('在列表项内按回车时插入软换行（续行缩进）而非创建新列表项')
 			.addToggle((toggle) =>
@@ -139,8 +159,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		let thresholdToggle: import('obsidian').ToggleComponent;
+		let scrollSyncToggle: import('obsidian').ToggleComponent;
 
-		new Setting(listSection)
+		new Setting(panel)
 			.setName('选项聚焦')
 			.setDesc('光标移入列表项时，自动折叠其他同级及旁系列表项，仅展开焦点链（当前项、其祖先、及其子孙）')
 			.addToggle((toggle) =>
@@ -149,11 +170,12 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.listFocusOption = value;
 						(thresholdToggle.toggleEl as HTMLInputElement).disabled = !value;
+						(scrollSyncToggle.toggleEl as HTMLInputElement).disabled = !value;
 						await this.plugin.saveSettings();
 					}),
 			);
 
-		new Setting(listSection)
+		new Setting(panel)
 			.setName('二级子项最大展开数')
 			.setDesc('开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响')
 			.addSlider((slider) =>
@@ -177,7 +199,33 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				(thresholdToggle.toggleEl as HTMLInputElement).disabled = !this.plugin.settings.listFocusOption;
 			});
 
-		new Setting(listSection)
+		new Setting(panel)
+			.setName('滚轴同步')
+			.setDesc('选项聚焦触发折叠/展开时，自动将光标所在行滚动至屏幕中央，避免长列表伸缩使光标跑出视图外')
+			.addToggle((toggle) => {
+				scrollSyncToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.focusScrollSync)
+					.onChange(async (value) => {
+						this.plugin.settings.focusScrollSync = value;
+						await this.plugin.saveSettings();
+					});
+				(scrollSyncToggle.toggleEl as HTMLInputElement).disabled = !this.plugin.settings.listFocusOption;
+			});
+
+		new Setting(panel)
+			.setName('上下键默认不跳过被折叠的列表/标题项')
+			.setDesc('按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 codemirror 原生那样整块跳过')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.arrowKeyEnterFolded)
+					.onChange(async (value) => {
+						this.plugin.settings.arrowKeyEnterFolded = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
 			.setName('目录聚焦')
 			.setDesc('点击文件列表的文件夹时，仅展开该文件夹及其祖先链，折叠其余无关文件夹（同级、父同级、祖父同级等）')
 			.addToggle((toggle) =>
@@ -191,7 +239,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		let directOnlyToggle: import("obsidian").ToggleComponent;
 
-		new Setting(listSection)
+		new Setting(panel)
 			.setName("显示目录文件数量")
 			.setDesc("统计文件夹内子文件夹和子文件的数量，在文件夹右侧对齐显示")
 			.addToggle((toggle) =>
@@ -205,7 +253,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(listSection)
+		new Setting(panel)
 			.setName("仅显示直接子项数量")
 			.setDesc("开启后仅统计文件夹的直接子项（子文件夹 + 文件）；关闭后统计所有后代文件数量（递归统计子文件夹内的文件，不统计文件夹）")
 			.addToggle((toggle) => {
@@ -220,14 +268,14 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				(directOnlyToggle.toggleEl as HTMLInputElement).disabled =
 					!this.plugin.settings.showDirFileCount;
 			});
+	}
 
-		// ═══════════════════════════════════════════
-		// 标签页增强 配置区
-		// ═══════════════════════════════════════════
+	/* ------------------------------------------------------------------ */
+	/*  标签页增强                                                         */
+	/* ------------------------------------------------------------------ */
 
-		const tabSection = this.createCollapsibleSection(containerEl, '标签页增强', true);
-
-		new Setting(tabSection)
+	private buildTabSection(panel: HTMLElement): void {
+		new Setting(panel)
 			.setName('默认新标签页打开')
 			.setDesc('单击文件目录中的文件时，若标签页已存在则跳转，否则打开新标签页。右键菜单新建文件同样在新标签页中打开')
 			.addToggle((toggle) =>
@@ -239,7 +287,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(tabSection)
+		new Setting(panel)
 			.setName('新标签页打开双链')
 			.setDesc('在文档内点击双链时，检测目标文档是否已存在标签页，若存在则跳转，不存在则新建标签页')
 			.addToggle((toggle) =>
@@ -251,7 +299,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(tabSection)
+		new Setting(panel)
 			.setName('新标签页打开书签')
 			.setDesc('点击 Obsidian 书签中的文件时，检测目标文件是否已存在标签页，若存在则跳转，不存在则新建标签页')
 			.addToggle((toggle) =>
@@ -263,7 +311,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(tabSection)
+		new Setting(panel)
 			.setName('垂直标签页')
 			.setDesc('在文件列表中为已打开的文件显示关闭按钮，并提供标签页列表切换视图')
 			.addToggle((toggle) =>
@@ -279,7 +327,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(tabSection)
+		new Setting(panel)
 			.setName('目录展开关联标签页')
 			.setDesc('开启后，从垂直标签页视图切换回文件列表时，仅展开包含标签页的文件夹；关闭后，切换时将恢复文件列表原来的展开结构')
 			.addToggle((toggle) =>
@@ -291,7 +339,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(tabSection)
+		new Setting(panel)
 			.setName('Md文档光标和滚轴位置持久化')
 			.setDesc('开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置')
 			.addToggle((toggle) =>
@@ -302,14 +350,14 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
 
-		// ═══════════════════════════════════════════
-		// 状态栏增强 配置区
-		// ═══════════════════════════════════════════
+	/* ------------------------------------------------------------------ */
+	/*  状态栏增强                                                         */
+	/* ------------------------------------------------------------------ */
 
-		const statusSection = this.createCollapsibleSection(containerEl, '状态栏增强', true);
-
-		new Setting(statusSection)
+	private buildStatusSection(panel: HTMLElement): void {
+		new Setting(panel)
 			.setName('工作区切换')
 			.setDesc('在右下角状态栏显示工作区切换按钮，点击快速切换工作区')
 			.addToggle((toggle) =>
@@ -326,7 +374,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusSection)
+		new Setting(panel)
 			.setName('自动更新工作区布局')
 			.setDesc('切换或加载工作区时，自动保存当前工作区布局。与 Obsidian 原生"加载工作区"功能及本插件工作区切换联动')
 			.addToggle((toggle) =>
@@ -338,7 +386,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusSection)
+		new Setting(panel)
 			.setName('侧边栏伸缩按钮')
 			.setDesc('在状态栏最左侧显示按钮，点击一键折叠/展开左右侧边栏。')
 			.addToggle((toggle) =>
@@ -355,7 +403,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(statusSection)
+		new Setting(panel)
 			.setName('隐藏样式启闭按钮')
 			.setDesc('在状态栏显示按钮，一键开启/关闭各类格式隐藏样式（不包括空格可视化）')
 			.addToggle((toggle) =>
@@ -371,6 +419,45 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
+
+	/* ------------------------------------------------------------------ */
+	/*  共享辅助                                                           */
+	/* ------------------------------------------------------------------ */
+
+	/**
+	 * 创建标签页容器与面板。
+	 *
+	 * @param containerEl  父容器
+	 * @param labels       各标签页名称（顺序即展示顺序）
+	 * @param build        每个面板的内容构建回调（panel, index）
+	 */
+	private createTabbedSection(
+		containerEl: HTMLElement,
+		labels: string[],
+		build: (panel: HTMLElement, index: number) => void,
+	): void {
+		const tabsEl = containerEl.createDiv({ cls: 'mdrazor-settings-tabs' });
+		const panels: HTMLElement[] = [];
+		const buttons: HTMLElement[] = [];
+
+		const activate = (index: number): void => {
+			this.activeTabIndex = index;
+			buttons.forEach((btn, j) => btn.toggleClass('is-active', j === index));
+			panels.forEach((panel, j) => panel.toggleClass('is-active', j === index));
+		};
+
+		labels.forEach((label, i) => {
+			const panel = containerEl.createDiv({ cls: 'mdrazor-settings-tab-panel' });
+			build(panel, i);
+			panels.push(panel);
+
+			const btn = tabsEl.createDiv({ cls: 'mdrazor-settings-tab', text: label });
+			buttons.push(btn);
+			btn.addEventListener('click', () => activate(i));
+		});
+
+		activate(this.activeTabIndex);
 	}
 
 	/**
@@ -417,52 +504,5 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		for (const { key, toggle } of this.hideToggles) {
 			toggle.setValue(this.plugin.settings[key] as boolean);
 		}
-	}
-
-	/**
-	 * 创建一个可折叠的设置区域。
-	 *
-	 * @param containerEl  父容器
-	 * @param name         区域标题
-	 * @param expanded     是否默认展开（true = 展开）
-	 * @returns            子设置项应添加到的容器元素
-	 */
-	private createCollapsibleSection(
-		containerEl: HTMLElement,
-		name: string,
-		expanded: boolean,
-	): HTMLElement {
-		const wrapperEl = containerEl.createDiv();
-
-		let extraBtn: ExtraButtonComponent;
-
-		const toggleSection = () => {
-			const becameCollapsed = wrapperEl.classList.toggle('mdrazor-collapsed');
-			extraBtn.setIcon(becameCollapsed ? 'chevron-right' : 'chevron-down');
-		};
-
-		const headingSetting = new Setting(containerEl)
-			.setName(name)
-			.setHeading()
-			.addExtraButton((btn) => {
-				extraBtn = btn;
-				btn.setIcon(expanded ? 'chevron-down' : 'chevron-right')
-					.onClick(toggleSection);
-			});
-
-		headingSetting.settingEl.classList.add('mdrazor-section-heading');
-
-		headingSetting.settingEl.addEventListener('click', (e) => {
-			if ((e.target as HTMLElement).closest('.clickable-icon')) return;
-			toggleSection();
-		});
-
-		headingSetting.settingEl.after(wrapperEl);
-
-		if (!expanded) {
-			wrapperEl.classList.add('mdrazor-collapsed');
-		}
-
-		return wrapperEl;
 	}
 }

@@ -1,16 +1,43 @@
-/* MDRazor — 折叠设置区域 */
-.mdrazor-collapsed {
+/* MDRazor — 设置面板标签页切换 */
+.mdrazor-settings-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	margin-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mdrazor-settings-tab {
+	padding: 6px 14px;
+	margin-bottom: -1px;
+	border: 1px solid transparent;
+	border-bottom: none;
+	border-radius: 6px 6px 0 0;
+	cursor: pointer;
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.mdrazor-settings-tab:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.mdrazor-settings-tab.is-active {
+	color: var(--text-normal);
+	background: var(--background-secondary);
+	border-color: var(--background-modifier-border);
+	font-weight: 600;
+}
+
+.mdrazor-settings-tab-panel {
 	display: none;
 }
 
-/* 可折叠标题区域悬停时，标题文字变主题色 */
-.mdrazor-section-heading.setting-item-heading:hover .setting-item-name {
-	color: var(--text-accent);
-}
-
-/* 折叠符号悬停时不改变底色 */
-.mdrazor-section-heading .clickable-icon:hover {
-	background: none;
+.mdrazor-settings-tab-panel.is-active {
+	display: block;
 }
 
 /* ── 空格可视化 — 半透明 · 标记 ── */

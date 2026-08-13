@@ -1,5 +1,15 @@
 ### Changelog
 
+**2.4.3** (2026-08-13)
+
+- **New: Settings switched to tabbed sections** — Style Hiding, List Enhancements, Tab Enhancer, and Statusbar Enhancement are now shown as tabs to avoid an over-long settings list; the Orphan Image Cleaner toggle becomes its own "Ribbon Enhancement" module, the fifth tab. The active tab is remembered for the plugin's lifetime
+- **New: Scroll Sync** — New "Scroll Sync" toggle (default on) under List Enhancements in settings. When Option Focus folds/unfolds, the cursor's line is scrolled to the vertical center so it never leaves the viewport on long-list relayout
+- **New: Up/Down do not skip folded list/heading items** — New toggle under List Enhancements (default on). When the target line is a folded list item or heading content, ↑/↓ actively unfold that block and land on the target line (goal column preserved) instead of CodeMirror's native whole-block skip
+- **Fix: Position cache did not survive reloads** — `position-cache.json` is written in flat format (`{path: record}`), but was read back as the wrapped format (`{positions: {...}}`), so the cache was emptied on every plugin load and positions were never restored. The loader now accepts both formats; existing cache files migrate seamlessly
+- **New: Folder renames now update the position cache** — When a folder is renamed in the file explorer, every cached record under that folder has its path rewritten to the new folder path, so positions are not lost to the old path
+- **Fix: Folder-rename rewrite dropped the path separator** — The rewritten path was joined without the trailing `/`, so normal renames produced a key missing its separator (e.g. `test1/2234MDRazor简介.md`). The separator is restored; when the old path equals the new path (same-name rename), the rewrite is skipped entirely
+- **Docs: README adds CHANGELOG link** — Changelog link added before the intro and in the English section; the English section's self-link now points to an in-page anchor
+
 **2.4.2** (2026-08-12)
 
 - **New: MD document cursor & scroll position persistence** — New "MD Document Cursor and Scroll Position Persistence" toggle (default on) under Tab Enhancer in settings. Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Data is stored in a dedicated `position-cache.json` in the plugin folder, separate from user settings

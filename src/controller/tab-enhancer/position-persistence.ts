@@ -18,9 +18,17 @@
  * ── 持久化 ──
  *   独立缓存文件 .obsidian/plugins/MDRazor/position-cache.json，
  *   与用户设置 data.json 分离；磁盘写入节流 ~1s，插件卸载时 flush。
+ *   文件夹重命名时同步改写缓存中的路径前缀，旧路径记录不丢失。
  */
 
-import { type App, type DataAdapter, MarkdownView, type Plugin, TFile } from 'obsidian';
+import {
+	type App,
+	type DataAdapter,
+	MarkdownView,
+	type Plugin,
+	TFile,
+	TFolder,
+} from 'obsidian';
 import { type EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 
 /** 变更停止后延迟记录的时间（ms） */
@@ -93,6 +101,27 @@ function setRecord(path: string, rec: PositionRecord): void {
 	scheduleDiskWrite();
 }
 
+/** 文件夹重命名：把缓存中以旧路径为前缀的键改写为新路径（含所有后代文件） */
+function rewriteFolderPrefix(oldPath: string, newPath: string): void {
+	if (oldPath === newPath) return;
+	const prefix = oldPath + '/';
+	let changed = false;
+	for (const key of Object.keys(cache)) {
+		if (key.startsWith(prefix)) {
+			const rec = cache[key];
+			if (!rec) continue;
+			// prefix 含末尾 '/'，slice 掉的 rest 不含 '/'，拼回时需补回
+			const newKey = newPath + '/' + key.slice(prefix.length);
+			cache[newKey] = rec;
+			delete cache[key];
+			changed = true;
+		}
+	}
+	if (changed) {
+		scheduleDiskWrite();
+	}
+}
+
 /** 载入缓存并清理 vault 中已不存在文件的记录 */
 async function loadCache(plugin: Plugin): Promise<void> {
 	adapterRef = plugin.app.vault.adapter;
@@ -102,10 +131,13 @@ async function loadCache(plugin: Plugin): Promise<void> {
 	filePathRef = `${pluginDir}/${CACHE_FILE}`;
 	try {
 		if (await adapterRef.exists(filePathRef)) {
-			const data = JSON.parse(await adapterRef.read(filePathRef)) as {
-				positions?: PositionCache;
-			};
-			cache = data.positions ?? {};
+			const raw = JSON.parse(await adapterRef.read(filePathRef)) as unknown;
+			// 兼容两种落盘格式：早期 {positions:{}} 包裹，以及当前平铺 {path: record}
+			if (raw !== null && typeof raw === 'object' && 'positions' in raw) {
+				cache = (raw as { positions?: PositionCache }).positions ?? {};
+			} else {
+				cache = raw as PositionCache;
+			}
 		} else {
 			cache = {};
 		}
@@ -310,6 +342,15 @@ export function registerPositionPersistence(
 	void loadCache(plugin);
 
 	plugin.registerEditorExtension(createPositionPlugin(plugin.app, enabled));
+
+	// 文件夹重命名：同步改写缓存中的路径前缀，避免记录随旧路径失效
+	plugin.registerEvent(
+		plugin.app.vault.on('rename', (file, oldPath) => {
+			if (file instanceof TFolder) {
+				rewriteFolderPrefix(oldPath, file.path);
+			}
+		}),
+	);
 
 	// 卸载时把内存缓存落盘
 	plugin.register(() => flushNow());

@@ -15,7 +15,7 @@
  */
 
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
-import { EditorState, Prec } from '@codemirror/state';
+import { EditorState, Prec, StateEffect } from '@codemirror/state';
 import { syntaxTree, foldEffect, unfoldEffect, foldService } from '@codemirror/language';
 import { listEnhancerConfig } from '../../model/shared';
 
@@ -528,10 +528,13 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				return;
 			}
 
-			const foldSet = computeFoldIndices(items, cmView.state.selection.main.head, cmView.state.doc);
+			const cursorPos = cmView.state.selection.main.head;
+			const foldSet = computeFoldIndices(items, cursorPos, cmView.state.doc);
 			const newRanges = computeFoldRanges(items, foldSet, cmView.state.doc);
 
-			this.applyFolds(cmView, newRanges);
+			// 滚轴同步：仅当折叠/展开确实发生变化时，把光标所在行居中
+			const scrollPos = listEnhancerConfig.focusScrollSync ? cursorPos : null;
+			this.applyFolds(cmView, newRanges, scrollPos);
 			this.currentRanges = newRanges;
 		}
 
@@ -545,8 +548,9 @@ const focusViewPlugin = ViewPlugin.fromClass(
 		private applyFolds(
 			view: EditorView,
 			targetRanges: Array<{ from: number; to: number }>,
+			scrollPos: number | null = null,
 		): void {
-			const effects: Array<ReturnType<typeof foldEffect.of>> = [];
+			const effects: Array<StateEffect<unknown>> = [];
 
 			for (const r of this.currentRanges) {
 				if (!targetRanges.some(t => t.from === r.from && t.to === r.to)) {
@@ -558,6 +562,12 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				if (!this.currentRanges.some(c => c.from === r.from && c.to === r.to)) {
 					effects.push(foldEffect.of(r));
 				}
+			}
+
+			// 滚轴同步：折叠/展开确实变化时，追加滚动效果使光标行居中
+			// （与折叠效果同一次 dispatch，避免二次 update 循环）
+			if (scrollPos !== null && effects.length > 0) {
+				effects.push(EditorView.scrollIntoView(scrollPos, { y: 'center' }));
 			}
 
 			if (effects.length > 0) {

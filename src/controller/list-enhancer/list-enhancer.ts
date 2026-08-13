@@ -7,12 +7,14 @@
  *   - list-integration.ts  列一体化
  *   - enter-soft-break.ts  回车软换行
  *   - focus-options.ts     聚焦选项
+ *   - fold-navigation.ts   上下键进入折叠块
  */
 
 import { Prec } from '@codemirror/state';
 import { createListIntegrationExtension } from './list-integration';
 import { createEnterSoftBreakExtension } from './enter-soft-break';
 import { createFocusOptionsExtension } from './focus-options';
+import { createFoldNavigationExtension } from './fold-navigation';
 import { listEnhancerConfig } from '../../model/shared';
 
 // 保持对外接口一致：controller/main.ts 使用 `listEnhancerConfig`
@@ -28,5 +30,6 @@ export function createListEnhancerExtension() {
 		...createListIntegrationExtension(),
 		...createEnterSoftBreakExtension(),
 		...createFocusOptionsExtension(),
+		...createFoldNavigationExtension(),
 	]);
 }

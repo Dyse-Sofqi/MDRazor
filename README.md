@@ -12,10 +12,12 @@
 
 > 🇬🇧 **English**: scroll down to view the English README.
 
+📜 完整更新记录见 [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.md)
+
 ### 简介
 
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
-目前提供**隐藏样式**、**列表增强**、**标签页增强**、**状态栏增强**和**清理失联图片**五大功能模块，更多功能正在开发中。
+目前提供**隐藏样式**、**列表增强**、**标签页增强**、**状态栏增强**和**功能区增强**五大功能模块，更多功能正在开发中。
 
 ### 功能
 
@@ -53,7 +55,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ---
 
-#### 🗑️ 清理失联图片
+#### 🗑️ 功能区增强
 
 - **清理失联图片** — 在设置中启用后，左侧 ribbon 功能区出现垃圾桶图标按钮（trash-2）。点击后扫描库中所有 Markdown 笔记，提取四种图片引用语法（`![[path]]`、`[[path]]`、`![](path)`、`<img src>`），找出未被任何笔记引用过的图片文件（jpg/jpeg/png/gif/svg），弹出多选确认框（列表含勾选、路径、状态与缩略图，默认全选）供确认后移入系统回收站。确认时未勾选的图片记入白名单，下次弹框自动保持未勾选并置底显示，可重新勾选解除白名单。
 
@@ -70,6 +72,10 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **选项聚焦** — 光标移入列表项时，自动折叠所有非直属内容（兄弟、父兄弟等），仅展开焦点链（当前项、其祖先、及其子孙）。深度嵌套列表导航不再眼花缭乱。鼠标未弹起时不触发折叠，避免拖选过程中闪烁。
 
   - **二级子项最大展开数** — 选项聚焦的子设置（滑块 1-9 + 开关）。开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响。选项聚焦关闭时此设置自动禁用。
+
+- **滚轴同步** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至屏幕中央，避免长列表伸缩使光标跑出视图外。选项聚焦关闭时此开关自动禁用。
+
+- **上下键默认不跳过被折叠的列表/标题项** — 按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 CodeMirror 原生那样整块跳过。光标连续导航不被折叠块阻断。
 
 - **目录聚焦** — 点击文件列表中的文件夹名称时，仅展开该文件夹及其祖先链，同时折叠所有无关分支（同级、父同级、祖父同级等），专注当前目录结构。点击文件夹名称（非折叠箭头）触发，触发后再次点击同一个文件夹仅触发折叠状态的改变。若首次点击时目录已处于聚焦后的展开结构（无关分支均已折叠），则直接切换该文件夹的折叠状态，效果等同连续点击两次。折叠箭头可正常独立控制单层展开/折叠。
 
@@ -111,11 +117,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 在 Obsidian 设置 → 第三方插件 → MDRazor 中配置：
 
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
-- **清理失联图片** — 1 个开关：启用后 ribbon 显示垃圾桶图标，扫描未引用图片
-- **列表增强** — 7 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数）、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
+- **列表增强** — 9 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
 - **标签页增强** — 6 个开关：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化
 - **状态栏增强** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
-- **区域折叠** — 隐藏样式、列表增强、标签页增强、状态栏增强各区域标题可点击折叠/展开，按需收放
+- **功能区增强** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
+- **标签页切换** — 上述五大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
 
@@ -153,16 +159,18 @@ Designed to refine your writing experience with precision like a razor.
 
 [![GitHub Release](https://img.shields.io/github/v/release/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%2342b883)](https://github.com/Dyse-Sofqi/MDRazor/releases) [![License](https://img.shields.io/github/license/Dyse-Sofqi/MDRazor?style=flat-square&color=%2342b883)](LICENSE) [![Obsidian Min App](https://img.shields.io/badge/Obsidian-%5E1.0.0-%234a7ec1?style=flat-square&logo=obsidian&logoColor=%234a7ec1)](https://obsidian.md) [![GitHub Stars](https://img.shields.io/github/stars/Dyse-Sofqi/MDRazor?style=flat-square&logo=github&color=%23e4b341)](https://github.com/Dyse-Sofqi/MDRazor)
 
-[🇨🇳 中文](README.md) · [🇬🇧 English](README.en.md)
+[🇨🇳 中文](README.md) · [🇬🇧 English](#introduction)
 
 </div>
 
 ---
 
+📜 Full changelog at [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.en.md)
+
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **Style Hiding**, **List Enhancements**, **Tab Enhancer**, **Statusbar Enhancement**, and **Orphan Image Cleaner** — five feature modules, with more in development.
+Currently provides **Style Hiding**, **List Enhancements**, **Tab Enhancer**, **Statusbar Enhancement**, and **Ribbon Enhancement** — five feature modules, with more in development.
 
 ### Features
 
@@ -200,7 +208,7 @@ All hidden formats share these behaviors:
 
 ---
 
-#### 🗑️ Orphan Image Cleaner
+#### 🗑️ Ribbon Enhancement
 
 - **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via four syntaxes (`![[path]]`, `[[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and shows a multi-select confirm dialog (columns for checkbox, path, status, and thumbnail; all checked by default) before moving the selected ones to the system recycle bin. Images left unchecked are added to a whitelist — on subsequent dialogs they stay unchecked and are pinned to the bottom of the list; re-checking them removes them from the whitelist.
 
@@ -217,6 +225,10 @@ Optimized list editing experience with the following independent toggles:
 - **List Focus Option** — When the cursor enters a list item, automatically expand all its descendants and collapse all non-directly-related content (siblings, parent siblings, etc.). Only the focus chain (itself + ancestors + descendants) stays visible. Deeply nested list navigation no longer overwhelming. Fold is deferred until mouse button release to prevent flicker during selection drag.
 
   - **Second-level Max Expand Count** — Sub-setting of List Focus Option (slider 1-9 + toggle). When enabled, top-level items with ≤ threshold second-level children will be expanded during focus. Affects top-level items only; descendants still follow normal focus-fold behavior. Disabled when List Focus Option is off.
+
+- **Scroll Sync** — Sub-toggle of List Focus Option (default on). When Option Focus folds/unfolds, the cursor's line is scrolled to the vertical center so it never leaves the viewport on long-list relayout. Disabled when List Focus Option is off.
+
+- **Up/Down Do Not Skip Folded List/Heading Items** — When the target line is a folded list item or heading content, ↑/↓ actively unfold that block and land on the target line (goal column preserved) instead of CodeMirror's native whole-block skip. Continuous cursor navigation is never blocked by folded blocks.
 
 - **Directory Focus** — Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure. Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state. If the tree is already in the focused shape (all unrelated branches collapsed) on first click, the folder's collapse state toggles directly — the same effect as clicking twice. The chevron still works independently for normal single-level toggle.
 
@@ -258,11 +270,11 @@ Status bar enhancements with the following independent toggles:
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
-- **Orphan Image Cleaner** — 1 toggle: enables trash-2 ribbon icon, scans unreferenced images
-- **List Enhancements** — 7 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count), Directory Focus, Directory File Count (with Direct Children Count)
+- **List Enhancements** — 9 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
 - **Tab Enhancer** — 6 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence
 - **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
-- **Collapsible sections** — Style Hiding, List Enhancements, Tab Enhancer, and Statusbar Enhancement section headings can be collapsed/expanded on demand
+- **Ribbon Enhancement** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
+- **Tabbed sections** — the five modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
 

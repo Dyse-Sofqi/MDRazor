@@ -44,6 +44,10 @@ export interface MDRazorSettings {
 	listFocusOption: boolean;
 	listFocusSecondThreshold: number;
 	listFocusSecondThresholdEnabled: boolean;
+	/** 滚轴同步：选项聚焦折叠/展开后，光标所在行滚动至屏幕中央 */
+	focusScrollSync: boolean;
+	/** 上下键默认不跳过被折叠的列表/标题项：↓/↑ 遇到折叠块时主动展开并进入 */
+	arrowKeyEnterFolded: boolean;
 	dirFocusOption: boolean;
 	showDirFileCount: boolean;
 	dirFileCountDirectOnly: boolean;
@@ -87,6 +91,8 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	listFocusOption: true,
 	listFocusSecondThreshold: 3,
 	listFocusSecondThresholdEnabled: false,
+	focusScrollSync: true,
+	arrowKeyEnterFolded: true,
 	dirFocusOption: true,
 	showDirFileCount: true,
 	dirFileCountDirectOnly: true,

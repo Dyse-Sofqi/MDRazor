@@ -4,6 +4,64 @@
 
 ---
 
+## 2.4.3 (2026-08-13)
+
+### 位置持久化：缓存读写格式不一致 + 文件夹重命名同步
+
+**需求：** 1) 位置缓存跨会话恢复失效（每次启动清空）；2) 文件列表文件夹重命名时同步 position-cache.json 中旧路径。
+
+**实现位置：** `src/controller/tab-enhancer/position-persistence.ts` — `loadCache` 读端兼容、`rewriteFolderPrefix` 新增、`registerPositionPersistence` 注册 `vault.on('rename')`。
+
+**避坑记录：**
+
+1. **落盘与载入格式必须同源** — `flushDisk` 直接 `JSON.stringify(cache)`（`Record<path, record>` 平铺），`loadCache` 原读 `data.positions`（期望 `{positions:{}}` 包裹）。写平铺读包裹 → 每次加载 `cache={}`：跨会话全失效、prune 不跑、后续重命名改写也空转。修读端兼容两格式（`'positions' in raw` 探测），不动写端。
+2. **前缀改写拼接必须补回分隔符** — 前缀用 `oldPath + '/'`，`key.slice(prefix.length)` 取到不含 `/` 的后缀，拼回必须 `newPath + '/' + suffix`。原实现 `newPath + suffix` 直接丢分隔符（`test1/2234` + `MDRazor简介.md` → 脏键 `test1/2234MDRazor简介.md`）。Obsidian 同名重命名（旧=新）也触发 rename 事件，须 `oldPath === newPath` 提前 return。
+3. **TS noUncheckedIndexedAccess** — `cache[key]` 类型 `T | undefined`，先 `const rec = cache[key]; if (!rec) continue;` 再赋值，否则 TS2322。
+4. **脏键自愈无需额外逻辑** — `loadCache` 的 prune 遍历删掉 vault 中不存在的路径，重载后自动清掉脏键（如 `test1/2234MDRazor简介.md`）。
+5. **重命名事件模型** — 文件夹重命名触发 folder 事件 + 子树各文件 rename 事件。处理器只认 `file instanceof TFolder`，子文件 TFile 事件跳过；folder 事件一次改写整个子树，天然无重复处理。
+6. **前缀匹配勿误伤同名前缀** — 用 `key.startsWith(oldPath + '/')` 而非 `key.startsWith(oldPath)`，`test1/2234x/...` 不会被 `test1/2234` 的改写波及。
+
+### 滚轴同步（选项聚焦滚动居中）
+
+**需求：** 选项聚焦折叠/展开后，光标所在行滚动至屏幕中央，避免长列表伸缩把光标带出视图。
+
+**实现位置：** `src/controller/list-enhancer/focus-options.ts` — `recomputeFolds` / `applyFolds`。
+
+**避坑记录：**
+
+1. **折叠未变化时勿滚动** — 光标在同结构内移动（折叠集合无 diff）不滚动，否则每按一次方向键都居中，剧烈跳动。`applyFolds` 返回 `effects.length > 0` 判断是否实际变化，仅变化时追加滚动。
+2. **滚动与折叠同一次 dispatch** — `effects.push(EditorView.scrollIntoView(pos, { y: 'center' }))` 与 foldEffect/unfoldEffect 一起派发，避免二次 update 循环。
+3. **TS 数组类型** — `scrollIntoView` 返回 `StateEffect<unknown>`，foldEffect 返回 `StateEffect<DocRange>`，effects 数组须声明为 `Array<StateEffect<unknown>>`，否则 TS2345。
+
+### 上下键进入折叠块（主动展开）
+
+**需求：** CM6 折叠语义下 ↓/↑ 会整块跳过折叠区，光标进不到被折叠的列表项/标题行。改为主动展开折叠块并进入目标行，保持目标列。
+
+**实现位置：** `src/controller/list-enhancer/fold-navigation.ts` — capture 阶段 DOM keydown 拦截（与 enter-soft-break 同模式）。
+
+**避坑记录：**
+
+1. **CM6 垂直移动用 posAtCoords，永不进入 replaced（折叠）范围** — 折叠块被当作单个单位跳过。折叠锚点行（widget 在行末，如列表项折叠 `{from: 项行末, to: 子树末}`）同样被吞。要在目标行满足"折叠锚点落在行内 OR 目标行位于折叠隐藏内容内"时主动拦截。
+2. **资格限定列表/标题** — 折叠范围来自 `foldedRanges(state)`（含 Obsidian 原生标题折叠 + 代码块折叠 + 本插件列表折叠）。须过滤：折叠起点所在行（或上一行）是列表项/标题行才处理，代码块折叠保持原生跳过。
+3. **目标列** — 用 `sel.goalColumn`（无则当前行字符偏移），新选区经 `EditorSelection.cursor(pos, assoc, bidiLevel, goalColumn)` 写入 goalColumn，后续方向键延续列位。
+4. **修饰键不拦截** — Shift（扩展选区）/Alt（移动行）/Ctrl/Meta 组合键 return false 交还原生。
+5. **与选项聚焦联动** — 主动展开列表折叠 + 光标落到锚点行后，`recomputeFolds` 以光标为焦点链自然维持展开，无需重复逻辑。
+
+### 设置界面标签页化
+
+**需求：** 四大模块设置过长，改标签页切换；清理失联图片独立为「功能区增强」第五模块。
+
+**实现位置：** `src/view/settings-tab.ts`（`createTabbedSection` + 五个 `build*Section`）+ `styles.css`（`.mdrazor-settings-tabs` 等）。
+
+**避坑记录：**
+
+1. **标签页激活态用 `toggleClass('is-active', ...)`** — Obsidian HTMLElement 扩展，勿手写 classList 替换。
+2. **activeTabIndex 实例字段记忆** — `display()` 每次重建 DOM，激活页须存字段而非局部变量，否则重开设置面板跳回第一页。
+3. **hideToggles 引用跨标签页仍有效** — 隐藏页 `display:none` 但 DOM 未销毁，状态栏启闭按钮 `syncHideTogglesFromSettings` 反向刷新不受影响。
+4. **CSS Safari** — `user-select` 需配 `-webkit-user-select` 前缀，且前缀在前。
+
+---
+
 ## 2.4.2 (2026-08-12)
 
 ### MD 文档光标和滚轴位置持久化
