@@ -146,7 +146,7 @@ div.nav-folder-title {
 	color: var(--text-normal);
 }
 
-/* ── 状态栏增强：工作区切换 ── */
+/* ── 状态栏：工作区切换 ── */
 .mdrazor-statusbar-workspace {
 	user-select: none;
 	display: flex;
@@ -262,4 +262,16 @@ div.nav-folder-title {
 	width: auto;
 	object-fit: contain;
 	display: block;
+}
+
+/* ── 打字机模式：文档头部留白 ──
+   插件在 .cm-editor 上切换该类，并动态设置 --mdrazor-typewriter-top-padding
+   （(视口高 - 行高) / 2）。留白应用在 .cm-sizer（.cm-scroller 内的内容
+   容器，页面内标题 inline-title 也位于其中）的 padding-top，因此：
+     - 无页面内标题：留白位于正文上方；
+     - 有页面内标题：留白位于标题上方，标题紧贴正文，不会被隔开。
+   CM6 的坐标换算基于真实 DOM 几何（contentDOM rect 已含该推挤），
+   滚动居中计算自动正确。 */
+.cm-editor.mdrazor-typewriter-top-padding .cm-sizer {
+	padding-top: var(--mdrazor-typewriter-top-padding, 0px);
 }

@@ -1,5 +1,5 @@
 /**
- * MDRazor — Tab Enhancer
+ * MDRazor — Tabs
  *
  * File-explorer clicks: if a tab for the file already exists, switch to it;
  * otherwise open in a new tab. The native Obsidian click is NOT blocked —

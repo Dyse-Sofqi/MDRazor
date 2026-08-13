@@ -24,6 +24,8 @@ import { spaceConfig, createSpaceVisualizationExtension } from './format-hider/w
 import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer/list-enhancer';
 import { registerDirFocus } from './list-enhancer/dir-focus';
 import { registerDirFileCount } from './list-enhancer/dir-file-count';
+import { registerSiblingFold, registerSiblingFoldContextMenu } from './list-enhancer/sibling-fold';
+import { typewriterConfig, createTypewriterExtension, registerTypewriterCommand } from './typewriter/typewriter';
 import { registerTabEnhancer } from './tab-enhancer/tab-enhancer';
 import { registerLinkOpener } from './tab-enhancer/link-opener';
 import { registerBookmarkOpener } from './tab-enhancer/bookmark-opener';
@@ -47,7 +49,7 @@ export default class MDRazorPlugin extends Plugin {
 	/** Ribbon 图标控制：用于在设置开关变化时添加/移除 */
 	orphanImageRibbon!: { addRibbon: () => void; removeRibbon: () => void };
 
-	/** 状态栏增强控制 */
+	/** 状态栏控制 */
 	statusBarEnhancer!: { addButton: () => void; removeButton: () => void };
 
 	/** 侧边栏伸缩控制 */
@@ -75,7 +77,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册失联图片清理功能（获得 ribbon 控制句柄）
 		this.orphanImageRibbon = registerOrphanImageCleaner(this);
 
-		// 注册状态栏增强
+		// 注册状态栏
 		this.statusBarEnhancer = registerStatusBarEnhancer(this, () => this.settings.autoSaveWorkspaceLayout);
 
 		// 注册侧边栏伸缩（注册 Obsidian 命令 + 状态栏按钮控制）
@@ -94,8 +96,22 @@ export default class MDRazorPlugin extends Plugin {
 		this.registerEditorExtension(createSpaceVisualizationExtension());
 		this.registerEditorExtension(createCursorBoundaryHintExtension());
 		this.registerEditorExtension(createListEnhancerExtension());
+		// 注册打字机模式（光标行居中 + 非当前行淡化）
+		this.registerEditorExtension(createTypewriterExtension());
 		// 注册目录聚焦（非 CM6 扩展 — 直接操作文件列表 DOM）
 		registerDirFocus(this, () => this.settings.dirFocusOption);
+
+		// 注册展开/折叠同级列表或标题命令（可在命令面板触发或绑定快捷键）
+		registerSiblingFold(this);
+
+		// 注册展开/折叠同级列表或标题右键菜单项（右键菜单模块开关控制）
+		registerSiblingFoldContextMenu(this, () => this.settings.contextMenuSiblingFold);
+
+		// 注册开启/关闭打字机模式命令（可绑定快捷键，与设置开关双向同步）
+		registerTypewriterCommand(this, this.settings, async () => {
+			await this.saveSettings();
+			this.settingTab?.syncTypewriterFromSettings();
+		});
 
 		// 注册目录文件数量显示
 		this.dirFileCountRefresher = registerDirFileCount(
@@ -104,7 +120,7 @@ export default class MDRazorPlugin extends Plugin {
 			() => this.settings.dirFileCountDirectOnly,
 		);
 
-		// 注册标签页增强（文件列表点击 → 已有标签页则跳转）
+		// 注册标签页（文件列表点击 → 已有标签页则跳转）
 		registerTabEnhancer(this, () => this.settings.tabEnhancerDefaultOpen);
 		// 注册链接打开增强（文档内双链 → 已有标签页则跳转）
 		registerLinkOpener(this, () => this.settings.tabEnhancerOpenLink);
@@ -219,5 +235,10 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(formattingConfig, this.settings);
 		Object.assign(spaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
+		Object.assign(typewriterConfig, {
+			mode: this.settings.typewriterMode,
+			opacity: this.settings.typewriterOpacity,
+			topPadding: this.settings.typewriterTopPadding,
+		});
 	}
 }

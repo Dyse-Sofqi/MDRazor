@@ -1,5 +1,5 @@
 /**
- * MDRazor — 状态栏增强：工作区快速切换
+ * MDRazor — 状态栏：工作区快速切换
  */
 
 import { Plugin, type App, setIcon } from 'obsidian';

@@ -4,8 +4,8 @@
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
  * 純 UI 層，不包含資料定義或業務邏輯。
  *
- * 五大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页增强 /
- * 状态栏增强 / 功能区增强。当前激活标签页在插件生命周期内记忆。
+ * 六大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页 /
+ * 状态栏 / 左功能区 / 右键菜单。当前激活标签页在插件生命周期内记忆。
  */
 
 import { App, PluginSettingTab, Setting } from 'obsidian';
@@ -26,6 +26,11 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/** 隐藏样式开关组件引用（受状态栏"隐藏样式启闭按钮"管辖的开关） */
 	private hideToggles: Array<{ key: keyof MDRazorSettings; toggle: import('obsidian').ToggleComponent }> = [];
 
+	/** 打字机模式开关与子设置项引用（命令一键切换后同步显示） */
+	private typewriterToggle?: import('obsidian').ToggleComponent;
+	private typewriterOpacitySetting?: Setting;
+	private typewriterTopPaddingSetting?: Setting;
+
 	/** 当前激活的标签页索引（会话内记忆，设置面板重开时保留） */
 	private activeTabIndex = 0;
 
@@ -40,22 +45,26 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		// 每次重建界面时重置开关引用（旧组件已被 empty() 销毁）
 		this.hideToggles = [];
+		this.typewriterToggle = undefined;
+		this.typewriterOpacitySetting = undefined;
+		this.typewriterTopPaddingSetting = undefined;
 
 		this.createTabbedSection(
 			containerEl,
-			['隐藏样式', '列表增强', '标签页增强', '状态栏增强', '功能区增强'],
+			['隐藏样式', '列表增强', '标签页', '状态栏', '左功能区', '右键菜单'],
 			(panel, index) => {
 				if (index === 0) this.buildHideSection(panel);
 				else if (index === 1) this.buildListSection(panel);
 				else if (index === 2) this.buildTabSection(panel);
 				else if (index === 3) this.buildStatusSection(panel);
-				else this.buildRibbonSection(panel);
+				else if (index === 4) this.buildRibbonSection(panel);
+				else this.buildContextMenuSection(panel);
 			},
 		);
 	}
 
 	/* ------------------------------------------------------------------ */
-	/*  功能区增强（清理失联图片等左侧功能区功能）                          */
+	/*  左功能区（清理失联图片等左侧功能区功能）                          */
 	/* ------------------------------------------------------------------ */
 
 	private buildRibbonSection(panel: HTMLElement): void {
@@ -72,6 +81,24 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						} else {
 							this.plugin.orphanImageRibbon?.removeRibbon();
 						}
+						await this.plugin.saveSettings();
+					}),
+			);
+	}
+
+	/* ------------------------------------------------------------------ */
+	/*  右键菜单                                                           */
+	/* ------------------------------------------------------------------ */
+
+	private buildContextMenuSection(panel: HTMLElement): void {
+		new Setting(panel)
+			.setName('展开/折叠同级列表或标题')
+			.setDesc('开启后在编辑器右键菜单中添加同名菜单项。点击执行与命令面板命令相同的逻辑：以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档同层级的列表项或标题（如所有一级标题、所有一级列表项），完成后提示实际折叠/展开的数量。关闭后右键菜单不再显示该项')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.contextMenuSiblingFold)
+					.onChange(async (value) => {
+						this.plugin.settings.contextMenuSiblingFold = value;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -268,10 +295,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				(directOnlyToggle.toggleEl as HTMLInputElement).disabled =
 					!this.plugin.settings.showDirFileCount;
 			});
+
+		new Setting(panel)
+			.setName('展开/折叠同级列表或标题（命令）')
+			.setDesc('在命令面板中可触发并绑定快捷键。以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档同层级的列表项或标题（如所有一级标题、所有一级列表项），完成后提示实际折叠/展开的数量。如需在右键菜单中使用，请在「右键菜单」标签页开启对应开关')
+			.addExtraButton((button) => {
+				button.setIcon('info').onClick(() => undefined);
+				button.extraSettingsEl.title = '无需开关，命令常驻可用';
+			});
 	}
 
 	/* ------------------------------------------------------------------ */
-	/*  标签页增强                                                         */
+	/*  标签页                                                             */
 	/* ------------------------------------------------------------------ */
 
 	private buildTabSection(panel: HTMLElement): void {
@@ -350,10 +385,52 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(panel)
+			.setName('打字机模式')
+			.setDesc('开启后，编辑文档时光标所在行始终保持于页面中央（打字机滚动），其余行按下方「非当前行的不透明度」淡化显示。命令「开启/关闭打字机模式」可绑定快捷键')
+			.addToggle((toggle) => {
+				this.typewriterToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.typewriterMode)
+					.onChange(async (value) => {
+						this.plugin.settings.typewriterMode = value;
+						await this.plugin.saveSettings();
+						this.syncTypewriterFromSettings();
+					});
+			});
+
+		this.typewriterOpacitySetting = new Setting(panel)
+			.setName('非当前行的不透明度')
+			.setDesc('打字机模式下，除光标所在行外的所有行的显示不透明度（0-100）。100 为完全不淡化，仅模式开启时生效')
+			.addSlider((slider) =>
+				slider
+					.setLimits(0, 100, 1)
+					.setValue(this.plugin.settings.typewriterOpacity)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.typewriterOpacity = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		this.typewriterTopPaddingSetting = new Setting(panel)
+			.setName('允许文档头部留存空白区域')
+			.setDesc('开启后，在文档开头预留足够空间，使光标位于文档第一行时也能滚动到页面中央（否则第一行无法居中）。仅模式开启时生效')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.typewriterTopPadding)
+					.onChange(async (value) => {
+						this.plugin.settings.typewriterTopPadding = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		this.applyTypewriterChildVisibility();
 	}
 
 	/* ------------------------------------------------------------------ */
-	/*  状态栏增强                                                         */
+	/*  状态栏                                                             */
 	/* ------------------------------------------------------------------ */
 
 	private buildStatusSection(panel: HTMLElement): void {
@@ -504,5 +581,25 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		for (const { key, toggle } of this.hideToggles) {
 			toggle.setValue(this.plugin.settings[key] as boolean);
 		}
+	}
+
+	/**
+	 * 打字机模式子设置项显隐：仅模式开启时显示「非当前行的不透明度」与
+	 * 「允许文档头部留存空白区域」。
+	 */
+	private applyTypewriterChildVisibility(): void {
+		const show = this.plugin.settings.typewriterMode;
+		for (const setting of [this.typewriterOpacitySetting, this.typewriterTopPaddingSetting]) {
+			if (setting) setting.settingEl.style.display = show ? '' : 'none';
+		}
+	}
+
+	/**
+	 * 从当前设置值刷新打字机模式开关与子设置项显隐。
+	 * 由命令「开启/关闭打字机模式」一键切换后调用，使设置界面与设置对象保持一致。
+	 */
+	syncTypewriterFromSettings(): void {
+		this.typewriterToggle?.setValue(this.plugin.settings.typewriterMode);
+		this.applyTypewriterChildVisibility();
 	}
 }

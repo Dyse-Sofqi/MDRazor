@@ -17,11 +17,11 @@
 ### 简介
 
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
-目前提供**隐藏样式**、**列表增强**、**标签页增强**、**状态栏增强**和**功能区增强**五大功能模块，更多功能正在开发中。
+目前提供**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**和**右键菜单**六大功能模块，更多功能正在开发中。
 
 ### 功能
 
-功能按设置面板的五大区域组织，每项均可在设置面板中独立开关。
+功能按设置面板的六大区域组织，每项均可在设置面板中独立开关。
 
 ---
 
@@ -55,7 +55,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ---
 
-#### 🗑️ 功能区增强
+#### 🗑️ 左功能区
 
 - **清理失联图片** — 在设置中启用后，左侧 ribbon 功能区出现垃圾桶图标按钮（trash-2）。点击后扫描库中所有 Markdown 笔记，提取四种图片引用语法（`![[path]]`、`[[path]]`、`![](path)`、`<img src>`），找出未被任何笔记引用过的图片文件（jpg/jpeg/png/gif/svg），弹出多选确认框（列表含勾选、路径、状态与缩略图，默认全选）供确认后移入系统回收站。确认时未勾选的图片记入白名单，下次弹框自动保持未勾选并置底显示，可重新勾选解除白名单。
 
@@ -75,7 +75,9 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **滚轴同步** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至屏幕中央，避免长列表伸缩使光标跑出视图外。选项聚焦关闭时此开关自动禁用。
 
-- **上下键默认不跳过被折叠的列表/标题项** — 按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 CodeMirror 原生那样整块跳过。光标连续导航不被折叠块阻断。
+- **上下键默认不跳过被折叠的列表/标题项** — 按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 CodeMirror 原生那样整块跳过。光标连续导航不被折叠块阻断。**上键同级回跳（任意层级）**：按 ↑ 时若光标所在行是列表项、且上一行（或其续行）所属列表项的层级比当前更低（更深——如位于前一同级项子树末尾的深层项），光标直接跳转到上一个与当前层级相同的列表项所在行（被折叠挡住时同样展开进入），而非落入上一行所属的更深子树。适用于全部层级：二级遇三/四级及以上跳上一个二级，三级遇四级及以上跳上一个三级，依此类推；扫描跳过续行、遇空行/段落/标题等块边界即止，不跨列表块跳转。
+
+- **展开/折叠同级列表或标题（命令）** — 以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档所有同层级的列表项或标题（同为某级标题、或同为某缩进层级的列表项）：当前行已折叠则全部展开，未折叠则全部折叠。完成后弹出提示，告知实际折叠/展开了多少个同级标题或列表。在命令面板中触发，可在「设置 → 快捷键」中绑定快捷键（无需开关，常驻可用）。同时可在「设置 → 右键菜单」中开启右键菜单同名菜单项。
 
 - **目录聚焦** — 点击文件列表中的文件夹名称时，仅展开该文件夹及其祖先链，同时折叠所有无关分支（同级、父同级、祖父同级等），专注当前目录结构。点击文件夹名称（非折叠箭头）触发，触发后再次点击同一个文件夹仅触发折叠状态的改变。若首次点击时目录已处于聚焦后的展开结构（无关分支均已折叠），则直接切换该文件夹的折叠状态，效果等同连续点击两次。折叠箭头可正常独立控制单层展开/折叠。
 
@@ -85,7 +87,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ---
 
-#### 📑 标签页增强
+#### 📑 标签页
 
 文件标签页管理，提供以下独立开关：
 
@@ -101,16 +103,26 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。
 
+- **打字机模式** — 开启后，编辑文档时光标所在行始终保持于页面垂直中央（打字机滚动，光标移动到新行即自动滚动居中，手动滚动不被干扰）。其余行按「非当前行的不透明度」淡化显示，专注当前行。子设置项「非当前行的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留空白，使光标位于文档第一行时也能滚动到页面中央。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
+
 ---
 
-#### 🖥️ 状态栏增强
+#### 🖥️ 状态栏
 
-状态栏增强功能，提供以下独立开关：
+状态栏功能，提供以下独立开关：
 
 - **工作区切换** — 右下角状态栏显示工作区切换按钮：0-1 个工作区不显示、2 个工作区点击直接切换、3+ 个弹出浮层列表选切。切换后自动记录当前工作区名称。
 - **自动更新工作区布局** — 切换或加载工作区时自动保存当前工作区布局，与 Obsidian 原生「加载工作区」功能及本插件工作区切换联动。
 - **侧边栏伸缩按钮** — 状态栏最左侧显示按钮，点击一键折叠/展开左右侧边栏。
 - **隐藏样式启闭按钮** — 状态栏最左侧显示「标识」按钮，一键开启/关闭所有格式隐藏样式（加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签），不影响空格可视化。按钮图标与设置面板中隐藏样式开关双向同步。命令面板命令 `mdrazor-toggle-formatting` 可绑定快捷键。
+
+---
+
+#### 🖱️ 右键菜单
+
+编辑器右键菜单增强，提供以下独立开关：
+
+- **展开/折叠同级列表或标题** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。点击执行与命令面板命令完全相同的逻辑：以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档所有同层级的列表项或标题（同为某级标题、或同为某缩进层级的列表项），完成后弹出提示告知实际折叠/展开了多少个同级标题或列表。关闭后右键菜单不再显示该项，命令面板命令与快捷键不受影响。
 
 ### 设置
 
@@ -118,10 +130,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
 - **列表增强** — 9 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
-- **标签页增强** — 6 个开关：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化
-- **状态栏增强** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
-- **功能区增强** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
-- **标签页切换** — 上述五大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
+- **标签页** — 8 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含非当前行的不透明度、允许文档头部留存空白区域）
+- **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
+- **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
+- **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
+- **标签页切换** — 上述六大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
 
@@ -170,11 +183,11 @@ Designed to refine your writing experience with precision like a razor.
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **Style Hiding**, **List Enhancements**, **Tab Enhancer**, **Statusbar Enhancement**, and **Ribbon Enhancement** — five feature modules, with more in development.
+Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, and **Context Menu** — six feature modules, with more in development.
 
 ### Features
 
-Features are organized by the five settings-panel sections. Each toggle is independently switchable in settings.
+Features are organized by the six settings-panel sections. Each toggle is independently switchable in settings.
 
 ---
 
@@ -208,7 +221,7 @@ All hidden formats share these behaviors:
 
 ---
 
-#### 🗑️ Ribbon Enhancement
+#### 🗑️ Left Ribbon
 
 - **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via four syntaxes (`![[path]]`, `[[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and shows a multi-select confirm dialog (columns for checkbox, path, status, and thumbnail; all checked by default) before moving the selected ones to the system recycle bin. Images left unchecked are added to a whitelist — on subsequent dialogs they stay unchecked and are pinned to the bottom of the list; re-checking them removes them from the whitelist.
 
@@ -228,7 +241,7 @@ Optimized list editing experience with the following independent toggles:
 
 - **Scroll Sync** — Sub-toggle of List Focus Option (default on). When Option Focus folds/unfolds, the cursor's line is scrolled to the vertical center so it never leaves the viewport on long-list relayout. Disabled when List Focus Option is off.
 
-- **Up/Down Do Not Skip Folded List/Heading Items** — When the target line is a folded list item or heading content, ↑/↓ actively unfold that block and land on the target line (goal column preserved) instead of CodeMirror's native whole-block skip. Continuous cursor navigation is never blocked by folded blocks.
+- **Up/Down Do Not Skip Folded List/Heading Items** — When the target line is a folded list item or heading content, ↑/↓ actively unfold that block and land on the target line (goal column preserved) instead of CodeMirror's native whole-block skip. Continuous cursor navigation is never blocked by folded blocks. **Up-key same-level rewind (any depth)**: when ↑ is pressed while the cursor is on a list item and the line above (or its continuation) belongs to a lower-level (deeper) item — typically the deep tail of the previous same-level item's subtree — the cursor jumps straight to the previous list item at the current level (unfolding it if blocked by a fold) instead of landing inside that deeper subtree. Works at every depth: a level-2 item rewinds to the previous level-2 item when the line above is level 3/4+, a level-3 item to the previous level-3 when facing level 4+, and so on. The backward scan skips continuation lines and stops at block boundaries (blank lines, paragraphs, headings), so jumps never cross list blocks.
 
 - **Directory Focus** — Click a folder name in the file explorer to automatically expand its entire descendant tree and ancestor chain, while collapsing all unrelated branches (siblings, parent siblings, grandparent siblings, etc.). Focus on the current directory structure. Clicking the folder name (not the collapse chevron) triggers focus; clicking the same folder again toggles its collapse state. If the tree is already in the focused shape (all unrelated branches collapsed) on first click, the folder's collapse state toggles directly — the same effect as clicking twice. The chevron still works independently for normal single-level toggle.
 
@@ -238,7 +251,7 @@ Optimized list editing experience with the following independent toggles:
 
 ---
 
-#### 📑 Tab Enhancer
+#### 📑 Tabs
 
 File tab management with the following independent toggles:
 
@@ -254,9 +267,11 @@ File tab management with the following independent toggles:
 
 - **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low.
 
+- **Typewriter Mode** — When enabled, the cursor line stays vertically centered in the page while editing (typewriter scrolling: moving the cursor to a new line auto-scrolls to center; manual scrolling is not disturbed). All other lines are dimmed per the "Non-Current Line Opacity" sub-setting to focus the current line. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space above the document so the cursor can scroll to the page center even on the very first line. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
+
 ---
 
-#### 🖥️ Statusbar Enhancement
+#### 🖥️ Statusbar
 
 Status bar enhancements with the following independent toggles:
 
@@ -271,10 +286,11 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
 - **List Enhancements** — 9 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
-- **Tab Enhancer** — 6 toggles: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence
-- **Statusbar Enhancement** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
-- **Ribbon Enhancement** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
-- **Tabbed sections** — the five modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
+- **Tabs** — 8 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Non-Current Line Opacity, Allow Blank Area at Document Top)
+- **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
+- **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
+- **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
+- **Tabbed sections** — the six modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
 

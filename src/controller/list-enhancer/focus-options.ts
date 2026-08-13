@@ -9,6 +9,11 @@
  * 折叠使用 CM6 的 foldEffect/unfoldEffect（不移动光标）。
  * foldService 注册可折叠范围以供 gutter 交互。
  *
+ * 折叠状态感知：除本插件记录的折叠外，applyFolds 还读取编辑器实际折叠状态
+ * （foldedRanges），焦点块内被外部功能（如「展开/折叠同级列表或标题」命令、
+ * 手动折叠）折叠、但按聚焦计算应展开的列表项会被一并展开，避免外部折叠
+ * 导致聚焦链无法展开而"失效"。
+ *
  * 关键：切勿在 update() 内调用 view.dispatch() — CM6 会抛出
  * "Calls to EditorView.update are not allowed while an update is in progress"。
  * 所有 dispatch 通过 queueMicrotask 执行。
@@ -16,7 +21,7 @@
 
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { EditorState, Prec, StateEffect } from '@codemirror/state';
-import { syntaxTree, foldEffect, unfoldEffect, foldService } from '@codemirror/language';
+import { syntaxTree, foldEffect, unfoldEffect, foldService, foldedRanges } from '@codemirror/language';
 import { listEnhancerConfig } from '../../model/shared';
 
 // 鼠标按下标志：鼠标未弹起时不触发折叠，避免拖选过程中闪烁
@@ -232,12 +237,17 @@ function countDirectChildren(items: ListItemInfo[], idx: number): number {
 	return count;
 }
 
+/**
+ * 计算应折叠的列表项索引集合，并返回聚焦项索引。
+ * 返回空集合时（无列表 / 光标不在列表内 / 光标位于空行或结构性边界），
+ * focusedIdx 为 -1，调用方据此确定焦点块范围。
+ */
 function computeFoldIndices(
 	items: ListItemInfo[],
 	cursorPos: number,
 	doc: EditorState['doc'],
-): Set<number> {
-	if (items.length === 0) return new Set();
+): { foldSet: Set<number>; focusedIdx: number } {
+	if (items.length === 0) return { foldSet: new Set(), focusedIdx: -1 };
 
 	let focusedIdx = -1;
 	let bestDepth = -1;
@@ -270,19 +280,19 @@ function computeFoldIndices(
 		}
 	}
 
-	if (focusedIdx === -1) return new Set();
+	if (focusedIdx === -1) return { foldSet: new Set(), focusedIdx: -1 };
 
 	// 光标位于空行或结构性边界上 → 不聚焦任何列表，全部展开
 	const cursorLine = doc.lineAt(cursorPos);
 	if (cursorLine.text.trim() === '' || isStructuralBoundary(cursorLine.text)) {
-		return new Set();
+		return { foldSet: new Set(), focusedIdx };
 	}
 
 	const unfoldSet = new Set<number>();
 	unfoldSet.add(focusedIdx);
 
 	const focusedItem = items[focusedIdx];
-	if (!focusedItem) return new Set();
+	if (!focusedItem) return { foldSet: new Set(), focusedIdx: -1 };
 	let currentDepth = focusedItem.depth;
 	for (let i = focusedIdx - 1; i >= 0; i--) {
 		const ancestor = items[i];
@@ -324,7 +334,7 @@ function computeFoldIndices(
 		}
 	}
 
-	return foldSet;
+	return { foldSet, focusedIdx };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -529,39 +539,82 @@ const focusViewPlugin = ViewPlugin.fromClass(
 			}
 
 			const cursorPos = cmView.state.selection.main.head;
-			const foldSet = computeFoldIndices(items, cursorPos, cmView.state.doc);
+			const { foldSet, focusedIdx } = computeFoldIndices(
+				items, cursorPos, cmView.state.doc,
+			);
 			const newRanges = computeFoldRanges(items, foldSet, cmView.state.doc);
+
+			// 焦点块行号集合：仅对块内列表项的"外部折叠"（如同级折叠命令、
+			// 手动折叠造成的折叠）做展开修正，块外折叠保持原状。
+			const blockLineNumbers = new Set<number>();
+			if (focusedIdx >= 0) {
+				const focusedBlock = getBlock(items, focusedIdx, cmView.state.doc);
+				for (const idx of focusedBlock) {
+					const item = items[idx];
+					if (item) blockLineNumbers.add(item.lineNumber);
+				}
+			}
 
 			// 滚轴同步：仅当折叠/展开确实发生变化时，把光标所在行居中
 			const scrollPos = listEnhancerConfig.focusScrollSync ? cursorPos : null;
-			this.applyFolds(cmView, newRanges, scrollPos);
+			this.applyFolds(cmView, newRanges, blockLineNumbers, scrollPos);
 			this.currentRanges = newRanges;
 		}
 
 		/**
-		 * 对比 currentRanges 与 targetRanges，派发 foldEffect/unfoldEffect。
+		 * 对比当前实际折叠状态与目标折叠范围，派发 foldEffect/unfoldEffect。
 		 * 单次同步 dispatch — 不移动光标，不重入。
 		 *
-		 * 重要：仅能从 queueMicrotask/RAF 上下文调用，
-		 * 绝不在 update() 内调用。
+		 * 除本插件记录的折叠（currentRanges）外，还读取编辑器实际折叠状态：
+		 * 焦点块内被外部功能（如「展开/折叠同级列表或标题」命令、手动折叠）
+		 * 折叠、但按聚焦计算应展开的列表项，一并展开 —— 否则外部折叠会造成
+		 * 聚焦链无法展开、选项聚焦"失效"。
+		 *
+		 * 重要：仅能从 queueMicrotask/RAF 上下文调用，绝不在 update() 内调用。
 		 */
 		private applyFolds(
 			view: EditorView,
 			targetRanges: Array<{ from: number; to: number }>,
+			blockLineNumbers: Set<number> = new Set(),
 			scrollPos: number | null = null,
 		): void {
 			const effects: Array<StateEffect<unknown>> = [];
 
+			// 编辑器当前实际折叠状态（含外部功能造成的折叠）
+			const actualFolds: Array<{ from: number; to: number }> = [];
+			const actualAnchors = new Set<number>();
+			foldedRanges(view.state).between(0, view.state.doc.length, (from, to) => {
+				actualAnchors.add(from);
+				actualFolds.push({ from, to });
+			});
+
+			// 1. 展开：本插件先前折叠、目标不再需要的范围（含离开列表时的重置）
 			for (const r of this.currentRanges) {
 				if (!targetRanges.some(t => t.from === r.from && t.to === r.to)) {
 					effects.push(unfoldEffect.of(r));
 				}
 			}
 
-			for (const r of targetRanges) {
-				if (!this.currentRanges.some(c => c.from === r.from && c.to === r.to)) {
-					effects.push(foldEffect.of(r));
+			// 2. 展开：焦点块内被外部折叠、但目标不折叠的列表项范围
+			//    （锚点落在焦点块列表行上的实际折叠；行尾折叠锚点可能落在
+			//    下一行行首，故同时检查上一行）
+			if (blockLineNumbers.size > 0) {
+				const doc = view.state.doc;
+				for (const f of actualFolds) {
+					const line = doc.lineAt(f.from);
+					const onBlockLine = blockLineNumbers.has(line.number)
+						|| (line.number > 1 && blockLineNumbers.has(line.number - 1));
+					if (!onBlockLine) continue;
+					if (targetRanges.some(t => t.from === f.from && t.to === f.to)) continue;
+					effects.push(unfoldEffect.of(f));
 				}
+			}
+
+			// 3. 折叠：目标范围内尚未实际折叠的（按锚点判断，兼容外部折叠
+			//    造成的范围差异；已折叠的跳过，避免重复折叠）
+			for (const r of targetRanges) {
+				if (actualAnchors.has(r.from)) continue;
+				effects.push(foldEffect.of(r));
 			}
 
 			// 滚轴同步：折叠/展开确实变化时，追加滚动效果使光标行居中

@@ -55,7 +55,7 @@ export interface MDRazorSettings {
 	// ── 空格可视化 (controller/format-hider/whitespace-visible.ts) ──
 	showWhitespace: boolean;
 
-	// ── 标签页增强 (controller/tab-enhancer/) ──
+	// ── 标签页 (controller/tab-enhancer/) ──
 	tabEnhancerDefaultOpen: boolean;
 	tabEnhancerOpenLink: boolean;
 	tabEnhancerOpenBookmark: boolean;
@@ -64,11 +64,23 @@ export interface MDRazorSettings {
 	tabExpansionAssociatedFolders: boolean;
 	positionPersistenceEnabled: boolean;
 
-	// ── 状态栏增强 (controller/status-bar-enhancer/) ──
+	// ── 状态栏 (controller/status-bar-enhancer/) ──
 	statusBarEnhancement: boolean;
 	autoSaveWorkspaceLayout: boolean;
 	sidebarToggleEnabled: boolean;
 	formatToggleEnabled: boolean;
+
+	// ── 右键菜单 (controller/list-enhancer/sibling-fold.ts) ──
+	/** 在编辑器右键菜单中显示「展开/折叠同级列表或标题」菜单项 */
+	contextMenuSiblingFold: boolean;
+
+	// ── 打字机模式 (controller/typewriter/) ──
+	/** 打字机模式：编辑时光标行始终保持在页面中央，其余行按不透明度淡化 */
+	typewriterMode: boolean;
+	/** 非当前行的不透明度（0-100，100 = 完全不淡化） */
+	typewriterOpacity: number;
+	/** 允许文档头部留存空白区域：开启后顶部预留空间，使光标在第一行也能滚动到页面中央 */
+	typewriterTopPadding: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -109,4 +121,10 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	autoSaveWorkspaceLayout: true,
 	sidebarToggleEnabled: true,
 	formatToggleEnabled: false,
+
+	contextMenuSiblingFold: true,
+
+	typewriterMode: false,
+	typewriterOpacity: 50,
+	typewriterTopPadding: true,
 };

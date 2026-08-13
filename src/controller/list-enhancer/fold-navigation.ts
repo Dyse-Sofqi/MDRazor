@@ -9,10 +9,15 @@
  * 当目标行是折叠锚点行（折叠从该行行末开始）或位于折叠隐藏内容内时，
  * 主动展开该折叠块并把光标放到目标行（保持目标列），替代 CM6 的整块跳过。
  *
+ * 上键同级回跳规则（任意层级）：按 ↑ 时若光标所在行是列表项，且上一行
+ * 所属列表项的层级比当前更低（更深——如上一行或其续行位于前一同级项子树
+ * 末尾的更深层），则光标直接跳转到上一个与当前层级相同的列表项所在行
+ * （目标行被折叠挡住时同样展开进入），而非落入上一行所属的更深子树。
+ *
  * 仅处理列表项 / 标题折叠，普通代码块折叠保持 CM6 原生跳过行为。
  */
 
-import { EditorSelection, type EditorState } from '@codemirror/state';
+import { EditorSelection, type EditorState, type Line, type SelectionRange } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import { foldedRanges, unfoldEffect } from '@codemirror/language';
 import { listEnhancerConfig } from '../../model/shared';
@@ -39,6 +44,115 @@ function isListOrHeadingLine(text: string): boolean {
 		/^[-*+]\s/.test(t) ||
 		/^\d+[.)]\s/.test(t)
 	);
+}
+
+/**
+ * 行是否为列表项，并返回其缩进层级（行首缩进列数）；非列表项返回 null。
+ * tab 按 tabSize 停靠展开，与选项聚焦的缩进计算一致。
+ */
+function getListItemLevel(text: string, tabSize: number): number | null {
+	const trimmed = text.trimStart();
+	if (!/^[-*+]\s/.test(trimmed) && !/^\d+[.)]\s/.test(trimmed)) return null;
+	let cols = 0;
+	for (const ch of text) {
+		if (ch === '\t') cols += tabSize - (cols % tabSize);
+		else if (ch === ' ') cols += 1;
+		else break;
+	}
+	return cols;
+}
+
+/**
+ * 上键同级回跳规则（适用于任意层级）：光标所在行是列表项，且其上一行
+ * "所属列表项"的层级比当前更低（更深）时——典型场景是光标位于某个列表项、
+ * 而上一行（或其所属的续行）位于前一个同级项子树末尾的更深层——将光标
+ * 直接移动到上一个与当前层级相同的列表项所在行，而非落入上一行所属的
+ * 更深子树。
+ *
+ * 层级以行首缩进列数衡量，任意深度均生效（二级遇三/四级及以上 → 跳上一
+ * 个二级；三级遇四级及以上 → 跳上一个三级……）。向后扫描跳过续行，仅在
+ * 空行/标题/水平线/无缩进段落等列表块边界处停止，不跨列表块跳转。目标行
+ * 被折叠挡住时自动展开进入（与模块既有行为一致）。未找到同级项时返回
+ * false，交还原生行为。
+ */
+function trySameLevelUpJump(
+	view: EditorView,
+	state: EditorState,
+	sel: SelectionRange,
+	currentLine: Line,
+	targetNum: number,
+): boolean {
+	const currentLevel = getListItemLevel(currentLine.text, state.tabSize);
+	if (currentLevel === null) return false;
+
+	// 上一行所属列表项的层级（续行归属其上级列表项）
+	const ownerLine = findOwnerItemLine(state, targetNum);
+	if (!ownerLine) return false;
+	const ownerLevel = getListItemLevel(ownerLine.text, state.tabSize);
+	// 仅当所属项更深（层级更低）时触发；更浅或同级交还原生行为
+	if (ownerLevel === null || ownerLevel <= currentLevel) return false;
+
+	// 自上一行起向上扫描列表项，找第一个与当前层级相同的列表项
+	let jumpLine: Line | null = null;
+	for (let n = targetNum; n >= 1; n--) {
+		const line = state.doc.line(n);
+		const level = getListItemLevel(line.text, state.tabSize);
+		if (level === null) {
+			// 非列表行：块边界（空行/标题/水平线/无缩进段落）→ 停止；续行 → 跳过
+			if (isListBlockBoundary(line.text)) break;
+			continue;
+		}
+		if (level === currentLevel) {
+			jumpLine = line;
+			break;
+		}
+	}
+	if (!jumpLine) return false;
+
+	// 目标列：沿用 goalColumn，无则取当前行内字符偏移（与模块既有行为一致）
+	const col = sel.goalColumn ?? (sel.head - currentLine.from);
+	const targetPos = Math.min(jumpLine.to, jumpLine.from + col);
+
+	// 目标行被折叠挡住 → 展开后进入
+	const blocking = findBlockingFold(
+		state,
+		getFoldedRanges(state),
+		jumpLine.from,
+		jumpLine.to,
+	);
+	view.dispatch({
+		effects: blocking ? [unfoldEffect.of(blocking)] : [],
+		selection: EditorSelection.cursor(targetPos, 0, 0, col),
+		scrollIntoView: true,
+	});
+	return true;
+}
+
+/**
+ * 从 lineNumber 行起向上解析"所属列表项"：
+ * - 行本身是列表项 → 返回该行；
+ * - 行是续行/内容行 → 向上跳过，返回最近的列表项行；
+ * - 遇到空行、标题、水平线或无缩进段落等块边界 → 返回 null（无所属项）。
+ */
+function findOwnerItemLine(state: EditorState, lineNumber: number): Line | null {
+	for (let n = lineNumber; n >= 1; n--) {
+		const line = state.doc.line(n);
+		if (getListItemLevel(line.text, state.tabSize) !== null) return line;
+		if (isListBlockBoundary(line.text)) return null;
+	}
+	return null;
+}
+
+/**
+ * 行是否为列表块边界：空行、标题、水平线、无缩进的非列表行（段落）。
+ * 注意：列表项行（含无缩进的一级项）不属于边界，调用方需先判断列表项。
+ */
+function isListBlockBoundary(lineText: string): boolean {
+	const t = lineText.trimStart();
+	if (t === '') return true; // 空行
+	if (/^#{1,6}\s/.test(t) || /^[-*_]{3,}\s*$/.test(t)) return true; // 标题 / 水平线
+	if (t === lineText) return true; // 无缩进的非列表行 → 段落边界
+	return false;
 }
 
 /**
@@ -89,6 +203,11 @@ function handleArrow(view: EditorView, dir: 1 | -1): boolean {
 	const line = state.doc.lineAt(sel.head);
 	const targetNum = line.number + dir;
 	if (targetNum < 1 || targetNum > state.doc.lines) return false;
+
+	// 上键同级回跳：上一行所属列表项层级比当前低 → 跳到上一个同级列表项
+	if (dir === -1 && trySameLevelUpJump(view, state, sel, line, targetNum)) {
+		return true;
+	}
 
 	const targetLine = state.doc.line(targetNum);
 	const blocking = findBlockingFold(
