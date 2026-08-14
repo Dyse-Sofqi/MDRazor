@@ -10,12 +10,13 @@
  *      （0-100）淡化显示
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
  *      切换 mdrazor-typewriter-top-padding 类并设置 CSS 变量
- *      --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2，styles.css 将
- *      其应用到 .cm-sizer（.cm-scroller 内的内容容器，Obsidian 的页面内标题
+ *      --mdrazor-typewriter-top-padding = 视口高 × 25%，styles.css 将其应用到
+ *      .cm-sizer（.cm-scroller 内的内容容器，Obsidian 的页面内标题
  *      inline-title 也位于其中）的 padding-top，在文档最顶部创建可滚动空白：
- *      使光标位于文档第一行时也能滚入 2 区间（居中所需的上方空间）；留白属
- *      滚动内容，仅顶部可见，光标在文档中部编辑时滚出视口，不占用编辑空间。
- *      页面内标题位于留白之下，标题紧贴正文不被隔开。
+ *      使光标位于文档第一行时也能滚入中部死区（2 区间顶部 = 视口 25% 处，
+ *      与范围居中的目标一致）；留白属滚动内容，仅顶部可见，光标在文档中部
+ *      编辑时滚出视口，不占用编辑空间。页面内标题位于留白之下，标题紧贴
+ *      正文不被隔开。
  *      注意：EditorView.scrollMargins 仅用于让滚动避开固定面板，不会创建
  *      可滚动空白，故不采用。
  *
@@ -44,6 +45,9 @@ export const typewriterConfig: { mode: boolean; opacity: number; topPadding: boo
 	opacity: 50,
 	topPadding: true,
 };
+
+/** 范围居中：2 区间顶部相对视口高度的比例（视口 1/4 处 = 25%） */
+const ZONE2_TOP_RATIO = 0.25;
 
 /**
  * 为可视范围内所有非当前行构建淡化装饰。
@@ -147,11 +151,14 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 文档头部留白：在 .cm-editor 上切换 mdrazor-typewriter-top-padding 类，
-		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2。
+		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = 视口高 × 25%。
 		 * styles.css 将该变量应用到 .cm-sizer 的 padding-top —— .cm-sizer 位于
 		 * .cm-scroller 内，页面内标题 inline-title 也位于其中，因此留白出现在
 		 * 文档最顶部（标题上方），标题紧贴正文不被隔开。留白属滚动内容：仅
 		 * 顶部可见，光标在文档中部编辑时滚出视口，不占用编辑空间。
+		 *
+		 * 大小与范围居中的 2 区间顶部（视口 25%）一致：使光标位于文档第一行
+		 * 时恰好能滚入中部死区（25% 处），而非旧的精准居中所需的 50%。
 		 *
 		 * 性能关键：只在 topPaddingDirty（配置变化 / 几何变化）时才读取
 		 * scrollDOM.clientHeight 计算留白值——读取会强制同步布局，若每次
@@ -172,10 +179,10 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				return;
 			}
 			if (!this.topPaddingDirty) return; // 已应用且无需重算 → 不读取布局，避免回流
-			const lineHeight = view.defaultLineHeight;
 			const viewportHeight = view.scrollDOM.clientHeight;
-			if (!lineHeight || lineHeight <= 0 || viewportHeight <= 0) return; // 暂不可用，保持 pending
-			const top = Math.max(0, Math.floor((viewportHeight - lineHeight) / 2));
+			if (viewportHeight <= 0) return; // 暂不可用（未测量、隐藏标签页），保持 pending
+			// 留白大小 = 视口高 × 25%（范围居中只需第一行滚到 2 区间顶部）
+			const top = Math.max(0, Math.floor(viewportHeight * ZONE2_TOP_RATIO));
 			editorEl.classList.add('mdrazor-typewriter-top-padding');
 			editorEl.setCssProps({ '--mdrazor-typewriter-top-padding': `${top}px` });
 			this.appliedTopPadding = top;
@@ -219,8 +226,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			if (!coords) return; // 不可见/未测量
 			const viewportTop = view.scrollDOM.getBoundingClientRect().top;
 			const viewportHeight = view.scrollDOM.clientHeight;
-			const zone2Top = viewportHeight * 0.25; // 2 区间顶部 = 视口 25% 处
-			const zone3Bottom = viewportHeight * 0.75; // 3 区间底部 = 视口 75% 处
+			const zone2Top = viewportHeight * ZONE2_TOP_RATIO; // 2 区间顶部 = 视口 25% 处
+			const zone3Bottom = viewportHeight * (1 - ZONE2_TOP_RATIO); // 3 区间底部 = 视口 75% 处
 
 			// 行整体落在 2/3 区间（不越出中部 25%~75%）→ 无需调整
 			if (coords.top >= viewportTop + zone2Top

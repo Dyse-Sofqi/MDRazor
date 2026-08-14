@@ -416,7 +416,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		this.typewriterTopPaddingSetting = new Setting(panel)
 			.setName('允许文档头部留存空白区域')
-			.setDesc('开启后，在文档开头预留足够空间，使光标位于文档第一行时也能滚动到页面中央（否则第一行无法居中）。仅模式开启时生效')
+			.setDesc('开启后，在文档开头预留视口高度 1/4 的空白，使光标位于文档第一行时也能滚入页面中部区域（2 区间顶部，否则第一行受滚动顶部边界钳制）。仅模式开启时生效')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.typewriterTopPadding)
