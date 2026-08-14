@@ -119,6 +119,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private appliedTopPadding = -1;
 		/** 留白值是否需要（重新）计算：配置变化 / 几何变化（窗口、面板缩放）时置位 */
 		private topPaddingDirty = true;
+		/** 滚动刷新派发是否已排队（同一帧多个滚动事件合并为一次派发） */
+		private scrollRefreshPending = false;
 		/**
 		 * 死区上下沿（contentDOM 局部坐标）。由 refreshDimDeadZone 在允许读
 		 * 布局的上下文（滚动事件 / 构造函数 / 几何变化后的 rAF）实时计算：
@@ -158,15 +160,24 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		};
 
 		/**
-		 * 滚动监听：纯滚动不产生 CM6 事务，淡化装饰不会自动重建。这里用
-		 * 当前滚动位置实时刷新死区边界（滚动事件上下文允许读布局），再派发
-		 * 一个空事务触发 update → 装饰重建。逐滚动事件刷新，淡化边界始终与
-		 * 视口一致（不会出现滚动到某处时大半视图被淡化的滞后现象）。
+		 * 滚动监听：纯滚动不产生 CM6 事务，且视口/visibleRanges 缓存要到
+		 * 测量（rAF）后才更新。这里用当前滚动位置实时刷新死区边界（滚动
+		 * 事件上下文允许读布局），请求测量，并把空事务派发延后到 rAF——
+		 * 测量先于我们的 rAF 执行（rAF 队列 FIFO），派发时视口缓存已刷新，
+		 * update() 中每次重建装饰即可用正确的 visibleRanges 与边界渲染，
+		 * 淡化始终与视口一致，不会出现「大半视图透明」的滞后。
 		 */
 		private readonly onScroll = (): void => {
 			if (!typewriterConfig.mode || typewriterConfig.opacity >= 100 || this.destroyed) return;
 			this.refreshDimDeadZone(this.view);
-			this.view.dispatch({});
+			this.view.requestMeasure();
+			if (this.scrollRefreshPending) return; // 同一帧内多个滚动事件合并为一次派发
+			this.scrollRefreshPending = true;
+			window.requestAnimationFrame(() => {
+				this.scrollRefreshPending = false;
+				if (this.destroyed || !typewriterConfig.mode) return;
+				this.view.dispatch({});
+			});
 		};
 
 		/**
@@ -310,23 +321,18 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		update(update: ViewUpdate) {
 			const mode = typewriterConfig.mode;
-			const opacity = typewriterConfig.opacity;
 			const topPadding = typewriterConfig.topPadding;
 
-			// 设置变化（开关/不透明度/头部留白）无需任何文档事件即可感知
-			const configChanged = mode !== this.lastMode
-				|| opacity !== this.lastOpacity
-				|| topPadding !== this.lastTopPadding;
 			// 头部留白变化需触发一次测量，让 CM6 立即读取新的 padding-top
 			const marginChanged = mode !== this.lastMode || topPadding !== this.lastTopPadding;
 			this.lastMode = mode;
-			this.lastOpacity = opacity;
+			this.lastOpacity = typewriterConfig.opacity;
 			this.lastTopPadding = topPadding;
 
-			// 淡化装饰：设置、文档、选区、视口（滚动）任一变化即重建
-			if (configChanged || update.docChanged || update.selectionSet || update.viewportChanged) {
-				this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
-			}
+			// 淡化装饰：每次 update 都重建（不依赖 viewportChanged——滚动触发的
+			// 空事务在 CM6 看来视口未变，但 rAF 派发时可见行/边界已刷新，重建
+			// 即用正确状态渲染），确保死区边界实时跟随滚动。
+			this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
 
 			// 几何（缩放/标题/面板）或留白变化、或边界尚未就绪时，安排 rAF
 			// 刷新死区边界缓存并重建装饰（rAF 上下文允许读布局；update 内禁止）。
