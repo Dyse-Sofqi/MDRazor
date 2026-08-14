@@ -80,6 +80,8 @@ function buildDimDecorations(view: EditorView): DecorationSet {
 	const viewState = (view as unknown as { viewState: { pixelViewport: { top: number; bottom: number } } }).viewState;
 	const viewportTopPx = viewState.pixelViewport.top;
 	const viewportHeightPx = viewState.pixelViewport.bottom - viewportTopPx;
+	// 未测量（pixelViewport 初始 {0,0}）时不做淡化，避免全部行被误淡化
+	if (viewportHeightPx <= 0) return Decoration.none;
 	const zone2TopPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 死区上沿（12.5%）
 	const zone3BottomPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 死区下沿（87.5%）
 
@@ -150,6 +152,16 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			}
 		};
 
+		/**
+		 * 滚动监听：纯滚动不产生 CM6 事务，死区淡化装饰不会自动重建，
+		 * 导致死区边界停留在上一次交互的位置。派发一个空事务触发 update
+		 * → 装饰重建，用最新测量刷新死区边界（滞后一个滚动事件，不可感知）。
+		 */
+		private readonly onScroll = (): void => {
+			if (!typewriterConfig.mode || this.destroyed) return;
+			this.view.dispatch({});
+		};
+
 		constructor(view: EditorView) {
 			this.view = view;
 			this.decorations = buildDimDecorations(view);
@@ -159,6 +171,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			dom.addEventListener('pointercancel', this.onPointerCancel, true);
 			dom.addEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.addEventListener('pointerup', this.onDocumentPointerUp, true);
+			view.scrollDOM.addEventListener('scroll', this.onScroll, { passive: true });
 		}
 
 		destroy() {
@@ -168,6 +181,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			dom.removeEventListener('pointercancel', this.onPointerCancel, true);
 			dom.removeEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.removeEventListener('pointerup', this.onDocumentPointerUp, true);
+			this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
 		}
 
 		/**
