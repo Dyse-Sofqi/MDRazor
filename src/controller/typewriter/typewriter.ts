@@ -2,9 +2,10 @@
  * MDRazor — 打字机模式（Controller）
  *
  * 功能：
- *   1. 光标行居中：编辑文档时，光标移动到新行即调整滚动轴，使该行
- *      始终保持于页面垂直中央（打字机滚动）。鼠标按压/拖选期间不触发
- *      居中，松开鼠标后才触发，避免拖选过程中光标跟随跳动
+ *   1. 范围居中（死区滚动）：视口高度按 1:1:1:1 分为四个区间，光标所在行
+ *      落在中部 2/3 区间（25%~75%）时不调整滚轴；落入顶部 1/4 或底部 1/4
+ *      区间时统一将该行滚动到 2 区间顶部（视口 25% 处）。相比精准居中滚动
+ *      频率大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
  *   2. 非当前行淡化：除光标所在行外的所有行按「非当前行的不透明度」
  *      （0-100）淡化显示
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
@@ -12,9 +13,9 @@
  *      --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2，styles.css 将
  *      其应用到 .cm-sizer（.cm-scroller 内的内容容器，Obsidian 的页面内标题
  *      inline-title 也位于其中）的 padding-top，在文档最顶部创建可滚动空白：
- *      光标在第一行时即可滚动到页面中央；留白属滚动内容，仅顶部可见、光标
- *      在文档中部编辑时滚出视口，不占用编辑空间。页面内标题位于留白之下，
- *      标题紧贴正文不被隔开。
+ *      使光标位于文档第一行时也能滚入 2 区间（居中所需的上方空间）；留白属
+ *      滚动内容，仅顶部可见，光标在文档中部编辑时滚出视口，不占用编辑空间。
+ *      页面内标题位于留白之下，标题紧贴正文不被隔开。
  *      注意：EditorView.scrollMargins 仅用于让滚动避开固定面板，不会创建
  *      可滚动空白，故不采用。
  *
@@ -82,8 +83,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private lastMode = typewriterConfig.mode;
 		private lastOpacity = typewriterConfig.opacity;
 		private lastTopPadding = typewriterConfig.topPadding;
-		/** 上一次已执行居中滚动的行号（同一行内编辑不重复滚动，避免抖动） */
-		private centeredLine = -1;
+		/** 上一次已检查并（可能）调整过滚动的行号（光标未跨行时不读取布局） */
+		private lastAdjustedLine = -1;
 		/** 插件已销毁标记（延后派发前检查，避免对已卸载视图操作） */
 		private destroyed = false;
 		/** 鼠标按下标志：按压/拖选期间不触发居中，松开后才触发 */
@@ -97,7 +98,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private readonly onDocumentPointerUp = (): void => {
 			if (!this.isPointerDown) return;
 			this.isPointerDown = false;
-			this.maybeCenter(this.view);
+			this.maybeRangeScroll(this.view);
 		};
 
 		/** 编辑器 DOM 级 pointerdown / pointercancel（capture），闭包持有实例状态 */
@@ -182,17 +183,37 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		}
 
 		/**
-		 * 光标跨行时将该行滚动至页面中央（仅在模式开启、鼠标未按压时执行）。
+		 * 范围居中（死区滚动）：光标跨行时检查其所在行在视口中的区间。
+		 * 视口高度按 1:1:1:1 分为 1（顶）、2、3、4（底）四个区间：
+		 *   - 光标所在行整体落在 2、3 区间（视口中部 25%~75%）→ 不调整滚轴；
+		 *   - 落入 1 或 4 区间（顶部/底部 1/4）→ 将该行统一滚动到 2 区间
+		 *     顶部（行首对齐视口 25% 处）。
+		 * 相比精准居中，滚动频率大幅降低，减轻视觉疲劳。
 		 * 注意：ViewPlugin.update 执行期间不允许同步 dispatch（会递归触发更新
 		 * 抛错），因此经 queueMicrotask 延后到本次更新完成后再派发。
 		 */
-		private maybeCenter(view: EditorView): void {
+		private maybeRangeScroll(view: EditorView): void {
 			if (!typewriterConfig.mode || this.isPointerDown || this.destroyed) return;
 			const head = view.state.selection.main.head;
 			const lineNumber = view.state.doc.lineAt(head).number;
-			if (lineNumber === this.centeredLine) return;
-			this.centeredLine = lineNumber;
-			const effects = EditorView.scrollIntoView(head, { y: 'center' });
+			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不读取布局
+			this.lastAdjustedLine = lineNumber;
+
+			const coords = view.coordsAtPos(head);
+			if (!coords) return; // 不可见/未测量
+			const viewportTop = view.scrollDOM.getBoundingClientRect().top;
+			const viewportHeight = view.scrollDOM.clientHeight;
+			const zone2Top = viewportHeight * 0.25; // 2 区间顶部 = 视口 25% 处
+			const zone3Bottom = viewportHeight * 0.75; // 3 区间底部 = 视口 75% 处
+
+			// 行整体落在 2/3 区间（不越出中部 25%~75%）→ 无需调整
+			if (coords.top >= viewportTop + zone2Top
+				&& coords.bottom <= viewportTop + zone3Bottom) {
+				return;
+			}
+
+			// 落入 1/4 区间 → 滚动到 2 区间顶部（行首对齐视口 25% 处）
+			const effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
 			window.queueMicrotask(() => {
 				if (!this.destroyed) view.dispatch({ effects });
 			});
@@ -228,10 +249,10 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			}
 			this.syncTopPadding(update.view);
 
-			// 打字机滚动：光标跨行时居中。鼠标按压/拖选期间跳过（松开后由
-			// 文档级 pointerup 触发 once 居中），避免拖选过程中光标跟随跳动。
+			// 范围居中滚动：光标跨行时按 1/4 区间判定是否调整。鼠标按压/拖选
+			// 期间跳过（松开后由文档级 pointerup 触发 once），避免拖选干扰。
 			if (mode && !this.isPointerDown && (update.selectionSet || update.docChanged)) {
-				this.maybeCenter(update.view);
+				this.maybeRangeScroll(update.view);
 			}
 		}
 	},

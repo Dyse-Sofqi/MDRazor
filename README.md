@@ -103,7 +103,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。
 
-- **打字机模式** — 开启后，编辑文档时光标所在行始终保持于页面垂直中央（打字机滚动，光标移动到新行即自动滚动居中，手动滚动不被干扰）。其余行按「非当前行的不透明度」淡化显示，专注当前行。子设置项「非当前行的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留空白，使光标位于文档第一行时也能滚动到页面中央。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
+- **打字机模式** — 开启后，光标所在行保持在页面中部区域（范围居中/死区滚动）：视口高度按 1:1:1:1 分为四个区间，光标行落在中部 2/3 区间（25%~75%）时不调整滚轴，落入顶部 1/4 或底部 1/4 时统一滚动到 2 区间顶部（视口 25% 处）——相比精准居中滚动频率大幅降低，减轻视觉疲劳。其余行按「非当前行的不透明度」淡化显示，专注当前行。子设置项「非当前行的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留空白，使光标位于文档第一行时也能滚入中部区域。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
 
 ---
 
@@ -267,7 +267,7 @@ File tab management with the following independent toggles:
 
 - **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low.
 
-- **Typewriter Mode** — When enabled, the cursor line stays vertically centered in the page while editing (typewriter scrolling: moving the cursor to a new line auto-scrolls to center; manual scrolling is not disturbed). All other lines are dimmed per the "Non-Current Line Opacity" sub-setting to focus the current line. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space above the document so the cursor can scroll to the page center even on the very first line. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
+- **Typewriter Mode** — When enabled, the cursor line is kept in the middle band of the page (range centering / dead-zone scrolling): the viewport is split into four equal quarters, and the cursor line is left untouched while it sits in the middle quarters 2–3 (25%–75%); when it falls into the top or bottom quarter, it is scrolled to the top of quarter 2 (25% of the viewport) — far fewer scroll operations than precise centering, reducing visual fatigue. All other lines are dimmed per the "Non-Current Line Opacity" sub-setting to focus the current line. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space above the document so the cursor can reach the middle band even on the very first line. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
 
 ---
 
