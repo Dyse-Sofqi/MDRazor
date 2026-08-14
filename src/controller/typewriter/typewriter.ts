@@ -63,20 +63,28 @@ const DEAD_ZONE_BOTTOM_RATIO = 1 - ZONE2_TOP_RATIO;
  * 顶部/底部 1/8。当前行与死区内的行保持明亮。
  * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做淡化）。
  *
- * deadZone 为 contentDOM 局部坐标下的死区上下沿（由插件在允许读布局的
- * 上下文——滚动事件/构造函数/几何变化后的 rAF——实时计算缓存），
- * lineBlockAt 的行块位置同为 contentDOM 局部坐标且为缓存值，因此本函数
- * 不读取 DOM 布局（装饰重建发生在 update 内，禁止读布局）。
+ * 死区边界用「实时 scrollDOM.scrollTop（普通属性读取，不触发布局，update
+ * 内允许）− 静态偏移 + 比例 × 视口高」计算，任何时刻（含范围居中派发的
+ * 滚动事务）都与当前滚动位置一致，不会因缓存滞后把死区外最近的行误判为
+ * 死区内。静态偏移/视口高由插件在允许读布局的上下文缓存（滚动事件/构造
+ * 函数/几何变化后的 rAF）；lineBlockAt 的行块位置同为 contentDOM 局部坐标
+ * 的缓存值，本函数不读取 DOM 布局。
  */
 function buildDimDecorations(
 	view: EditorView,
-	deadZone: { topPx: number; bottomPx: number } | null,
+	geo: { staticOffsetPx: number; viewportHeightPx: number } | null,
 ): DecorationSet {
 	if (!typewriterConfig.mode || typewriterConfig.opacity >= 100) {
 		return Decoration.none;
 	}
-	// 边界未就绪或退化（未测量/隐藏）→ 不做淡化，避免全部行被误淡化
-	if (!deadZone || deadZone.bottomPx <= deadZone.topPx) return Decoration.none;
+	// 几何未就绪或退化（未测量/隐藏）→ 不做淡化，避免全部行被误淡化
+	if (!geo || geo.viewportHeightPx <= 0) return Decoration.none;
+
+	// 实时滚动位置（无需布局）；死区边界随当前滚动即时更新
+	const scrollTop = view.scrollDOM.scrollTop;
+	const viewportTopPx = scrollTop - geo.staticOffsetPx; // 视口顶（contentDOM 局部）
+	const zone2TopPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 12.5%
+	const zone3BottomPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 87.5%
 
 	const opacity = Math.max(0, Math.min(100, typewriterConfig.opacity)) / 100;
 	const dim = Decoration.line({ attributes: { style: `opacity: ${opacity}` } });
@@ -93,7 +101,7 @@ function buildDimDecorations(
 			if (line.number === cursorLine) continue; // 当前行始终不淡化
 			const block = view.lineBlockAt(line.from);
 			// 行整体落在死区内（不越出 12.5%~87.5%）→ 保持明亮；死区外 → 淡化
-			if (block.top >= deadZone.topPx && block.bottom <= deadZone.bottomPx) continue;
+			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) continue;
 			builder.add(line.from, line.from, dim);
 		}
 	}
@@ -122,11 +130,12 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		/** 滚动刷新派发是否已排队（同一帧多个滚动事件合并为一次派发） */
 		private scrollRefreshPending = false;
 		/**
-		 * 死区上下沿（contentDOM 局部坐标）。由 refreshDimDeadZone 在允许读
-		 * 布局的上下文（滚动事件 / 构造函数 / 几何变化后的 rAF）实时计算：
-		 * 滚动时逐事件刷新，保证淡化边界始终与当前视口一致。
+		 * 内容静态偏移（contentDOM 顶部相对滚动容器内容顶，不含滚动）与滚动
+		 * 视口高。布局不变则静态偏移恒定，仅需在允许读布局的上下文刷新
+		 * （构造函数 / 滚动事件 / 几何变化后的 rAF）；滚动位置在装饰重建时
+		 * 实时读取，因此边界始终与当前滚动一致。
 		 */
-		private dimDeadZone: { topPx: number; bottomPx: number } | null = null;
+		private dimGeo: { staticOffsetPx: number; viewportHeightPx: number } | null = null;
 
 		/** 文档级 pointerup（capture）：编辑器内按下后即使拖出编辑器/窗口也能捕获松开 */
 		private readonly onDocumentPointerUp = (): void => {
@@ -161,15 +170,14 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 滚动监听：纯滚动不产生 CM6 事务，且视口/visibleRanges 缓存要到
-		 * 测量（rAF）后才更新。这里用当前滚动位置实时刷新死区边界（滚动
-		 * 事件上下文允许读布局），请求测量，并把空事务派发延后到 rAF——
-		 * 测量先于我们的 rAF 执行（rAF 队列 FIFO），派发时视口缓存已刷新，
-		 * update() 中每次重建装饰即可用正确的 visibleRanges 与边界渲染，
-		 * 淡化始终与视口一致，不会出现「大半视图透明」的滞后。
+		 * 测量（rAF）后才更新。这里刷新静态偏移缓存（滚动事件上下文允许读
+		 * 布局），请求测量，并把空事务派发延后到 rAF——测量先于我们的 rAF
+		 * 执行（rAF 队列 FIFO），派发时可见行已刷新，update() 中每次重建
+		 * 装饰即可用正确的 visibleRanges 与实时边界渲染。
 		 */
 		private readonly onScroll = (): void => {
 			if (!typewriterConfig.mode || typewriterConfig.opacity >= 100 || this.destroyed) return;
-			this.refreshDimDeadZone(this.view);
+			this.refreshDimGeo(this.view);
 			this.view.requestMeasure();
 			if (this.scrollRefreshPending) return; // 同一帧内多个滚动事件合并为一次派发
 			this.scrollRefreshPending = true;
@@ -181,32 +189,27 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		};
 
 		/**
-		 * 用当前滚动位置与内容静态偏移实时计算死区上下沿（contentDOM 局部
-		 * 坐标）。仅可从允许读布局的上下文调用（滚动事件 / 构造函数 / rAF），
-		 * 绝不在 update 内调用。
+		 * 刷新静态偏移与视口高缓存。仅可从允许读布局的上下文调用（滚动
+		 * 事件 / 构造函数 / rAF），绝不在 update 内调用。
 		 */
-		private refreshDimDeadZone(view: EditorView): void {
+		private refreshDimGeo(view: EditorView): void {
 			const scroller = view.scrollDOM;
 			const scrollTop = scroller.scrollTop;
-			// 内容相对滚动容器顶部的静态偏移（不含滚动；布局不变则恒定）
-			const staticOffset = view.contentDOM.getBoundingClientRect().top
+			const staticOffsetPx = view.contentDOM.getBoundingClientRect().top
 				- scroller.getBoundingClientRect().top
 				+ scrollTop;
-			const viewportHeight = scroller.clientHeight;
-			if (viewportHeight <= 0) {
-				this.dimDeadZone = null;
+			const viewportHeightPx = scroller.clientHeight;
+			if (viewportHeightPx <= 0) {
+				this.dimGeo = null;
 				return;
 			}
-			this.dimDeadZone = {
-				topPx: scrollTop - staticOffset + viewportHeight * DEAD_ZONE_TOP_RATIO,
-				bottomPx: scrollTop - staticOffset + viewportHeight * DEAD_ZONE_BOTTOM_RATIO,
-			};
+			this.dimGeo = { staticOffsetPx, viewportHeightPx };
 		}
 
 		constructor(view: EditorView) {
 			this.view = view;
-			this.refreshDimDeadZone(view);
-			this.decorations = buildDimDecorations(view, this.dimDeadZone);
+			this.refreshDimGeo(view);
+			this.decorations = buildDimDecorations(view, this.dimGeo);
 			this.syncTopPadding(view);
 			const dom = view.dom;
 			dom.addEventListener('pointerdown', this.onPointerDown, true);
@@ -330,17 +333,19 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			this.lastTopPadding = topPadding;
 
 			// 淡化装饰：每次 update 都重建（不依赖 viewportChanged——滚动触发的
-			// 空事务在 CM6 看来视口未变，但 rAF 派发时可见行/边界已刷新，重建
-			// 即用正确状态渲染），确保死区边界实时跟随滚动。
-			this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
+			// 空事务在 CM6 看来视口未变，但 rAF 派发时可见行已刷新，重建即用
+			// 正确状态渲染）。边界用实时 scrollTop 计算，范围居中派发的滚动
+			// 事务也能立即得到与当前滚动一致的死区边界。
+			this.decorations = buildDimDecorations(update.view, this.dimGeo);
 
-			// 几何（缩放/标题/面板）或留白变化、或边界尚未就绪时，安排 rAF
-			// 刷新死区边界缓存并重建装饰（rAF 上下文允许读布局；update 内禁止）。
-			if (update.geometryChanged || marginChanged || this.dimDeadZone === null) {
+			// 几何（缩放/标题/面板）或留白变化、或几何缓存尚未就绪时，安排 rAF
+			// 刷新静态偏移/视口高缓存并重建装饰（rAF 上下文允许读布局；update
+			// 内禁止）。
+			if (update.geometryChanged || marginChanged || this.dimGeo === null) {
 				window.requestAnimationFrame(() => {
 					if (this.destroyed) return;
-					this.refreshDimDeadZone(update.view);
-					this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
+					this.refreshDimGeo(update.view);
+					this.decorations = buildDimDecorations(update.view, this.dimGeo);
 				});
 			}
 
