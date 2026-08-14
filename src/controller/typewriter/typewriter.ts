@@ -125,8 +125,6 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private lastMode = typewriterConfig.mode;
 		private lastOpacity = typewriterConfig.opacity;
 		private lastTopPadding = typewriterConfig.topPadding;
-		/** 上一次已检查并（可能）调整过滚动的行号（光标未跨行时不读取布局） */
-		private lastAdjustedLine = -1;
 		/** 插件已销毁标记（延后派发前检查，避免对已卸载视图操作） */
 		private destroyed = false;
 		/** 鼠标按下标志：按压/拖选期间不触发居中，松开后才触发 */
@@ -279,7 +277,9 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 范围居中（死区滚动）——调度入口（零布局读取）：打字机模式的基础
-		 * 行为，始终生效。光标跨行时安排一次微任务执行实际的区间判定与滚动。
+		 * 行为，始终生效。每次光标移动 / 文档变更（含同一逻辑行内打字）都
+		 * 安排一次微任务执行区间判定——同一逻辑行可能含多行视觉文本（自动
+		 * 换行），行号不变时光标视觉位置仍可能越过死区边界，故不做行号去重。
 		 * 视口高度分为顶部 1/8、中部 3/4、底部 1/8：
 		 *   - 光标所在行整体落在中部死区（视口 12.5%~87.5%）→ 不调整滚轴；
 		 *   - 落入顶部 1/8 → 滚回死区上沿（12.5%）维持视觉位置；
@@ -291,15 +291,14 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			if (!typewriterConfig.mode || this.isPointerDown || this.destroyed) return;
 			const head = view.state.selection.main.head;
 			const lineNumber = view.state.doc.lineAt(head).number;
-			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不安排
-			this.lastAdjustedLine = lineNumber;
 
 			// 布局读取（coordsAtPos/getBoundingClientRect）与 dispatch 在
 			// ViewPlugin.update 期间均不被允许，统一延后到本次更新完成后的
 			// 微任务执行。
 			window.queueMicrotask(() => {
 				if (this.destroyed || !typewriterConfig.mode || this.isPointerDown) return;
-				// 光标可能已再次跨行：仅当仍在同一行时才执行判定
+				// 光标可能已再次跨行：仅当仍在同一行时才执行判定（新位置会有
+				// 新检查）；同一行内的视觉位置漂移（换行增长）则照常判定。
 				const nowHead = view.state.selection.main.head;
 				if (view.state.doc.lineAt(nowHead).number !== lineNumber) return;
 				this.applyRangeScroll(view, nowHead);
