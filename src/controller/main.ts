@@ -18,6 +18,7 @@ import { MarkdownView, Plugin } from 'obsidian';
 import { EditorView } from '@codemirror/view';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
+import { ChangelogModal } from '../view/changelog-modal';
 import { formattingConfig, createFormatHiderExtension } from './format-hider/format-hider';
 import { createCursorBoundaryHintExtension } from './format-hider/cursor-boundary-hint';
 import { spaceConfig, createSpaceVisualizationExtension } from './format-hider/whitespace-visible';
@@ -170,6 +171,9 @@ export default class MDRazorPlugin extends Plugin {
 		if (this.settings.formatToggleEnabled) {
 			this.formatToggle.addButton();
 		}
+
+		// 插件更新到新版本后首次启动时弹出本次更新的更新日志
+		this.maybeShowChangelog();
 	}
 
 	onunload() {
@@ -221,6 +225,23 @@ export default class MDRazorPlugin extends Plugin {
 				if (cm6) cm6.dispatch({});
 			}
 		});
+	}
+
+	/**
+	 * 插件更新到新版本后首次启动时弹出更新日志。
+	 *
+	 * 以 `manifest.version` 与持久化的 `lastSeenVersion` 比较：
+	 * 版本不同说明用户刚更新了插件，弹出本次更新的 CHANGELOG 摘要。
+	 * 先记录已读版本再弹窗——若弹窗被跳过/失败也不会反复打扰。
+	 * 直写 `saveData` 而非 `saveSettings()`：后者会触发 repaintAllEditors
+	 * 与目录计数强制刷新，onload 阶段不必要。
+	 */
+	private maybeShowChangelog() {
+		const currentVersion = this.manifest.version;
+		if (this.settings.lastSeenVersion === currentVersion) return;
+		this.settings.lastSeenVersion = currentVersion;
+		void this.saveData(this.settings);
+		new ChangelogModal(this.app).open();
 	}
 
 	/**

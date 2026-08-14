@@ -34,6 +34,12 @@ const context = await esbuild.context({
 	],
 	format: 'cjs',
 	target: 'es2021',
+	// 将 CHANGELOG.md 作为文本打进 main.js：社区市场安装只分发
+	// main.js/manifest.json/styles.css，插件目录中不存在 CHANGELOG.md 文件，
+	// 更新日志弹窗必须读取打包进 main.js 的副本
+	loader: {
+		'.md': 'text',
+	},
 	logLevel: 'info',
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,

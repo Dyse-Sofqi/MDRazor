@@ -226,3 +226,41 @@ pointerdown/mousedown/click (capture, 文件列表容器)
 - 书签 `getFirstLinkpathDest` 解析：同名笔记位于多个文件夹时取第一个匹配，存在歧义
 - 补丁依赖原生打开走 `openFile`/`openLinkText`；若未来 Obsidian 变更打开路径，需跟进
 - 无自动化测试框架，上述行为经 Obsidian 手动验证
+
+---
+
+## 2.4.5 (2026-08-15)
+
+### 打字机模式：死区淡化 + 滚动位置维持
+
+**需求：** 打字机模式从「光标行垂直居中」重构为「死区（12.5%~87.5%）外淡化 + 光标跨死区边缘时滚动维持视觉位置」，新增「允许文档头部留存空白区域」「死区下沿跳转上沿」两个子开关，并修多个稳定性问题。
+
+**实现位置：** `src/controller/typewriter/typewriter.ts`（CM6 ViewPlugin + scroll 事件监听）+ `styles.css`（`.mdrazor-typewriter-top-padding`）。
+
+**避坑记录：**
+
+1. **CM6 update 内禁止 dispatch 与读布局** — `ViewPlugin.update()` 里 `view.dispatch()` 抛 "Calls to EditorView.update are not allowed while an update is in progress"；`coordsAtPos` 等读布局抛 "Reading the editor layout isn't allowed during an update"。滚动派发 / 坐标读取一律 `queueMicrotask` / `requestAnimationFrame` 延迟到 update 之外。
+2. **空 dispatch 不触发 viewportChanged** — `dispatch({})` 只产生一次 update，`visibleRanges` 不重算 → 装饰不重建。**装饰必须在每次 update 无条件重建**（不能只响应 `viewportChanged`）；纯滚动无事务，靠 scroll 事件里 rAF 后 `dispatch({})` 重建。
+3. **pixelViewport / viewportLines 滞后一帧** — scroll 事件里读它们是旧值，须等 CM6 measure（rAF）后才新鲜。读几何的合法时机：constructor / scroll 事件 / rAF，绝不在 update 里。
+4. **scrollMargins 不产生可滚动空间** — 它只避开固定面板遮挡，不能实现「文档顶部留白」。可滚动留白用 `.cm-sizer` 的 `padding-top`（CSS 变量 + `.cm-editor` 类切换），留白随内容滚动、仅文档顶部可见；视口尺寸读 `view.scrollDOM.clientHeight`。
+5. **留白重算会强制回流 → 闪烁** — 每次 update 读布局算留白导致闪烁。用 `topPaddingDirty` 标志，仅配置/几何（窗口、面板缩放）变化时重算。
+6. **点空白区编辑器失焦** — CM6 事件处理器只挂在 `.cm-content`，点 `.cm-scroller` 空白处 blur 编辑器、顶部留白失效。capture 阶段在 editor DOM 上监听 mousedown，目标不在 `.cm-content` 内 → `preventDefault`。
+7. **淡化与 ↑↓ 跳转判定必须共用同一几何** — 分别用「缓存边界」和「实时 scrollTop」会差约一行，淡化边界与跳转触发错位。统一：`lineBlockAt(head)` + `dimGeo = {staticOffsetPx, viewportHeightPx}`（布局允许的上下文缓存），边界 = `scrollTop − staticOffsetPx + ratio × viewportHeightPx`；`scrollIntoView` 的 `yMargin = 0.125 × scrollDOM.clientHeight`。
+8. **跳转触发勿用行号门限** — 只比较行号变化会漏掉软换行长行（视觉位置跨死区但行号未变）。改为每次 selectionSet / docChanged 都调度检查。
+9. **鼠标按压期间不滚动** — pointerdown/pointerup 标记拖选状态，按压中跳过滚动派发、松开后才触发，避免拖选时视口跳动。
+
+### 滚轴同步：滚动目标 12.5% → 25%
+
+- 选项聚焦的滚轴同步目标改为视口 25%（`scrollIntoView(pos, { y: 'start', yMargin: 0.25 × viewportHeight })`），与打字机死区上沿 12.5% 解耦——两个功能各自维护自己的目标比例，勿合并。
+- 滚动随折叠/展开同一次 dispatch 派发（`effects.push(scrollIntoView(...))`），避免二次 update 循环。
+
+### 更新日志弹窗（更新后首次启动弹出 CHANGELOG）
+
+**实现位置：** `src/view/changelog-modal.ts`（Modal）+ `src/controller/main.ts`（`maybeShowChangelog`）+ `esbuild.config.mjs`（`loader: { '.md': 'text' }`）+ `src/typings.d.ts`。
+
+**避坑记录：**
+
+1. **社区市场安装只有三个文件** — Obsidian 社区市场安装仅分发 main.js/manifest.json/styles.css，插件目录里没有 CHANGELOG.md。绝不能读 vault 文件，必须把 CHANGELOG.md 在构建时打进 main.js（esbuild text loader + `import changelogText from '../../CHANGELOG.md'`），否则社区用户永远看不到弹窗。
+2. **TS 识别 .md 模块** — 需 `src/typings.d.ts` 声明 `declare module '*.md' { const content: string; export default content; }`，否则 TS2307。
+3. **弹窗频率控制** — settings 新增 `lastSeenVersion`（随 data.json 持久化）；`manifest.version !== lastSeenVersion` 才弹窗。**先写 `lastSeenVersion` 再弹窗**，弹窗失败/被跳过也不反复打扰；持久化用 `saveData` 直写，勿走 `saveSettings()`（后者触发 repaintAllEditors + forceRefresh，onload 阶段不必要且 dirFileCountRefresher 可能尚未初始化）。
+4. **弹窗只显示最新版本条目** — 从全文提取首个 `**x.y.z**` 标题到第二个标题之间；解析失败（无版本标题）回退全文。

@@ -83,6 +83,10 @@ export interface MDRazorSettings {
 	typewriterTopPadding: boolean;
 	/** 死区下沿跳转上沿：光标行跨过死区下沿（87.5%）时跳到上沿（12.5%）；关闭时滚回下沿维持视觉位置 */
 	typewriterBottomJumpToTop: boolean;
+
+	// ── 更新日志弹窗 (view/changelog-modal.ts) ──
+	/** 上次展示过更新日志的插件版本（内部状态，随 data.json 持久化，非用户设置项） */
+	lastSeenVersion: string;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -130,4 +134,6 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	typewriterOpacity: 50,
 	typewriterTopPadding: true,
 	typewriterBottomJumpToTop: false,
+
+	lastSeenVersion: '',
 };

@@ -12,7 +12,7 @@
 
 > 🇬🇧 **English**: scroll down to view the English README.
 
-📜 完整更新记录见 [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.md)
+📜 完整更新记录见 [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.md)。插件更新到新版本后，首次启动会自动弹出本次更新的更新日志。
 
 ### 简介
 
@@ -178,7 +178,7 @@ Designed to refine your writing experience with precision like a razor.
 
 ---
 
-📜 Full changelog at [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.en.md)
+📜 Full changelog at [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.en.md). After updating to a new version, the changelog for that release is shown automatically on first launch.
 
 ### Introduction
 
