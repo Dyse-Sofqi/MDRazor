@@ -30,6 +30,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	private typewriterToggle?: import('obsidian').ToggleComponent;
 	private typewriterOpacitySetting?: Setting;
 	private typewriterTopPaddingSetting?: Setting;
+	private typewriterDeadZoneJumpSetting?: Setting;
 
 	/** 当前激活的标签页索引（会话内记忆，设置面板重开时保留） */
 	private activeTabIndex = 0;
@@ -48,6 +49,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		this.typewriterToggle = undefined;
 		this.typewriterOpacitySetting = undefined;
 		this.typewriterTopPaddingSetting = undefined;
+		this.typewriterDeadZoneJumpSetting = undefined;
 
 		this.createTabbedSection(
 			containerEl,
@@ -426,6 +428,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		this.typewriterDeadZoneJumpSetting = new Setting(panel)
+			.setName('死区跳转')
+			.setDesc('开启后，光标所在行跨过死区（视口中部 12.5%~87.5%）上/下边界时，自动滚动回死区上沿（视口 12.5% 处）；关闭后不做自动跳转滚动，仅保留淡化与头部留白。仅模式开启时生效')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.typewriterDeadZoneJump)
+					.onChange(async (value) => {
+						this.plugin.settings.typewriterDeadZoneJump = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 		this.applyTypewriterChildVisibility();
 	}
 
@@ -589,7 +603,11 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	 */
 	private applyTypewriterChildVisibility(): void {
 		const show = this.plugin.settings.typewriterMode;
-		for (const setting of [this.typewriterOpacitySetting, this.typewriterTopPaddingSetting]) {
+		for (const setting of [
+			this.typewriterOpacitySetting,
+			this.typewriterTopPaddingSetting,
+			this.typewriterDeadZoneJumpSetting,
+		]) {
 			if (setting) setting.settingEl.style.display = show ? '' : 'none';
 		}
 	}

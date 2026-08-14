@@ -5,7 +5,9 @@
  *   1. 范围居中（死区滚动）：视口高度分为顶部 1/8、中部 3/4、底部 1/8，
  *      光标所在行落在中部死区（12.5%~87.5%）时不调整滚轴；落入顶部/底部
  *      1/8 时统一将该行滚动到死区上沿（视口 12.5% 处）。相比精准居中滚动
- *      频率大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
+ *      频率大幅降低。由子开关「死区跳转」（默认关闭）控制——关闭时不做
+ *      自动跳转滚动，仅保留淡化与头部留白。鼠标按压/拖选期间不触发，
+ *      松开后才触发，避免拖选干扰
  *   2. 死区外淡化：除当前行与死区（视口中部 12.5%~87.5%）内的行外，其余行
  *      （顶部/底部 1/8）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
  *      阅读带
@@ -41,10 +43,16 @@ import { RangeSetBuilder } from '@codemirror/state';
 import { type MDRazorSettings } from '../../model/settings';
 
 /** 模块级可变配置，由 controller/main.ts 在设置变更时写入。 */
-export const typewriterConfig: { mode: boolean; opacity: number; topPadding: boolean } = {
+export const typewriterConfig: {
+	mode: boolean;
+	opacity: number;
+	topPadding: boolean;
+	deadZoneJump: boolean;
+} = {
 	mode: false,
 	opacity: 50,
 	topPadding: true,
+	deadZoneJump: false,
 };
 
 /** 范围居中：死区上沿（2 区间顶部）相对视口高度的比例（视口 1/8 处 = 12.5%） */
@@ -271,15 +279,20 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 范围居中（死区滚动）——调度入口（零布局读取）：
-		 * 光标跨行时安排一次微任务执行实际的区间判定与滚动。
-		 * 视口高度分为顶部 1/8、中部 3/4、底部 1/8：
+		 * 仅当「死区跳转」开关开启时生效。光标跨行时安排一次微任务执行
+		 * 实际的区间判定与滚动。视口高度分为顶部 1/8、中部 3/4、底部 1/8：
 		 *   - 光标所在行整体落在中部死区（视口 12.5%~87.5%）→ 不调整滚轴；
 		 *   - 落入顶部/底部 1/8 → 将该行统一滚动到死区上沿（行首对齐视口
 		 *     12.5% 处）。
 		 * 相比精准居中，滚动频率大幅降低，减轻视觉疲劳。
 		 */
 		private maybeRangeScroll(view: EditorView): void {
-			if (!typewriterConfig.mode || this.isPointerDown || this.destroyed) return;
+			if (!typewriterConfig.deadZoneJump
+				|| !typewriterConfig.mode
+				|| this.isPointerDown
+				|| this.destroyed) {
+				return;
+			}
 			const head = view.state.selection.main.head;
 			const lineNumber = view.state.doc.lineAt(head).number;
 			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不安排
