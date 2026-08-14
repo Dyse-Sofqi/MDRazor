@@ -2,19 +2,19 @@
  * MDRazor — 打字机模式（Controller）
  *
  * 功能：
- *   1. 范围居中（死区滚动）：视口高度按 1:1:1:1 分为四个区间，光标所在行
- *      落在中部 2/3 区间（25%~75%）时不调整滚轴；落入顶部 1/4 或底部 1/4
- *      区间时统一将该行滚动到 2 区间顶部（视口 25% 处）。相比精准居中滚动
+ *   1. 范围居中（死区滚动）：视口高度分为顶部 1/8、中部 3/4、底部 1/8，
+ *      光标所在行落在中部死区（12.5%~87.5%）时不调整滚轴；落入顶部/底部
+ *      1/8 时统一将该行滚动到死区上沿（视口 12.5% 处）。相比精准居中滚动
  *      频率大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
- *   2. 死区外淡化：除当前行与死区（视口中部 25%~75%）内的行外，其余行
- *      （顶部/底部 1/4）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
+ *   2. 死区外淡化：除当前行与死区（视口中部 12.5%~87.5%）内的行外，其余行
+ *      （顶部/底部 1/8）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
  *      阅读带
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
  *      切换 mdrazor-typewriter-top-padding 类并设置 CSS 变量
- *      --mdrazor-typewriter-top-padding = 视口高 × 25%，styles.css 将其应用到
+ *      --mdrazor-typewriter-top-padding = 视口高 × 12.5%，styles.css 将其应用到
  *      .cm-sizer（.cm-scroller 内的内容容器，Obsidian 的页面内标题
  *      inline-title 也位于其中）的 padding-top，在文档最顶部创建可滚动空白：
- *      使光标位于文档第一行时也能滚入中部死区（2 区间顶部 = 视口 25% 处，
+ *      使光标位于文档第一行时也能滚入中部死区（死区上沿 = 视口 12.5% 处，
  *      与范围居中的目标一致）；留白属滚动内容，仅顶部可见，光标在文档中部
  *      编辑时滚出视口，不占用编辑空间。页面内标题位于留白之下，标题紧贴
  *      正文不被隔开。
@@ -47,20 +47,20 @@ export const typewriterConfig: { mode: boolean; opacity: number; topPadding: boo
 	topPadding: true,
 };
 
-/** 范围居中：2 区间顶部相对视口高度的比例（视口 1/4 处 = 25%） */
-const ZONE2_TOP_RATIO = 0.25;
+/** 范围居中：死区上沿（2 区间顶部）相对视口高度的比例（视口 1/8 处 = 12.5%） */
+const ZONE2_TOP_RATIO = 0.125;
 
 /**
- * 死区：范围居中保持光标所在行的中部区域（视口 25%~75%）。
- * 死区内与当前行不淡化，「死区外的不透明度」只作用于顶部/底部 1/4 的行。
+ * 死区：范围居中保持光标所在行的中部区域（视口 12.5%~87.5%，中段 3/4）。
+ * 死区内与当前行不淡化，「死区外的不透明度」只作用于顶部/底部 1/8 的行。
  */
 const DEAD_ZONE_TOP_RATIO = ZONE2_TOP_RATIO;
 const DEAD_ZONE_BOTTOM_RATIO = 1 - ZONE2_TOP_RATIO;
 
 /**
  * 为可视范围内死区外的行构建淡化装饰。
- * 死区 = 视口中部 25%~75%（光标所在区域，范围居中保持区）；死区外 =
- * 顶部/底部 1/4。当前行与死区内的行保持明亮。
+ * 死区 = 视口中部 12.5%~87.5%（光标所在区域，范围居中保持区）；死区外 =
+ * 顶部/底部 1/8。当前行与死区内的行保持明亮。
  * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做淡化）。
  *
  * 死区判定基于 viewState.pixelViewport 与 lineBlockAt（均为 contentDOM 局部
@@ -80,8 +80,8 @@ function buildDimDecorations(view: EditorView): DecorationSet {
 	const viewState = (view as unknown as { viewState: { pixelViewport: { top: number; bottom: number } } }).viewState;
 	const viewportTopPx = viewState.pixelViewport.top;
 	const viewportHeightPx = viewState.pixelViewport.bottom - viewportTopPx;
-	const zone2TopPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 死区上沿（25%）
-	const zone3BottomPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 死区下沿（75%）
+	const zone2TopPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 死区上沿（12.5%）
+	const zone3BottomPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 死区下沿（87.5%）
 
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
@@ -91,7 +91,7 @@ function buildDimDecorations(view: EditorView): DecorationSet {
 			const line = doc.line(lineNum);
 			if (line.number === cursorLine) continue; // 当前行始终不淡化
 			const block = view.lineBlockAt(line.from);
-			// 行整体落在死区内（不越出 25%~75%）→ 保持明亮；死区外 → 淡化
+			// 行整体落在死区内（不越出 12.5%~87.5%）→ 保持明亮；死区外 → 淡化
 			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) continue;
 			builder.add(line.from, line.from, dim);
 		}
@@ -172,14 +172,14 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 文档头部留白：在 .cm-editor 上切换 mdrazor-typewriter-top-padding 类，
-		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = 视口高 × 25%。
+		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = 视口高 × 12.5%。
 		 * styles.css 将该变量应用到 .cm-sizer 的 padding-top —— .cm-sizer 位于
 		 * .cm-scroller 内，页面内标题 inline-title 也位于其中，因此留白出现在
 		 * 文档最顶部（标题上方），标题紧贴正文不被隔开。留白属滚动内容：仅
 		 * 顶部可见，光标在文档中部编辑时滚出视口，不占用编辑空间。
 		 *
-		 * 大小与范围居中的 2 区间顶部（视口 25%）一致：使光标位于文档第一行
-		 * 时恰好能滚入中部死区（25% 处），而非旧的精准居中所需的 50%。
+		 * 大小与范围居中的死区上沿（视口 12.5%）一致：使光标位于文档第一行
+		 * 时恰好能滚入中部死区（12.5% 处），而非旧的精准居中所需的 50%。
 		 *
 		 * 性能关键：只在 topPaddingDirty（配置变化 / 几何变化）时才读取
 		 * scrollDOM.clientHeight 计算留白值——读取会强制同步布局，若每次
@@ -202,7 +202,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			if (!this.topPaddingDirty) return; // 已应用且无需重算 → 不读取布局，避免回流
 			const viewportHeight = view.scrollDOM.clientHeight;
 			if (viewportHeight <= 0) return; // 暂不可用（未测量、隐藏标签页），保持 pending
-			// 留白大小 = 视口高 × 25%（范围居中只需第一行滚到 2 区间顶部）
+			// 留白大小 = 视口高 × 12.5%（范围居中只需第一行滚到死区上沿）
 			const top = Math.max(0, Math.floor(viewportHeight * ZONE2_TOP_RATIO));
 			editorEl.classList.add('mdrazor-typewriter-top-padding');
 			editorEl.setCssProps({ '--mdrazor-typewriter-top-padding': `${top}px` });
@@ -213,10 +213,10 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		/**
 		 * 范围居中（死区滚动）——调度入口（零布局读取）：
 		 * 光标跨行时安排一次微任务执行实际的区间判定与滚动。
-		 * 视口高度按 1:1:1:1 分为 1（顶）、2、3、4（底）四个区间：
-		 *   - 光标所在行整体落在 2、3 区间（视口中部 25%~75%）→ 不调整滚轴；
-		 *   - 落入 1 或 4 区间（顶部/底部 1/4）→ 将该行统一滚动到 2 区间
-		 *     顶部（行首对齐视口 25% 处）。
+		 * 视口高度分为顶部 1/8、中部 3/4、底部 1/8：
+		 *   - 光标所在行整体落在中部死区（视口 12.5%~87.5%）→ 不调整滚轴；
+		 *   - 落入顶部/底部 1/8 → 将该行统一滚动到死区上沿（行首对齐视口
+		 *     12.5% 处）。
 		 * 相比精准居中，滚动频率大幅降低，减轻视觉疲劳。
 		 */
 		private maybeRangeScroll(view: EditorView): void {
@@ -240,23 +240,23 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 范围居中判定与滚动（仅从微任务/事件回调调用，不在 update 内）：
-		 * 光标所在行落入 1/4 区间时滚动到 2 区间顶部（视口 25% 处）。
+		 * 光标所在行落入顶部/底部 1/8 时滚动到死区上沿（视口 12.5% 处）。
 		 */
 		private applyRangeScroll(view: EditorView, head: number): void {
 			const coords = view.coordsAtPos(head);
 			if (!coords) return; // 不可见/未测量
 			const viewportTop = view.scrollDOM.getBoundingClientRect().top;
 			const viewportHeight = view.scrollDOM.clientHeight;
-			const zone2Top = viewportHeight * ZONE2_TOP_RATIO; // 2 区间顶部 = 视口 25% 处
-			const zone3Bottom = viewportHeight * (1 - ZONE2_TOP_RATIO); // 3 区间底部 = 视口 75% 处
+			const zone2Top = viewportHeight * ZONE2_TOP_RATIO; // 死区上沿 = 视口 12.5% 处
+			const zone3Bottom = viewportHeight * (1 - ZONE2_TOP_RATIO); // 死区下沿 = 视口 87.5% 处
 
-			// 行整体落在 2/3 区间（不越出中部 25%~75%）→ 无需调整
+			// 行整体落在死区内（不越出中部 12.5%~87.5%）→ 无需调整
 			if (coords.top >= viewportTop + zone2Top
 				&& coords.bottom <= viewportTop + zone3Bottom) {
 				return;
 			}
 
-			// 落入 1/4 区间 → 滚动到 2 区间顶部（行首对齐视口 25% 处）
+			// 落入顶部/底部 1/8 → 滚动到死区上沿（行首对齐视口 12.5% 处）
 			const effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
 			window.queueMicrotask(() => {
 				if (!this.destroyed) view.dispatch({ effects });
@@ -293,8 +293,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			}
 			this.syncTopPadding(update.view);
 
-			// 范围居中滚动：光标跨行时按 1/4 区间判定是否调整。鼠标按压/拖选
-			// 期间跳过（松开后由文档级 pointerup 触发 once），避免拖选干扰。
+			// 范围居中滚动：光标跨行时按死区（12.5%~87.5%）判定是否调整。鼠标
+			// 按压/拖选期间跳过（松开后由文档级 pointerup 触发 once），避免拖选干扰。
 			if (mode && !this.isPointerDown && (update.selectionSet || update.docChanged)) {
 				this.maybeRangeScroll(update.view);
 			}

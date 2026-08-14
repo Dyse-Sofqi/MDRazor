@@ -77,7 +77,7 @@ export interface MDRazorSettings {
 	// ── 打字机模式 (controller/typewriter/) ──
 	/** 打字机模式：编辑时光标行保持在页面中部区域（范围居中），死区外行淡化 */
 	typewriterMode: boolean;
-	/** 死区外的不透明度（0-100，100 = 完全不淡化；死区 = 视口中部 25%~75%） */
+	/** 死区外的不透明度（0-100，100 = 完全不淡化；死区 = 视口中部 12.5%~87.5%） */
 	typewriterOpacity: number;
 	/** 允许文档头部留存空白区域：开启后顶部预留空间，使光标在第一行也能滚动到页面中央 */
 	typewriterTopPadding: boolean;

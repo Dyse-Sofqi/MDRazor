@@ -388,7 +388,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(panel)
 			.setName('打字机模式')
-			.setDesc('开启后，编辑文档时光标所在行保持在页面中部区域（范围居中），死区外（顶部/底部 1/4）的行按下方「死区外的不透明度」淡化显示。命令「开启/关闭打字机模式」可绑定快捷键')
+			.setDesc('开启后，编辑文档时光标所在行保持在页面中部区域（范围居中），死区外（顶部/底部 1/8）的行按下方「死区外的不透明度」淡化显示。命令「开启/关闭打字机模式」可绑定快捷键')
 			.addToggle((toggle) => {
 				this.typewriterToggle = toggle;
 				toggle
@@ -402,7 +402,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		this.typewriterOpacitySetting = new Setting(panel)
 			.setName('死区外的不透明度')
-			.setDesc('打字机模式下，光标所在中部死区（视口 25%~75%）之外的行（顶部/底部 1/4）的显示不透明度（0-100）。100 为完全不淡化；死区内与当前行保持明亮。仅模式开启时生效')
+			.setDesc('打字机模式下，光标所在中部死区（视口 12.5%~87.5%）之外的行（顶部/底部 1/8）的显示不透明度（0-100）。100 为完全不淡化；死区内与当前行保持明亮。仅模式开启时生效')
 			.addSlider((slider) =>
 				slider
 					.setLimits(0, 100, 1)
@@ -416,7 +416,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		this.typewriterTopPaddingSetting = new Setting(panel)
 			.setName('允许文档头部留存空白区域')
-			.setDesc('开启后，在文档开头预留视口高度 1/4 的空白，使光标位于文档第一行时也能滚入页面中部区域（2 区间顶部，否则第一行受滚动顶部边界钳制）。仅模式开启时生效')
+			.setDesc('开启后，在文档开头预留视口高度 1/8 的空白，使光标位于文档第一行时也能滚入页面中部区域（死区上沿，否则第一行受滚动顶部边界钳制）。仅模式开启时生效')
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.typewriterTopPadding)
