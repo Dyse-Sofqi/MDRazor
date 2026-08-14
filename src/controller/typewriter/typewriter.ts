@@ -307,26 +307,31 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 范围居中判定与滚动（仅从微任务/事件回调调用，不在 update 内）：
-		 * 使用 coordsAtPos（真实 DOM 几何）判定。上边界始终滚回死区上沿
-		 * （视口 12.5% 处）；下边界默认滚回死区下沿（视口 87.5% 处）维持
-		 * 视觉位置，开启「死区下沿跳转上沿」时跳到上沿。
+		 * 判定与淡化（buildDimDecorations）共用同一套几何——lineBlockAt 的
+		 * 逻辑行块 + dimGeo 边界（静态偏移 + 视口高），消除此前 coordsAtPos
+		 * 与模型坐标之间约一行的系统偏差，跳转触发与死区渲染范围严格一致。
+		 * 上边界始终滚回死区上沿（视口 12.5% 处）；下边界默认滚回死区下沿
+		 * （视口 87.5% 处）维持视觉位置，开启「死区下沿跳转上沿」时跳到上沿。
 		 */
 		private applyRangeScroll(view: EditorView, head: number): void {
-			const coords = view.coordsAtPos(head);
-			if (!coords) return; // 不可见/未测量
-			const viewportTop = view.scrollDOM.getBoundingClientRect().top;
-			const viewportHeight = view.scrollDOM.clientHeight;
-			const zone2Top = viewportHeight * ZONE2_TOP_RATIO; // 死区上沿 = 视口 12.5% 处
-			const zone3Bottom = viewportHeight * (1 - ZONE2_TOP_RATIO); // 死区下沿 = 视口 87.5% 处
+			const geo = this.dimGeo;
+			if (!geo || geo.viewportHeightPx <= 0) return; // 几何未就绪
+			const block = view.lineBlockAt(head);
+			const scrollTop = view.scrollDOM.scrollTop;
+			const viewportTopPx = scrollTop - geo.staticOffsetPx; // 视口顶（contentDOM 局部）
+			const zone2TopPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 12.5%
+			const zone3BottomPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 87.5%
 
-			// 行整体落在死区内（不越出中部 12.5%~87.5%）→ 无需调整
-			if (coords.top >= viewportTop + zone2Top
-				&& coords.bottom <= viewportTop + zone3Bottom) {
+			// 行整体落在死区内（与淡化判定一致）→ 无需调整
+			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) {
 				return;
 			}
 
+			// 滚动目标（真实视口坐标）：yMargin = 视口高 × 12.5%
+			const viewportHeight = view.scrollDOM.clientHeight;
+			const zone2Top = viewportHeight * ZONE2_TOP_RATIO;
 			let effects: StateEffect<unknown>;
-			if (coords.top < viewportTop + zone2Top) {
+			if (block.top < zone2TopPx) {
 				// 跨过/位于上沿之上 → 滚回上沿（行首对齐视口 12.5% 处）
 				effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
 			} else if (typewriterConfig.bottomJumpToTop) {
