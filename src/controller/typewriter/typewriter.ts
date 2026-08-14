@@ -130,6 +130,11 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		 * 留白出现在文档最顶部（标题上方），标题紧贴正文不被隔开。CM6 坐标
 		 * 换算基于真实 DOM 几何（contentDOM rect 已含该推挤），scrollIntoView
 		 * 居中计算随之正确（首行居中恰好落在 scrollTop=0）。
+		 *
+		 * 每次 update() 都会调用本方法（而非仅视口/几何变化时），确保类与变量
+		 * 始终与最新配置一致，避免因滚动幅度小、视口范围未变而漏更新导致
+		 * 留白时有时无。行高或视口尺寸暂不可用（首次测量前 / 隐藏标签页）时
+		 * 保持当前状态不动，避免误清空留白。
 		 * 模式关闭或留白开关关闭时移除类与变量。
 		 */
 		private applyTopPadding(view: EditorView): void {
@@ -143,8 +148,9 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				return;
 			}
 			const lineHeight = view.defaultLineHeight;
-			if (!lineHeight || lineHeight <= 0) return; // 首次测量前行高未知，跳过
 			const viewportHeight = view.scrollDOM.clientHeight;
+			// 行高/视口不可用（未测量、隐藏标签页）→ 保持现状，待可用时再应用
+			if (!lineHeight || lineHeight <= 0 || viewportHeight <= 0) return;
 			const top = Math.max(0, Math.floor((viewportHeight - lineHeight) / 2));
 			const value = `${top}px`;
 			editorEl.classList.add('mdrazor-typewriter-top-padding');
@@ -190,14 +196,12 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				this.decorations = buildDimDecorations(update.view);
 			}
 
-			// 头部留白：模式/留白开关变化或视口/几何（缩放、字体、窗口大小）变化
-			// 时重新计算并写入 scrollDOM 的 padding-top；写入后请求一次测量，
-			// 让 CM6 立即读取新的 paddingTop 并刷新坐标换算。
-			if (marginChanged || update.viewportChanged || update.geometryChanged) {
-				this.applyTopPadding(update.view);
-				if (marginChanged) {
-					update.view.requestMeasure();
-				}
+			// 头部留白：每次 update 都重算并同步类与 CSS 变量（保证与配置始终
+			// 一致，避免小幅度滚动不触发视口变化而漏更新）；模式/留白开关变化
+			// 时额外请求一次测量，让 CM6 立即读取新的 padding-top。
+			this.applyTopPadding(update.view);
+			if (marginChanged) {
+				update.view.requestMeasure();
 			}
 
 			// 打字机滚动：光标跨行时居中。鼠标按压/拖选期间跳过（松开后由

@@ -271,7 +271,8 @@ div.nav-folder-title {
      - 无页面内标题：留白位于正文上方；
      - 有页面内标题：留白位于标题上方，标题紧贴正文，不会被隔开。
    CM6 的坐标换算基于真实 DOM 几何（contentDOM rect 已含该推挤），
-   滚动居中计算自动正确。 */
-.cm-editor.mdrazor-typewriter-top-padding .cm-sizer {
+   滚动居中计算自动正确。选择器显式含 .cm-scroller 以提升特异性，避免被
+   主题样式覆盖。 */
+.cm-editor.mdrazor-typewriter-top-padding .cm-scroller .cm-sizer {
 	padding-top: var(--mdrazor-typewriter-top-padding, 0px);
 }
