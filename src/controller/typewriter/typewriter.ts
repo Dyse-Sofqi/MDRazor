@@ -88,6 +88,10 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private destroyed = false;
 		/** 鼠标按下标志：按压/拖选期间不触发居中，松开后才触发 */
 		private isPointerDown = false;
+		/** 留白是否已应用（-1 = 未应用，其余为已应用的像素值） */
+		private appliedTopPadding = -1;
+		/** 留白值是否需要（重新）计算：配置变化 / 几何变化（窗口、面板缩放）时置位 */
+		private topPaddingDirty = true;
 
 		/** 文档级 pointerup（capture）：编辑器内按下后即使拖出编辑器/窗口也能捕获松开 */
 		private readonly onDocumentPointerUp = (): void => {
@@ -107,7 +111,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		constructor(view: EditorView) {
 			this.view = view;
 			this.decorations = buildDimDecorations(view);
-			this.applyTopPadding(view);
+			this.syncTopPadding(view);
 			const dom = view.dom;
 			dom.addEventListener('pointerdown', this.onPointerDown, true);
 			dom.addEventListener('pointercancel', this.onPointerCancel, true);
@@ -127,38 +131,36 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2。
 		 * styles.css 将该变量应用到 .cm-sizer 的 padding-top —— .cm-sizer 位于
 		 * .cm-scroller 内，页面内标题 inline-title 也位于其中，因此留白出现在
-		 * 文档最顶部（标题上方），标题紧贴正文不被隔开。
+		 * 文档最顶部（标题上方），标题紧贴正文不被隔开。留白属滚动内容：仅
+		 * 顶部可见，光标在文档中部编辑时滚出视口，不占用编辑空间。
 		 *
-		 * 留白属于滚动内容：仅在文档顶部（滚动范围顶端）可见——光标在第一行
-		 * 居中时、或滚动到顶部时；光标在文档中部编辑时随内容滚出视口，不占用
-		 * 编辑空间。每次 update() 都会调用本方法（而非仅视口/几何变化时），
-		 * 确保类与变量始终与最新配置一致，避免因小幅度滚动不触发视口变化而
-		 * 漏更新导致留白时有时无。视口高取 scrollDOM.clientHeight（padding 在
-		 * 子元素 sizer 上，不影响该值，无漂移）。行高或视口尺寸暂不可用
-		 * （首次测量前 / 隐藏标签页）时保持当前状态不动，避免误清空留白。
-		 * 模式关闭或留白开关关闭时移除类与变量。
+		 * 性能关键：只在 topPaddingDirty（配置变化 / 几何变化）时才读取
+		 * scrollDOM.clientHeight 计算留白值——读取会强制同步布局，若每次
+		 * update 都读取，点击/滚动会引发反复回流导致闪烁。尺寸暂不可用时
+		 * 保持 pending（topPaddingDirty 不清除），下次 update 再试，保证首次
+		 * 测量完成后立即应用。模式关闭或留白开关关闭时移除类与变量。
 		 */
-		private applyTopPadding(view: EditorView): void {
+		private syncTopPadding(view: EditorView): void {
 			const editorEl = view.dom;
 			const active = typewriterConfig.mode && typewriterConfig.topPadding;
 			if (!active) {
-				if (editorEl.classList.contains('mdrazor-typewriter-top-padding')) {
+				if (this.appliedTopPadding !== -1) {
 					editorEl.classList.remove('mdrazor-typewriter-top-padding');
 					editorEl.setCssProps({ '--mdrazor-typewriter-top-padding': '0px' });
+					this.appliedTopPadding = -1;
 				}
+				this.topPaddingDirty = false;
 				return;
 			}
+			if (!this.topPaddingDirty) return; // 已应用且无需重算 → 不读取布局，避免回流
 			const lineHeight = view.defaultLineHeight;
-			// 滚动视口高（padding 在子元素 .cm-sizer 上，不影响该值，无漂移）
 			const viewportHeight = view.scrollDOM.clientHeight;
-			// 行高/视口不可用（未测量、隐藏标签页）→ 保持现状，待可用时再应用
-			if (!lineHeight || lineHeight <= 0 || viewportHeight <= 0) return;
+			if (!lineHeight || lineHeight <= 0 || viewportHeight <= 0) return; // 暂不可用，保持 pending
 			const top = Math.max(0, Math.floor((viewportHeight - lineHeight) / 2));
-			const value = `${top}px`;
 			editorEl.classList.add('mdrazor-typewriter-top-padding');
-			if (editorEl.style.getPropertyValue('--mdrazor-typewriter-top-padding') !== value) {
-				editorEl.setCssProps({ '--mdrazor-typewriter-top-padding': value });
-			}
+			editorEl.setCssProps({ '--mdrazor-typewriter-top-padding': `${top}px` });
+			this.appliedTopPadding = top;
+			this.topPaddingDirty = false;
 		}
 
 		/**
@@ -198,13 +200,15 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				this.decorations = buildDimDecorations(update.view);
 			}
 
-			// 头部留白：每次 update 都重算并同步类与 CSS 变量（保证与配置始终
-			// 一致，避免小幅度滚动不触发视口变化而漏更新）；模式/留白开关变化
-			// 时额外请求一次测量，让 CM6 立即读取新的 padding-top。
-			this.applyTopPadding(update.view);
-			if (marginChanged) {
-				update.view.requestMeasure();
+			// 头部留白：配置/几何（窗口、面板缩放）变化时置脏，下次 update
+			// 重算；其余 update 只做零读取同步，避免强制回流导致闪烁。
+			if (marginChanged || update.geometryChanged) {
+				this.topPaddingDirty = true;
+				if (marginChanged) {
+					update.view.requestMeasure();
+				}
 			}
+			this.syncTopPadding(update.view);
 
 			// 打字机滚动：光标跨行时居中。鼠标按压/拖选期间跳过（松开后由
 			// 文档级 pointerup 触发 once 居中），避免拖选过程中光标跟随跳动。
