@@ -73,7 +73,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
   - **二级子项最大展开数** — 选项聚焦的子设置（滑块 1-9 + 开关）。开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响。选项聚焦关闭时此设置自动禁用。
 
-- **滚轴同步** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至屏幕中央，避免长列表伸缩使光标跑出视图外。选项聚焦关闭时此开关自动禁用。
+- **滚轴同步** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 12.5% 处（死区上沿），避免长列表伸缩使光标跑出视图外。选项聚焦关闭时此开关自动禁用。
 
 - **上下键默认不跳过被折叠的列表/标题项** — 按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 CodeMirror 原生那样整块跳过。光标连续导航不被折叠块阻断。**上键同级回跳（任意层级）**：按 ↑ 时若光标所在行是列表项、且上一行（或其续行）所属列表项的层级比当前更低（更深——如位于前一同级项子树末尾的深层项），光标直接跳转到上一个与当前层级相同的列表项所在行（被折叠挡住时同样展开进入），而非落入上一行所属的更深子树。适用于全部层级：二级遇三/四级及以上跳上一个二级，三级遇四级及以上跳上一个三级，依此类推；扫描跳过续行、遇空行/段落/标题等块边界即止，不跨列表块跳转。
 
@@ -239,7 +239,7 @@ Optimized list editing experience with the following independent toggles:
 
   - **Second-level Max Expand Count** — Sub-setting of List Focus Option (slider 1-9 + toggle). When enabled, top-level items with ≤ threshold second-level children will be expanded during focus. Affects top-level items only; descendants still follow normal focus-fold behavior. Disabled when List Focus Option is off.
 
-- **Scroll Sync** — Sub-toggle of List Focus Option (default on). When Option Focus folds/unfolds, the cursor's line is scrolled to the vertical center so it never leaves the viewport on long-list relayout. Disabled when List Focus Option is off.
+- **Scroll Sync** — Sub-toggle of List Focus Option (default on). When Option Focus folds/unfolds, the cursor's line is scrolled to 12.5% of the viewport height (top of the dead zone) so it never leaves the viewport on long-list relayout. Disabled when List Focus Option is off.
 
 - **Up/Down Do Not Skip Folded List/Heading Items** — When the target line is a folded list item or heading content, ↑/↓ actively unfold that block and land on the target line (goal column preserved) instead of CodeMirror's native whole-block skip. Continuous cursor navigation is never blocked by folded blocks. **Up-key same-level rewind (any depth)**: when ↑ is pressed while the cursor is on a list item and the line above (or its continuation) belongs to a lower-level (deeper) item — typically the deep tail of the previous same-level item's subtree — the cursor jumps straight to the previous list item at the current level (unfolding it if blocked by a fold) instead of landing inside that deeper subtree. Works at every depth: a level-2 item rewinds to the previous level-2 item when the line above is level 3/4+, a level-3 item to the previous level-3 when facing level 4+, and so on. The backward scan skips continuation lines and stops at block boundaries (blank lines, paragraphs, headings), so jumps never cross list blocks.
 

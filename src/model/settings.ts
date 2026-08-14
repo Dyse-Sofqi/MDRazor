@@ -44,7 +44,7 @@ export interface MDRazorSettings {
 	listFocusOption: boolean;
 	listFocusSecondThreshold: number;
 	listFocusSecondThresholdEnabled: boolean;
-	/** 滚轴同步：选项聚焦折叠/展开后，光标所在行滚动至屏幕中央 */
+	/** 滚轴同步：选项聚焦折叠/展开后，光标所在行滚动至视口 12.5% 处（死区上沿） */
 	focusScrollSync: boolean;
 	/** 上下键默认不跳过被折叠的列表/标题项：↓/↑ 遇到折叠块时主动展开并进入 */
 	arrowKeyEnterFolded: boolean;

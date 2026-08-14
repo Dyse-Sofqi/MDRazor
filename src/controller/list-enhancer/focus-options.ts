@@ -555,7 +555,7 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				}
 			}
 
-			// 滚轴同步：仅当折叠/展开确实发生变化时，把光标所在行居中
+			// 滚轴同步：仅当折叠/展开确实发生变化时，把光标所在行滚至视口 12.5% 处
 			const scrollPos = listEnhancerConfig.focusScrollSync ? cursorPos : null;
 			this.applyFolds(cmView, newRanges, blockLineNumbers, scrollPos);
 			this.currentRanges = newRanges;
@@ -617,10 +617,15 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				effects.push(foldEffect.of(r));
 			}
 
-			// 滚轴同步：折叠/展开确实变化时，追加滚动效果使光标行居中
-			// （与折叠效果同一次 dispatch，避免二次 update 循环）
+			// 滚轴同步：折叠/展开确实变化时，追加滚动效果，使光标行对齐视口
+			// 12.5% 处（死区上沿，与打字机模式一致；与折叠效果同一次 dispatch，
+			// 避免二次 update 循环）
 			if (scrollPos !== null && effects.length > 0) {
-				effects.push(EditorView.scrollIntoView(scrollPos, { y: 'center' }));
+				const viewportHeight = view.scrollDOM.clientHeight;
+				effects.push(EditorView.scrollIntoView(scrollPos, {
+					y: 'start',
+					yMargin: viewportHeight * 0.125,
+				}));
 			}
 
 			if (effects.length > 0) {

@@ -230,7 +230,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(panel)
 			.setName('滚轴同步')
-			.setDesc('选项聚焦触发折叠/展开时，自动将光标所在行滚动至屏幕中央，避免长列表伸缩使光标跑出视图外')
+			.setDesc('选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 12.5% 处（死区上沿），避免长列表伸缩使光标跑出视图外')
 			.addToggle((toggle) => {
 				scrollSyncToggle = toggle;
 				toggle
@@ -243,7 +243,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(panel)
-			.setName('上下键默认不跳过被折叠的列表/标题项')
+			.setName('↑↓键默认不跳过被折叠的列表/标题项')
 			.setDesc('按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 codemirror 原生那样整块跳过')
 			.addToggle((toggle) =>
 				toggle
@@ -377,7 +377,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(panel)
-			.setName('Md文档光标和滚轴位置持久化')
+			.setName('MD文档光标和滚轴位置持久化')
 			.setDesc('开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置')
 			.addToggle((toggle) =>
 				toggle
