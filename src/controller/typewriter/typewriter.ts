@@ -2,12 +2,12 @@
  * MDRazor — 打字机模式（Controller）
  *
  * 功能：
- *   1. 范围居中（死区滚动）：视口高度分为顶部 1/8、中部 3/4、底部 1/8，
- *      光标所在行落在中部死区（12.5%~87.5%）时不调整滚轴；落入顶部/底部
- *      1/8 时统一将该行滚动到死区上沿（视口 12.5% 处）。相比精准居中滚动
- *      频率大幅降低。由子开关「死区跳转」（默认关闭）控制——关闭时不做
- *      自动跳转滚动，仅保留淡化与头部留白。鼠标按压/拖选期间不触发，
- *      松开后才触发，避免拖选干扰
+ *   1. 范围居中（死区滚动，基础行为始终开启）：视口高度分为顶部 1/8、
+ *      中部 3/4、底部 1/8，光标所在行落在中部死区（12.5%~87.5%）时不调整
+ *      滚轴；落入顶部 1/8 → 滚回死区上沿（12.5%）维持视觉位置；落入底部
+ *      1/8 → 默认滚回死区下沿（87.5%）维持视觉位置，开启子开关「死区下沿
+ *      跳转上沿」（默认关闭）时则跳到上沿（12.5%）。相比精准居中滚动频率
+ *      大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
  *   2. 死区外淡化：除当前行与死区（视口中部 12.5%~87.5%）内的行外，其余行
  *      （顶部/底部 1/8）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
  *      阅读带
@@ -39,7 +39,7 @@
 
 import { type Plugin } from 'obsidian';
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet } from '@codemirror/view';
-import { RangeSetBuilder } from '@codemirror/state';
+import { type StateEffect, RangeSetBuilder } from '@codemirror/state';
 import { type MDRazorSettings } from '../../model/settings';
 
 /** 模块级可变配置，由 controller/main.ts 在设置变更时写入。 */
@@ -47,12 +47,12 @@ export const typewriterConfig: {
 	mode: boolean;
 	opacity: number;
 	topPadding: boolean;
-	deadZoneJump: boolean;
+	bottomJumpToTop: boolean;
 } = {
 	mode: false,
 	opacity: 50,
 	topPadding: true,
-	deadZoneJump: false,
+	bottomJumpToTop: false,
 };
 
 /** 范围居中：死区上沿（2 区间顶部）相对视口高度的比例（视口 1/8 处 = 12.5%） */
@@ -278,21 +278,17 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		}
 
 		/**
-		 * 范围居中（死区滚动）——调度入口（零布局读取）：
-		 * 仅当「死区跳转」开关开启时生效。光标跨行时安排一次微任务执行
-		 * 实际的区间判定与滚动。视口高度分为顶部 1/8、中部 3/4、底部 1/8：
+		 * 范围居中（死区滚动）——调度入口（零布局读取）：打字机模式的基础
+		 * 行为，始终生效。光标跨行时安排一次微任务执行实际的区间判定与滚动。
+		 * 视口高度分为顶部 1/8、中部 3/4、底部 1/8：
 		 *   - 光标所在行整体落在中部死区（视口 12.5%~87.5%）→ 不调整滚轴；
-		 *   - 落入顶部/底部 1/8 → 将该行统一滚动到死区上沿（行首对齐视口
-		 *     12.5% 处）。
+		 *   - 落入顶部 1/8 → 滚回死区上沿（12.5%）维持视觉位置；
+		 *   - 落入底部 1/8 → 默认滚回死区下沿（87.5%）维持视觉位置；开启
+		 *     「死区下沿跳转上沿」时跳到上沿（12.5%）。
 		 * 相比精准居中，滚动频率大幅降低，减轻视觉疲劳。
 		 */
 		private maybeRangeScroll(view: EditorView): void {
-			if (!typewriterConfig.deadZoneJump
-				|| !typewriterConfig.mode
-				|| this.isPointerDown
-				|| this.destroyed) {
-				return;
-			}
+			if (!typewriterConfig.mode || this.isPointerDown || this.destroyed) return;
 			const head = view.state.selection.main.head;
 			const lineNumber = view.state.doc.lineAt(head).number;
 			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不安排
@@ -312,7 +308,9 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		/**
 		 * 范围居中判定与滚动（仅从微任务/事件回调调用，不在 update 内）：
-		 * 光标所在行落入顶部/底部 1/8 时滚动到死区上沿（视口 12.5% 处）。
+		 * 使用 coordsAtPos（真实 DOM 几何）判定。上边界始终滚回死区上沿
+		 * （视口 12.5% 处）；下边界默认滚回死区下沿（视口 87.5% 处）维持
+		 * 视觉位置，开启「死区下沿跳转上沿」时跳到上沿。
 		 */
 		private applyRangeScroll(view: EditorView, head: number): void {
 			const coords = view.coordsAtPos(head);
@@ -328,8 +326,17 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				return;
 			}
 
-			// 落入顶部/底部 1/8 → 滚动到死区上沿（行首对齐视口 12.5% 处）
-			const effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
+			let effects: StateEffect<unknown>;
+			if (coords.top < viewportTop + zone2Top) {
+				// 跨过/位于上沿之上 → 滚回上沿（行首对齐视口 12.5% 处）
+				effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
+			} else if (typewriterConfig.bottomJumpToTop) {
+				// 跨过下沿 + 开启「死区下沿跳转上沿」→ 跳到上沿（12.5%）
+				effects = EditorView.scrollIntoView(head, { y: 'start', yMargin: zone2Top });
+			} else {
+				// 跨过下沿（默认）→ 滚回下沿维持视觉位置（行底对齐视口 87.5% 处）
+				effects = EditorView.scrollIntoView(head, { y: 'end', yMargin: zone2Top });
+			}
 			window.queueMicrotask(() => {
 				if (!this.destroyed) view.dispatch({ effects });
 			});

@@ -429,13 +429,13 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		this.typewriterDeadZoneJumpSetting = new Setting(panel)
-			.setName('死区跳转')
-			.setDesc('开启后，光标所在行跨过死区（视口中部 12.5%~87.5%）上/下边界时，自动滚动回死区上沿（视口 12.5% 处）；关闭后不做自动跳转滚动，仅保留淡化与头部留白。仅模式开启时生效')
+			.setName('死区下沿跳转上沿')
+			.setDesc('开启后，光标所在行跨过死区下沿（视口 87.5%）时跳到上沿（视口 12.5%）；关闭时（默认），光标跨过下沿则调整滚回下沿（87.5%）维持视觉位置。上沿（12.5%）的维持行为始终开启。仅模式开启时生效')
 			.addToggle((toggle) =>
 				toggle
-					.setValue(this.plugin.settings.typewriterDeadZoneJump)
+					.setValue(this.plugin.settings.typewriterBottomJumpToTop)
 					.onChange(async (value) => {
-						this.plugin.settings.typewriterDeadZoneJump = value;
+						this.plugin.settings.typewriterBottomJumpToTop = value;
 						await this.plugin.saveSettings();
 					}),
 			);

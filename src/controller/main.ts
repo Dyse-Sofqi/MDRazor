@@ -239,7 +239,7 @@ export default class MDRazorPlugin extends Plugin {
 			mode: this.settings.typewriterMode,
 			opacity: this.settings.typewriterOpacity,
 			topPadding: this.settings.typewriterTopPadding,
-			deadZoneJump: this.settings.typewriterDeadZoneJump,
+			bottomJumpToTop: this.settings.typewriterBottomJumpToTop,
 		});
 	}
 }

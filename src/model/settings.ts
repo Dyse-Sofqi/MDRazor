@@ -81,8 +81,8 @@ export interface MDRazorSettings {
 	typewriterOpacity: number;
 	/** 允许文档头部留存空白区域：开启后顶部预留空间，使光标在第一行也能滚动到页面中央 */
 	typewriterTopPadding: boolean;
-	/** 死区跳转：光标所在行跨过死区（视口中部 12.5%~87.5%）上/下边界时自动滚回死区上沿 */
-	typewriterDeadZoneJump: boolean;
+	/** 死区下沿跳转上沿：光标行跨过死区下沿（87.5%）时跳到上沿（12.5%）；关闭时滚回下沿维持视觉位置 */
+	typewriterBottomJumpToTop: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -129,5 +129,5 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	typewriterMode: false,
 	typewriterOpacity: 50,
 	typewriterTopPadding: true,
-	typewriterDeadZoneJump: false,
+	typewriterBottomJumpToTop: false,
 };
