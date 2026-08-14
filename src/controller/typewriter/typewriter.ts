@@ -108,6 +108,22 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			this.isPointerDown = false;
 		};
 
+		/**
+		 * 拦截编辑器内 `.cm-content` 之外的点击（capture 阶段 preventDefault）：
+		 * CM6 的内置 mousedown 处理器（负责点击聚焦与光标定位）只挂在
+		 * `.cm-content` 上，点击文档头部留白等空白区域时不会触发它，浏览器
+		 * 默认行为会把焦点从可编辑区移走导致编辑器失焦、破坏打字机状态。
+		 * preventDefault 阻止默认焦点变化，同时不阻断点击事件（折叠箭头等
+		 * 基于 click 的交互不受影响）。仅打字机模式开启时生效。
+		 */
+		private readonly onEditorMouseDown = (event: MouseEvent): void => {
+			if (!typewriterConfig.mode) return;
+			const target = event.target as HTMLElement | null;
+			if (target && !target.closest('.cm-content')) {
+				event.preventDefault();
+			}
+		};
+
 		constructor(view: EditorView) {
 			this.view = view;
 			this.decorations = buildDimDecorations(view);
@@ -115,6 +131,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			const dom = view.dom;
 			dom.addEventListener('pointerdown', this.onPointerDown, true);
 			dom.addEventListener('pointercancel', this.onPointerCancel, true);
+			dom.addEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.addEventListener('pointerup', this.onDocumentPointerUp, true);
 		}
 
@@ -123,6 +140,7 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			const dom = this.view.dom;
 			dom.removeEventListener('pointerdown', this.onPointerDown, true);
 			dom.removeEventListener('pointercancel', this.onPointerCancel, true);
+			dom.removeEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.removeEventListener('pointerup', this.onDocumentPointerUp, true);
 		}
 
