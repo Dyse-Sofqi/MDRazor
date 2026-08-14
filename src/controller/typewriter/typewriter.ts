@@ -63,27 +63,26 @@ const DEAD_ZONE_BOTTOM_RATIO = 1 - ZONE2_TOP_RATIO;
  * 顶部/底部 1/8。当前行与死区内的行保持明亮。
  * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做淡化）。
  *
- * 死区判定基于 viewState.pixelViewport 与 lineBlockAt（均为 contentDOM 局部
- * 坐标的缓存值，不读取 DOM 布局——装饰重建发生在 update 内，禁止读布局）。
+ * deadZone 为 contentDOM 局部坐标下的死区上下沿（由插件在允许读布局的
+ * 上下文——滚动事件/构造函数/几何变化后的 rAF——实时计算缓存），
+ * lineBlockAt 的行块位置同为 contentDOM 局部坐标且为缓存值，因此本函数
+ * 不读取 DOM 布局（装饰重建发生在 update 内，禁止读布局）。
  */
-function buildDimDecorations(view: EditorView): DecorationSet {
+function buildDimDecorations(
+	view: EditorView,
+	deadZone: { topPx: number; bottomPx: number } | null,
+): DecorationSet {
 	if (!typewriterConfig.mode || typewriterConfig.opacity >= 100) {
 		return Decoration.none;
 	}
+	// 边界未就绪或退化（未测量/隐藏）→ 不做淡化，避免全部行被误淡化
+	if (!deadZone || deadZone.bottomPx <= deadZone.topPx) return Decoration.none;
 
 	const opacity = Math.max(0, Math.min(100, typewriterConfig.opacity)) / 100;
 	const dim = Decoration.line({ attributes: { style: `opacity: ${opacity}` } });
 	const builder = new RangeSetBuilder<Decoration>();
 	const doc = view.state.doc;
 	const cursorLine = doc.lineAt(view.state.selection.main.head).number;
-
-	const viewState = (view as unknown as { viewState: { pixelViewport: { top: number; bottom: number } } }).viewState;
-	const viewportTopPx = viewState.pixelViewport.top;
-	const viewportHeightPx = viewState.pixelViewport.bottom - viewportTopPx;
-	// 未测量（pixelViewport 初始 {0,0}）时不做淡化，避免全部行被误淡化
-	if (viewportHeightPx <= 0) return Decoration.none;
-	const zone2TopPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 死区上沿（12.5%）
-	const zone3BottomPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 死区下沿（87.5%）
 
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
@@ -94,7 +93,7 @@ function buildDimDecorations(view: EditorView): DecorationSet {
 			if (line.number === cursorLine) continue; // 当前行始终不淡化
 			const block = view.lineBlockAt(line.from);
 			// 行整体落在死区内（不越出 12.5%~87.5%）→ 保持明亮；死区外 → 淡化
-			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) continue;
+			if (block.top >= deadZone.topPx && block.bottom <= deadZone.bottomPx) continue;
 			builder.add(line.from, line.from, dim);
 		}
 	}
@@ -120,6 +119,12 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private appliedTopPadding = -1;
 		/** 留白值是否需要（重新）计算：配置变化 / 几何变化（窗口、面板缩放）时置位 */
 		private topPaddingDirty = true;
+		/**
+		 * 死区上下沿（contentDOM 局部坐标）。由 refreshDimDeadZone 在允许读
+		 * 布局的上下文（滚动事件 / 构造函数 / 几何变化后的 rAF）实时计算：
+		 * 滚动时逐事件刷新，保证淡化边界始终与当前视口一致。
+		 */
+		private dimDeadZone: { topPx: number; bottomPx: number } | null = null;
 
 		/** 文档级 pointerup（capture）：编辑器内按下后即使拖出编辑器/窗口也能捕获松开 */
 		private readonly onDocumentPointerUp = (): void => {
@@ -153,18 +158,44 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		};
 
 		/**
-		 * 滚动监听：纯滚动不产生 CM6 事务，死区淡化装饰不会自动重建，
-		 * 导致死区边界停留在上一次交互的位置。派发一个空事务触发 update
-		 * → 装饰重建，用最新测量刷新死区边界（滞后一个滚动事件，不可感知）。
+		 * 滚动监听：纯滚动不产生 CM6 事务，淡化装饰不会自动重建。这里用
+		 * 当前滚动位置实时刷新死区边界（滚动事件上下文允许读布局），再派发
+		 * 一个空事务触发 update → 装饰重建。逐滚动事件刷新，淡化边界始终与
+		 * 视口一致（不会出现滚动到某处时大半视图被淡化的滞后现象）。
 		 */
 		private readonly onScroll = (): void => {
-			if (!typewriterConfig.mode || this.destroyed) return;
+			if (!typewriterConfig.mode || typewriterConfig.opacity >= 100 || this.destroyed) return;
+			this.refreshDimDeadZone(this.view);
 			this.view.dispatch({});
 		};
 
+		/**
+		 * 用当前滚动位置与内容静态偏移实时计算死区上下沿（contentDOM 局部
+		 * 坐标）。仅可从允许读布局的上下文调用（滚动事件 / 构造函数 / rAF），
+		 * 绝不在 update 内调用。
+		 */
+		private refreshDimDeadZone(view: EditorView): void {
+			const scroller = view.scrollDOM;
+			const scrollTop = scroller.scrollTop;
+			// 内容相对滚动容器顶部的静态偏移（不含滚动；布局不变则恒定）
+			const staticOffset = view.contentDOM.getBoundingClientRect().top
+				- scroller.getBoundingClientRect().top
+				+ scrollTop;
+			const viewportHeight = scroller.clientHeight;
+			if (viewportHeight <= 0) {
+				this.dimDeadZone = null;
+				return;
+			}
+			this.dimDeadZone = {
+				topPx: scrollTop - staticOffset + viewportHeight * DEAD_ZONE_TOP_RATIO,
+				bottomPx: scrollTop - staticOffset + viewportHeight * DEAD_ZONE_BOTTOM_RATIO,
+			};
+		}
+
 		constructor(view: EditorView) {
 			this.view = view;
-			this.decorations = buildDimDecorations(view);
+			this.refreshDimDeadZone(view);
+			this.decorations = buildDimDecorations(view, this.dimDeadZone);
 			this.syncTopPadding(view);
 			const dom = view.dom;
 			dom.addEventListener('pointerdown', this.onPointerDown, true);
@@ -294,7 +325,17 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 			// 淡化装饰：设置、文档、选区、视口（滚动）任一变化即重建
 			if (configChanged || update.docChanged || update.selectionSet || update.viewportChanged) {
-				this.decorations = buildDimDecorations(update.view);
+				this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
+			}
+
+			// 几何（缩放/标题/面板）或留白变化、或边界尚未就绪时，安排 rAF
+			// 刷新死区边界缓存并重建装饰（rAF 上下文允许读布局；update 内禁止）。
+			if (update.geometryChanged || marginChanged || this.dimDeadZone === null) {
+				window.requestAnimationFrame(() => {
+					if (this.destroyed) return;
+					this.refreshDimDeadZone(update.view);
+					this.decorations = buildDimDecorations(update.view, this.dimDeadZone);
+				});
 			}
 
 			// 头部留白：配置/几何（窗口、面板缩放）变化时置脏，下次 update
