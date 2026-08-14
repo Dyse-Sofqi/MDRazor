@@ -401,8 +401,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			});
 
 		this.typewriterOpacitySetting = new Setting(panel)
-			.setName('非当前行的不透明度')
-			.setDesc('打字机模式下，除光标所在行外的所有行的显示不透明度（0-100）。100 为完全不淡化，仅模式开启时生效')
+			.setName('死区外的不透明度')
+			.setDesc('打字机模式下，光标所在中部死区（视口 25%~75%）之外的行（顶部/底部 1/4）的显示不透明度（0-100）。100 为完全不淡化；死区内与当前行保持明亮。仅模式开启时生效')
 			.addSlider((slider) =>
 				slider
 					.setLimits(0, 100, 1)

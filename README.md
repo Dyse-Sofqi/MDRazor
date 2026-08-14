@@ -103,7 +103,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。
 
-- **打字机模式** — 开启后，光标所在行保持在页面中部区域（范围居中/死区滚动）：视口高度按 1:1:1:1 分为四个区间，光标行落在中部 2/3 区间（25%~75%）时不调整滚轴，落入顶部 1/4 或底部 1/4 时统一滚动到 2 区间顶部（视口 25% 处）——相比精准居中滚动频率大幅降低，减轻视觉疲劳。其余行按「非当前行的不透明度」淡化显示，专注当前行。子设置项「非当前行的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留空白，使光标位于文档第一行时也能滚入中部区域。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
+- **打字机模式** — 开启后，光标所在行保持在页面中部区域（范围居中/死区滚动）：视口高度按 1:1:1:1 分为四个区间，光标行落在中部 2/3 区间（25%~75%）时不调整滚轴，落入顶部 1/4 或底部 1/4 时统一滚动到 2 区间顶部（视口 25% 处）——相比精准居中滚动频率大幅降低，减轻视觉疲劳。死区外（顶部/底部 1/4）的行按「死区外的不透明度」淡化显示，死区内与当前行保持明亮，聚焦中部阅读带。子设置项「死区外的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留视口高度 1/4 的空白，使光标位于文档第一行时也能滚入中部区域。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
 
 ---
 
@@ -130,7 +130,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
 - **列表增强** — 9 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
-- **标签页** — 8 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含非当前行的不透明度、允许文档头部留存空白区域）
+- **标签页** — 8 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含死区外的不透明度、允许文档头部留存空白区域）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
 - **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
@@ -267,7 +267,7 @@ File tab management with the following independent toggles:
 
 - **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low.
 
-- **Typewriter Mode** — When enabled, the cursor line is kept in the middle band of the page (range centering / dead-zone scrolling): the viewport is split into four equal quarters, and the cursor line is left untouched while it sits in the middle quarters 2–3 (25%–75%); when it falls into the top or bottom quarter, it is scrolled to the top of quarter 2 (25% of the viewport) — far fewer scroll operations than precise centering, reducing visual fatigue. All other lines are dimmed per the "Non-Current Line Opacity" sub-setting to focus the current line. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space above the document so the cursor can reach the middle band even on the very first line. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
+- **Typewriter Mode** — When enabled, the cursor line is kept in the middle band of the page (range centering / dead-zone scrolling): the viewport is split into four equal quarters, and the cursor line is left untouched while it sits in the middle quarters 2–3 (25%–75%); when it falls into the top or bottom quarter, it is scrolled to the top of quarter 2 (25% of the viewport) — far fewer scroll operations than precise centering, reducing visual fatigue. Lines outside the dead zone (top/bottom quarter) are dimmed per the "Outside Dead-Zone Opacity" sub-setting, while lines inside the dead zone and the current line stay bright, focusing the middle reading band. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space of 1/4 viewport height above the document so the cursor can reach the middle band even on the very first line. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
 
 ---
 
@@ -286,7 +286,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
 - **List Enhancements** — 9 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
-- **Tabs** — 8 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Non-Current Line Opacity, Allow Blank Area at Document Top)
+- **Tabs** — 8 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top)
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
 - **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)

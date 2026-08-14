@@ -6,8 +6,9 @@
  *      落在中部 2/3 区间（25%~75%）时不调整滚轴；落入顶部 1/4 或底部 1/4
  *      区间时统一将该行滚动到 2 区间顶部（视口 25% 处）。相比精准居中滚动
  *      频率大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
- *   2. 非当前行淡化：除光标所在行外的所有行按「非当前行的不透明度」
- *      （0-100）淡化显示
+ *   2. 死区外淡化：除当前行与死区（视口中部 25%~75%）内的行外，其余行
+ *      （顶部/底部 1/4）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
+ *      阅读带
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
  *      切换 mdrazor-typewriter-top-padding 类并设置 CSS 变量
  *      --mdrazor-typewriter-top-padding = 视口高 × 25%，styles.css 将其应用到
@@ -50,8 +51,20 @@ export const typewriterConfig: { mode: boolean; opacity: number; topPadding: boo
 const ZONE2_TOP_RATIO = 0.25;
 
 /**
- * 为可视范围内所有非当前行构建淡化装饰。
- * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做任何淡化）。
+ * 死区：范围居中保持光标所在行的中部区域（视口 25%~75%）。
+ * 死区内与当前行不淡化，「死区外的不透明度」只作用于顶部/底部 1/4 的行。
+ */
+const DEAD_ZONE_TOP_RATIO = ZONE2_TOP_RATIO;
+const DEAD_ZONE_BOTTOM_RATIO = 1 - ZONE2_TOP_RATIO;
+
+/**
+ * 为可视范围内死区外的行构建淡化装饰。
+ * 死区 = 视口中部 25%~75%（光标所在区域，范围居中保持区）；死区外 =
+ * 顶部/底部 1/4。当前行与死区内的行保持明亮。
+ * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做淡化）。
+ *
+ * 死区判定基于 viewState.pixelViewport 与 lineBlockAt（均为 contentDOM 局部
+ * 坐标的缓存值，不读取 DOM 布局——装饰重建发生在 update 内，禁止读布局）。
  */
 function buildDimDecorations(view: EditorView): DecorationSet {
 	if (!typewriterConfig.mode || typewriterConfig.opacity >= 100) {
@@ -64,15 +77,23 @@ function buildDimDecorations(view: EditorView): DecorationSet {
 	const doc = view.state.doc;
 	const cursorLine = doc.lineAt(view.state.selection.main.head).number;
 
+	const viewState = (view as unknown as { viewState: { pixelViewport: { top: number; bottom: number } } }).viewState;
+	const viewportTopPx = viewState.pixelViewport.top;
+	const viewportHeightPx = viewState.pixelViewport.bottom - viewportTopPx;
+	const zone2TopPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 死区上沿（25%）
+	const zone3BottomPx = viewportTopPx + viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 死区下沿（75%）
+
 	for (const { from, to } of view.visibleRanges) {
 		if (from >= to) continue;
 		const startLine = doc.lineAt(from);
 		const endLine = doc.lineAt(to);
 		for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
 			const line = doc.line(lineNum);
-			if (line.number !== cursorLine) {
-				builder.add(line.from, line.from, dim);
-			}
+			if (line.number === cursorLine) continue; // 当前行始终不淡化
+			const block = view.lineBlockAt(line.from);
+			// 行整体落在死区内（不越出 25%~75%）→ 保持明亮；死区外 → 淡化
+			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) continue;
+			builder.add(line.from, line.from, dim);
 		}
 	}
 
