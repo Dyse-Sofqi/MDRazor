@@ -388,7 +388,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(panel)
 			.setName('打字机模式')
-			.setDesc('开启后，编辑文档时光标所在行始终保持于页面中央（打字机滚动），其余行按下方「非当前行的不透明度」淡化显示。命令「开启/关闭打字机模式」可绑定快捷键')
+			.setDesc('开启后，编辑文档时光标所在行保持在页面中部区域（范围居中），死区外（顶部/底部 1/4）的行按下方「死区外的不透明度」淡化显示。命令「开启/关闭打字机模式」可绑定快捷键')
 			.addToggle((toggle) => {
 				this.typewriterToggle = toggle;
 				toggle
@@ -584,7 +584,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	}
 
 	/**
-	 * 打字机模式子设置项显隐：仅模式开启时显示「非当前行的不透明度」与
+	 * 打字机模式子设置项显隐：仅模式开启时显示「死区外的不透明度」与
 	 * 「允许文档头部留存空白区域」。
 	 */
 	private applyTypewriterChildVisibility(): void {

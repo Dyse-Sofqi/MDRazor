@@ -27,7 +27,7 @@
  *   - 命令「开启/关闭打字机模式」（可绑定快捷键），与设置开关双向同步
  *
  * 实现：单个 CM6 ViewPlugin ——
- *   - decorations 基于 visibleRanges 为每条非当前行添加 line 装饰（内联
+ *   - decorations 基于 visibleRanges 为死区外的行添加 line 装饰（内联
  *     opacity 样式），仅处理可视行，性能开销低（与空格可视化同模式）
  *   - update() 中监听文档/选区/视口变化；光标跨行时经
  *     EditorView.scrollIntoView(..., { y: 'center' }) 滚动居中
