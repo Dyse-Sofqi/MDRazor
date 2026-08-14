@@ -10,11 +10,10 @@
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
  *      切换 mdrazor-typewriter-top-padding 类并设置 CSS 变量
  *      --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2，styles.css 将
- *      其应用到 .cm-sizer 的 padding-top（.cm-sizer 是 .cm-scroller 内的内容
- *      容器，Obsidian 的页面内标题 inline-title 也位于其中），在文档最顶部
- *      创建可滚动空白，使光标位于第一行时也能滚动到页面中央。留白位于标题
- *      上方，标题不会被推离正文。CM6 坐标换算基于真实 DOM 几何（contentDOM
- *      rect 已含该推挤），scrollIntoView 居中计算自动正确。
+ *      其应用到 .cm-editor 自身的 padding-top，在滚动容器（.cm-scroller）
+ *      之外、编辑器顶部钉一条固定留白：始终可见、与滚动位置无关，光标位于
+ *      文档第一行时恰好处于编辑器垂直中央（首行可居中）；页面内标题
+ *      inline-title 位于 .cm-scroller 内，留白在标题上方、标题紧贴正文。
  *      注意：EditorView.scrollMargins 仅用于让滚动避开固定面板，不会创建
  *      可滚动空白，故不采用。
  *
@@ -125,16 +124,15 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		/**
 		 * 文档头部留白：在 .cm-editor 上切换 mdrazor-typewriter-top-padding 类，
 		 * 并动态设置 CSS 变量 --mdrazor-typewriter-top-padding = (视口高 - 行高) / 2。
-		 * styles.css 将该变量应用到 .cm-sizer 的 padding-top —— .cm-sizer 位于
-		 * .cm-scroller 内，Obsidian 的页面内标题 inline-title 也位于其中，因此
-		 * 留白出现在文档最顶部（标题上方），标题紧贴正文不被隔开。CM6 坐标
-		 * 换算基于真实 DOM 几何（contentDOM rect 已含该推挤），scrollIntoView
-		 * 居中计算随之正确（首行居中恰好落在 scrollTop=0）。
+		 * styles.css 将该变量应用到 .cm-editor 自身的 padding-top —— 留白位于
+		 * 滚动容器（.cm-scroller）之外，始终钉在编辑器顶部，与滚动位置无关：
+		 *   - 光标在第一行时恰好位于编辑器垂直中央（首行可居中）；
+		 *   - 页面内标题 inline-title 位于 .cm-scroller 内，留白在标题上方。
 		 *
 		 * 每次 update() 都会调用本方法（而非仅视口/几何变化时），确保类与变量
-		 * 始终与最新配置一致，避免因滚动幅度小、视口范围未变而漏更新导致
-		 * 留白时有时无。行高或视口尺寸暂不可用（首次测量前 / 隐藏标签页）时
-		 * 保持当前状态不动，避免误清空留白。
+		 * 始终与最新配置一致。视口高取 view.dom.clientHeight（含 padding，
+		 * 数值恒定），避免取 scrollDOM.clientHeight 因 padding 挤占而逐次漂移。
+		 * 行高或视口尺寸暂不可用（首次测量前 / 隐藏标签页）时保持当前状态不动。
 		 * 模式关闭或留白开关关闭时移除类与变量。
 		 */
 		private applyTopPadding(view: EditorView): void {
@@ -148,7 +146,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				return;
 			}
 			const lineHeight = view.defaultLineHeight;
-			const viewportHeight = view.scrollDOM.clientHeight;
+			// 编辑器总高（clientHeight 含 padding，不受留白影响，数值恒定）
+			const viewportHeight = view.dom.clientHeight;
 			// 行高/视口不可用（未测量、隐藏标签页）→ 保持现状，待可用时再应用
 			if (!lineHeight || lineHeight <= 0 || viewportHeight <= 0) return;
 			const top = Math.max(0, Math.floor((viewportHeight - lineHeight) / 2));
