@@ -230,7 +230,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(panel)
 			.setName('滚轴同步')
-			.setDesc('选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 12.5% 处（死区上沿），避免长列表伸缩使光标跑出视图外')
+			.setDesc('选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 25% 处，避免长列表伸缩使光标跑出视图外')
 			.addToggle((toggle) => {
 				scrollSyncToggle = toggle;
 				toggle
