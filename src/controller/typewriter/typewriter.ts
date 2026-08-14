@@ -183,22 +183,38 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		}
 
 		/**
-		 * 范围居中（死区滚动）：光标跨行时检查其所在行在视口中的区间。
+		 * 范围居中（死区滚动）——调度入口（零布局读取）：
+		 * 光标跨行时安排一次微任务执行实际的区间判定与滚动。
 		 * 视口高度按 1:1:1:1 分为 1（顶）、2、3、4（底）四个区间：
 		 *   - 光标所在行整体落在 2、3 区间（视口中部 25%~75%）→ 不调整滚轴；
 		 *   - 落入 1 或 4 区间（顶部/底部 1/4）→ 将该行统一滚动到 2 区间
 		 *     顶部（行首对齐视口 25% 处）。
 		 * 相比精准居中，滚动频率大幅降低，减轻视觉疲劳。
-		 * 注意：ViewPlugin.update 执行期间不允许同步 dispatch（会递归触发更新
-		 * 抛错），因此经 queueMicrotask 延后到本次更新完成后再派发。
 		 */
 		private maybeRangeScroll(view: EditorView): void {
 			if (!typewriterConfig.mode || this.isPointerDown || this.destroyed) return;
 			const head = view.state.selection.main.head;
 			const lineNumber = view.state.doc.lineAt(head).number;
-			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不读取布局
+			if (lineNumber === this.lastAdjustedLine) return; // 光标未跨行 → 不安排
 			this.lastAdjustedLine = lineNumber;
 
+			// 布局读取（coordsAtPos/getBoundingClientRect）与 dispatch 在
+			// ViewPlugin.update 期间均不被允许，统一延后到本次更新完成后的
+			// 微任务执行。
+			window.queueMicrotask(() => {
+				if (this.destroyed || !typewriterConfig.mode || this.isPointerDown) return;
+				// 光标可能已再次跨行：仅当仍在同一行时才执行判定
+				const nowHead = view.state.selection.main.head;
+				if (view.state.doc.lineAt(nowHead).number !== lineNumber) return;
+				this.applyRangeScroll(view, nowHead);
+			});
+		}
+
+		/**
+		 * 范围居中判定与滚动（仅从微任务/事件回调调用，不在 update 内）：
+		 * 光标所在行落入 1/4 区间时滚动到 2 区间顶部（视口 25% 处）。
+		 */
+		private applyRangeScroll(view: EditorView, head: number): void {
 			const coords = view.coordsAtPos(head);
 			if (!coords) return; // 不可见/未测量
 			const viewportTop = view.scrollDOM.getBoundingClientRect().top;
