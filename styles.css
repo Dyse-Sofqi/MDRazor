@@ -266,7 +266,7 @@ div.nav-folder-title {
 
 /* ── 打字机模式：文档头部留白 ──
    插件在 .cm-editor 上切换该类，并动态设置 --mdrazor-typewriter-top-padding
-   （(视口高 - 行高) / 2）。留白应用在 .cm-sizer（.cm-scroller 内的内容
+   （视口高 × 12.5%）。留白应用在 .cm-sizer（.cm-scroller 内的内容
    容器，页面内标题 inline-title 也位于其中）的 padding-top，属于滚动内容
    的一部分：
      - 仅在文档顶部（滚动范围顶端）可见——光标在第一行居中时、或手动滚动
@@ -277,4 +277,31 @@ div.nav-folder-title {
    特异性，避免被主题样式覆盖。 */
 .markdown-source-view .cm-editor.mdrazor-typewriter-top-padding .cm-scroller .cm-sizer {
 	padding-top: var(--mdrazor-typewriter-top-padding, 0px);
+}
+
+/* ── 打字机模式：死区外淡化遮罩 ──
+   顶部/底部 1/8 各盖一块半透明遮罩（position: absolute + CSS 百分比高度，
+   天然与视口绑定），死区（视口中部 12.5%~87.5%）不遮罩、始终明亮。
+   不透明度经 --mdrazor-typewriter-dim-opacity 动态设置（(100 − 拉杆值)/100），
+   遮罩不拦截点击（pointer-events: none），滚动/点击时淡化边界永远与视口
+   一致——纯视口固定，无坐标换算与缓存滞后问题。 */
+.cm-editor.mdrazor-typewriter-dimming {
+	position: relative;
+}
+.cm-editor.mdrazor-typewriter-dimming .mdrazor-typewriter-dim-top,
+.cm-editor.mdrazor-typewriter-dimming .mdrazor-typewriter-dim-bottom {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 12.5%;
+	background: var(--background-primary);
+	opacity: var(--mdrazor-typewriter-dim-opacity, 0);
+	pointer-events: none;
+	z-index: 100;
+}
+.cm-editor.mdrazor-typewriter-dimming .mdrazor-typewriter-dim-top {
+	top: 0;
+}
+.cm-editor.mdrazor-typewriter-dimming .mdrazor-typewriter-dim-bottom {
+	bottom: 0;
 }

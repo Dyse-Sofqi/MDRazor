@@ -6,9 +6,10 @@
  *      光标所在行落在中部死区（12.5%~87.5%）时不调整滚轴；落入顶部/底部
  *      1/8 时统一将该行滚动到死区上沿（视口 12.5% 处）。相比精准居中滚动
  *      频率大幅降低。鼠标按压/拖选期间不触发，松开后才触发，避免拖选干扰
- *   2. 死区外淡化：除当前行与死区（视口中部 12.5%~87.5%）内的行外，其余行
- *      （顶部/底部 1/8）按「死区外的不透明度」（0-100）淡化显示，聚焦中部
- *      阅读带
+ *   2. 死区外淡化：在编辑器顶部/底部 1/8 各盖一块半透明遮罩（position:
+ *      absolute + CSS 百分比，天然与视口绑定），死区（视口中部 12.5%~
+ *      87.5%）不遮罩、始终明亮。遮罩不拦截点击。相比逐行装饰，无坐标
+ *      换算、无缓存滞后、无模型不一致问题，滚动时淡化边界永远与视口一致
  *   3. 文档头部留白：开启「允许文档头部留存空白区域」后，在 .cm-editor 上
  *      切换 mdrazor-typewriter-top-padding 类并设置 CSS 变量
  *      --mdrazor-typewriter-top-padding = 视口高 × 12.5%，styles.css 将其应用到
@@ -27,17 +28,16 @@
  *   - 命令「开启/关闭打字机模式」（可绑定快捷键），与设置开关双向同步
  *
  * 实现：单个 CM6 ViewPlugin ——
- *   - decorations 基于 visibleRanges 为死区外的行添加 line 装饰（内联
- *     opacity 样式），仅处理可视行，性能开销低（与空格可视化同模式）
- *   - update() 中监听文档/选区/视口变化；光标跨行时经
- *     EditorView.scrollIntoView(..., { y: 'center' }) 滚动居中
- *   - 头部留白在 update() 中按视口/行高计算并写入 CSS 变量，由 styles.css
- *     应用到 .cm-sizer 的 padding-top（含页面内标题的文档，留白位于标题上方）
+ *   - 淡化：两个绝对定位遮罩 div（顶部/底部 12.5%），由 styles.css 的
+ *     百分比高度定位，opacity 经 CSS 变量动态设置，纯视口绑定、零 JS
+ *     几何计算
+ *   - update() 中监听光标跨行，经 EditorView.scrollIntoView(..., { y:
+ *     'start', yMargin: 12.5%H }) 做死区滚动
+ *   - 头部留白按视口高计算并写入 CSS 变量，由 styles.css 应用到 .cm-sizer
  */
 
 import { type Plugin } from 'obsidian';
-import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet } from '@codemirror/view';
-import { RangeSetBuilder } from '@codemirror/state';
+import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { type MDRazorSettings } from '../../model/settings';
 
 /** 模块级可变配置，由 controller/main.ts 在设置变更时写入。 */
@@ -50,69 +50,8 @@ export const typewriterConfig: { mode: boolean; opacity: number; topPadding: boo
 /** 范围居中：死区上沿（2 区间顶部）相对视口高度的比例（视口 1/8 处 = 12.5%） */
 const ZONE2_TOP_RATIO = 0.125;
 
-/**
- * 死区：范围居中保持光标所在行的中部区域（视口 12.5%~87.5%，中段 3/4）。
- * 死区内与当前行不淡化，「死区外的不透明度」只作用于顶部/底部 1/8 的行。
- */
-const DEAD_ZONE_TOP_RATIO = ZONE2_TOP_RATIO;
-const DEAD_ZONE_BOTTOM_RATIO = 1 - ZONE2_TOP_RATIO;
-
-/**
- * 为可视范围内死区外的行构建淡化装饰。
- * 死区 = 视口中部 12.5%~87.5%（光标所在区域，范围居中保持区）；死区外 =
- * 顶部/底部 1/8。当前行与死区内的行保持明亮。
- * 不透明度 = typewriterConfig.opacity / 100（100 时返回空装饰，不做淡化）。
- *
- * 死区边界用「实时 scrollDOM.scrollTop（普通属性读取，不触发布局，update
- * 内允许）− 静态偏移 + 比例 × 视口高」计算，任何时刻（含范围居中派发的
- * 滚动事务）都与当前滚动位置一致，不会因缓存滞后把死区外最近的行误判为
- * 死区内。静态偏移/视口高由插件在允许读布局的上下文缓存（滚动事件/构造
- * 函数/几何变化后的 rAF）；lineBlockAt 的行块位置同为 contentDOM 局部坐标
- * 的缓存值，本函数不读取 DOM 布局。
- */
-function buildDimDecorations(
-	view: EditorView,
-	geo: { staticOffsetPx: number; viewportHeightPx: number } | null,
-): DecorationSet {
-	if (!typewriterConfig.mode || typewriterConfig.opacity >= 100) {
-		return Decoration.none;
-	}
-	// 几何未就绪或退化（未测量/隐藏）→ 不做淡化，避免全部行被误淡化
-	if (!geo || geo.viewportHeightPx <= 0) return Decoration.none;
-
-	// 实时滚动位置（无需布局）；死区边界随当前滚动即时更新
-	const scrollTop = view.scrollDOM.scrollTop;
-	const viewportTopPx = scrollTop - geo.staticOffsetPx; // 视口顶（contentDOM 局部）
-	const zone2TopPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_TOP_RATIO; // 12.5%
-	const zone3BottomPx = viewportTopPx + geo.viewportHeightPx * DEAD_ZONE_BOTTOM_RATIO; // 87.5%
-
-	const opacity = Math.max(0, Math.min(100, typewriterConfig.opacity)) / 100;
-	const dim = Decoration.line({ attributes: { style: `opacity: ${opacity}` } });
-	const builder = new RangeSetBuilder<Decoration>();
-	const doc = view.state.doc;
-	const cursorLine = doc.lineAt(view.state.selection.main.head).number;
-
-	for (const { from, to } of view.visibleRanges) {
-		if (from >= to) continue;
-		const startLine = doc.lineAt(from);
-		const endLine = doc.lineAt(to);
-		for (let lineNum = startLine.number; lineNum <= endLine.number; lineNum++) {
-			const line = doc.line(lineNum);
-			if (line.number === cursorLine) continue; // 当前行始终不淡化
-			const block = view.lineBlockAt(line.from);
-			// 行整体落在死区内（不越出 12.5%~87.5%）→ 保持明亮；死区外 → 淡化
-			if (block.top >= zone2TopPx && block.bottom <= zone3BottomPx) continue;
-			builder.add(line.from, line.from, dim);
-		}
-	}
-
-	return builder.finish();
-}
-
 const typewriterPlugin = ViewPlugin.fromClass(
 	class {
-		decorations: DecorationSet;
-
 		private readonly view: EditorView;
 		private lastMode = typewriterConfig.mode;
 		private lastOpacity = typewriterConfig.opacity;
@@ -127,15 +66,9 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		private appliedTopPadding = -1;
 		/** 留白值是否需要（重新）计算：配置变化 / 几何变化（窗口、面板缩放）时置位 */
 		private topPaddingDirty = true;
-		/** 滚动刷新派发是否已排队（同一帧多个滚动事件合并为一次派发） */
-		private scrollRefreshPending = false;
-		/**
-		 * 内容静态偏移（contentDOM 顶部相对滚动容器内容顶，不含滚动）与滚动
-		 * 视口高。布局不变则静态偏移恒定，仅需在允许读布局的上下文刷新
-		 * （构造函数 / 滚动事件 / 几何变化后的 rAF）；滚动位置在装饰重建时
-		 * 实时读取，因此边界始终与当前滚动一致。
-		 */
-		private dimGeo: { staticOffsetPx: number; viewportHeightPx: number } | null = null;
+		/** 顶部/底部淡化遮罩（视口固定，纯 CSS 百分比定位） */
+		private readonly dimVeilTop: HTMLElement;
+		private readonly dimVeilBottom: HTMLElement;
 
 		/** 文档级 pointerup（capture）：编辑器内按下后即使拖出编辑器/窗口也能捕获松开 */
 		private readonly onDocumentPointerUp = (): void => {
@@ -168,65 +101,58 @@ const typewriterPlugin = ViewPlugin.fromClass(
 			}
 		};
 
-		/**
-		 * 滚动监听：纯滚动不产生 CM6 事务，且视口/visibleRanges 缓存要到
-		 * 测量（rAF）后才更新。这里刷新静态偏移缓存（滚动事件上下文允许读
-		 * 布局），请求测量，并把空事务派发延后到 rAF——测量先于我们的 rAF
-		 * 执行（rAF 队列 FIFO），派发时可见行已刷新，update() 中每次重建
-		 * 装饰即可用正确的 visibleRanges 与实时边界渲染。
-		 */
-		private readonly onScroll = (): void => {
-			if (!typewriterConfig.mode || typewriterConfig.opacity >= 100 || this.destroyed) return;
-			this.refreshDimGeo(this.view);
-			this.view.requestMeasure();
-			if (this.scrollRefreshPending) return; // 同一帧内多个滚动事件合并为一次派发
-			this.scrollRefreshPending = true;
-			window.requestAnimationFrame(() => {
-				this.scrollRefreshPending = false;
-				if (this.destroyed || !typewriterConfig.mode) return;
-				this.view.dispatch({});
-			});
-		};
-
-		/**
-		 * 刷新静态偏移与视口高缓存。仅可从允许读布局的上下文调用（滚动
-		 * 事件 / 构造函数 / rAF），绝不在 update 内调用。
-		 */
-		private refreshDimGeo(view: EditorView): void {
-			const scroller = view.scrollDOM;
-			const scrollTop = scroller.scrollTop;
-			const staticOffsetPx = view.contentDOM.getBoundingClientRect().top
-				- scroller.getBoundingClientRect().top
-				+ scrollTop;
-			const viewportHeightPx = scroller.clientHeight;
-			if (viewportHeightPx <= 0) {
-				this.dimGeo = null;
-				return;
-			}
-			this.dimGeo = { staticOffsetPx, viewportHeightPx };
-		}
-
 		constructor(view: EditorView) {
 			this.view = view;
-			this.refreshDimGeo(view);
-			this.decorations = buildDimDecorations(view, this.dimGeo);
+			const doc = view.dom.ownerDocument;
+			this.dimVeilTop = doc.createElement('div');
+			this.dimVeilTop.className = 'mdrazor-typewriter-dim-top';
+			this.dimVeilBottom = doc.createElement('div');
+			this.dimVeilBottom.className = 'mdrazor-typewriter-dim-bottom';
+			view.dom.appendChild(this.dimVeilTop);
+			view.dom.appendChild(this.dimVeilBottom);
+
+			this.syncDimVeil(view);
 			this.syncTopPadding(view);
 			const dom = view.dom;
 			dom.addEventListener('pointerdown', this.onPointerDown, true);
 			dom.addEventListener('pointercancel', this.onPointerCancel, true);
 			dom.addEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.addEventListener('pointerup', this.onDocumentPointerUp, true);
-			view.scrollDOM.addEventListener('scroll', this.onScroll, { passive: true });
 		}
 
 		destroy() {
 			this.destroyed = true;
+			this.dimVeilTop.remove();
+			this.dimVeilBottom.remove();
 			const dom = this.view.dom;
 			dom.removeEventListener('pointerdown', this.onPointerDown, true);
 			dom.removeEventListener('pointercancel', this.onPointerCancel, true);
 			dom.removeEventListener('mousedown', this.onEditorMouseDown, true);
 			dom.ownerDocument.removeEventListener('pointerup', this.onDocumentPointerUp, true);
-			this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
+		}
+
+		/**
+		 * 死区外淡化遮罩：在 .cm-editor 上切换 mdrazor-typewriter-dimming 类，
+		 * 并动态设置 CSS 变量 --mdrazor-typewriter-dim-opacity = (100 − 不透明度)
+		 * / 100。styles.css 将该变量应用到两块绝对定位遮罩（顶部/底部 12.5%）
+		 * 的 opacity —— 纯 CSS 百分比定位，天然与视口绑定，滚动时淡化边界
+		 * 永远与视口一致，无坐标换算/缓存滞后问题。死区内（中部 3/4）不遮罩。
+		 * 模式关闭或不透明度为 100 时移除类与变量。
+		 */
+		private syncDimVeil(view: EditorView): void {
+			const editorEl = view.dom;
+			const active = typewriterConfig.mode && typewriterConfig.opacity < 100;
+			if (active) {
+				const opacity = Math.max(0, Math.min(100, typewriterConfig.opacity)) / 100;
+				editorEl.classList.add('mdrazor-typewriter-dimming');
+				const value = String(1 - opacity);
+				if (editorEl.style.getPropertyValue('--mdrazor-typewriter-dim-opacity') !== value) {
+					editorEl.setCssProps({ '--mdrazor-typewriter-dim-opacity': value });
+				}
+			} else if (editorEl.classList.contains('mdrazor-typewriter-dimming')) {
+				editorEl.classList.remove('mdrazor-typewriter-dimming');
+				editorEl.setCssProps({ '--mdrazor-typewriter-dim-opacity': '0' });
+			}
 		}
 
 		/**
@@ -300,6 +226,8 @@ const typewriterPlugin = ViewPlugin.fromClass(
 		/**
 		 * 范围居中判定与滚动（仅从微任务/事件回调调用，不在 update 内）：
 		 * 光标所在行落入顶部/底部 1/8 时滚动到死区上沿（视口 12.5% 处）。
+		 * 使用 coordsAtPos（真实 DOM 几何）判定，与淡化遮罩（视口固定）
+		 * 天然一致，不存在边界错位。
 		 */
 		private applyRangeScroll(view: EditorView, head: number): void {
 			const coords = view.coordsAtPos(head);
@@ -324,29 +252,21 @@ const typewriterPlugin = ViewPlugin.fromClass(
 
 		update(update: ViewUpdate) {
 			const mode = typewriterConfig.mode;
+			const opacity = typewriterConfig.opacity;
 			const topPadding = typewriterConfig.topPadding;
 
+			// 设置变化（开关/不透明度/头部留白）无需任何文档事件即可感知
+			const configChanged = mode !== this.lastMode
+				|| opacity !== this.lastOpacity
+				|| topPadding !== this.lastTopPadding;
 			// 头部留白变化需触发一次测量，让 CM6 立即读取新的 padding-top
 			const marginChanged = mode !== this.lastMode || topPadding !== this.lastTopPadding;
 			this.lastMode = mode;
-			this.lastOpacity = typewriterConfig.opacity;
+			this.lastOpacity = opacity;
 			this.lastTopPadding = topPadding;
 
-			// 淡化装饰：每次 update 都重建（不依赖 viewportChanged——滚动触发的
-			// 空事务在 CM6 看来视口未变，但 rAF 派发时可见行已刷新，重建即用
-			// 正确状态渲染）。边界用实时 scrollTop 计算，范围居中派发的滚动
-			// 事务也能立即得到与当前滚动一致的死区边界。
-			this.decorations = buildDimDecorations(update.view, this.dimGeo);
-
-			// 几何（缩放/标题/面板）或留白变化、或几何缓存尚未就绪时，安排 rAF
-			// 刷新静态偏移/视口高缓存并重建装饰（rAF 上下文允许读布局；update
-			// 内禁止）。
-			if (update.geometryChanged || marginChanged || this.dimGeo === null) {
-				window.requestAnimationFrame(() => {
-					if (this.destroyed) return;
-					this.refreshDimGeo(update.view);
-					this.decorations = buildDimDecorations(update.view, this.dimGeo);
-				});
+			if (configChanged) {
+				this.syncDimVeil(update.view);
 			}
 
 			// 头部留白：配置/几何（窗口、面板缩放）变化时置脏，下次 update
@@ -365,9 +285,6 @@ const typewriterPlugin = ViewPlugin.fromClass(
 				this.maybeRangeScroll(update.view);
 			}
 		}
-	},
-	{
-		decorations: (v) => v.decorations,
 	},
 );
 
