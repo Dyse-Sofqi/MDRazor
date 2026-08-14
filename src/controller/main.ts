@@ -173,7 +173,7 @@ export default class MDRazorPlugin extends Plugin {
 		}
 
 		// 插件更新到新版本后首次启动时弹出本次更新的更新日志
-		this.maybeShowChangelog();
+		await this.maybeShowChangelog();
 	}
 
 	onunload() {
@@ -232,15 +232,22 @@ export default class MDRazorPlugin extends Plugin {
 	 *
 	 * 以 `manifest.version` 与持久化的 `lastSeenVersion` 比较：
 	 * 版本不同说明用户刚更新了插件，弹出本次更新的 CHANGELOG 摘要。
-	 * 先记录已读版本再弹窗——若弹窗被跳过/失败也不会反复打扰。
+	 * **必须先 `await saveData` 落盘成功再弹窗**——弹窗一旦出现，用户可能
+	 * 立即重载插件/重启 Obsidian，未等待的异步写入会被丢掉，导致
+	 * lastSeenVersion 永远停留在旧值、每次加载都弹窗。
 	 * 直写 `saveData` 而非 `saveSettings()`：后者会触发 repaintAllEditors
 	 * 与目录计数强制刷新，onload 阶段不必要。
 	 */
-	private maybeShowChangelog() {
+	private async maybeShowChangelog() {
 		const currentVersion = this.manifest.version;
 		if (this.settings.lastSeenVersion === currentVersion) return;
 		this.settings.lastSeenVersion = currentVersion;
-		void this.saveData(this.settings);
+		try {
+			await this.saveData(this.settings);
+		} catch (e) {
+			// 落盘失败不阻断弹窗（本次仍展示，下次加载再补记）
+			console.error('MDRazor: 保存已读更新日志版本失败', e);
+		}
 		new ChangelogModal(this.app).open();
 	}
 

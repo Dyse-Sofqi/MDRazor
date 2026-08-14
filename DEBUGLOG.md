@@ -264,3 +264,6 @@ pointerdown/mousedown/click (capture, 文件列表容器)
 2. **TS 识别 .md 模块** — 需 `src/typings.d.ts` 声明 `declare module '*.md' { const content: string; export default content; }`，否则 TS2307。
 3. **弹窗频率控制** — settings 新增 `lastSeenVersion`（随 data.json 持久化）；`manifest.version !== lastSeenVersion` 才弹窗。**先写 `lastSeenVersion` 再弹窗**，弹窗失败/被跳过也不反复打扰；持久化用 `saveData` 直写，勿走 `saveSettings()`（后者触发 repaintAllEditors + forceRefresh，onload 阶段不必要且 dirFileCountRefresher 可能尚未初始化）。
 4. **弹窗只显示最新版本条目** — 从全文提取首个 `**x.y.z**` 标题到第二个标题之间；解析失败（无版本标题）回退全文。
+5. **弹窗内容必须渲染 Markdown，勿用 pre 展示原文** — `MarkdownRenderer.render(app, text, el, '', this)`（Modal 自身即 Component）。CHANGELOG 里 `[[path]]`、`![[path]]` 均在行内代码内，渲染后是代码而非链接，无需担心被解析。
+6. **已读版本必须先落盘成功再弹窗** — `void saveData()` 不等待写入：弹窗一出现用户立即重载/重启 Obsidian，写入被丢弃 → lastSeenVersion 停留在旧值 → 每次加载都弹。必须 `await saveData`（onload 中 `await maybeShowChangelog()`）再 `new ChangelogModal().open()`；落盘失败 try/catch 兜底，不阻断弹窗（下次加载补记）。
+7. **「重载也弹」先查 data.json 脏值** — 若 data.json 的 `lastSeenVersion` 与 manifest.version 不一致（历史写入丢失/手动改动），每次加载都算「新版本」。修复版首次加载会补弹一次并收敛，属预期。
