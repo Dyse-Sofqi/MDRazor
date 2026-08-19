@@ -138,8 +138,8 @@ export default class MDRazorPlugin extends Plugin {
 			},
 			() => this.settings.tabExpansionAssociatedFolders,
 		);
-		// 注册 MD 文档光标和滚轴位置持久化
-		registerPositionPersistence(this, () => this.settings.positionPersistenceEnabled);
+		// 注册 MD 文档光标和滚轴位置持久化（先载入缓存再注册，避免重启后缓存被清空）
+		await registerPositionPersistence(this, () => this.settings.positionPersistenceEnabled);
 
 		// 注册切换标签页视图命令（verticalTabsEnabled 开启时可绑定快捷键）
 		this.addCommand({

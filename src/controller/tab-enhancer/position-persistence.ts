@@ -64,9 +64,15 @@ let filePathRef = '';
 let cache: PositionCache = {};
 let dirty = false;
 let diskTimer: number | null = null;
+/** 磁盘缓存是否已从磁盘载入；载入完成前禁止落盘，避免异步载入与
+ *  编辑器追踪并发时把真实缓存覆盖成部分/空数据（重启后缓存被清空的根因） */
+let loaded = false;
 
 function scheduleDiskWrite(): void {
 	dirty = true;
+	// 载入完成前只标记脏，不调度落盘：此时 flushDisk 若写入会用未合并的
+	// 部分数据覆盖磁盘上完整的 position-cache.json。载入完成后会补一次 flush。
+	if (!loaded) return;
 	if (diskTimer !== null) return;
 	diskTimer = window.setTimeout(() => {
 		diskTimer = null;
@@ -88,7 +94,7 @@ function flushNow(): void {
 }
 
 async function flushDisk(): Promise<void> {
-	if (!adapterRef || !filePathRef) return;
+	if (!adapterRef || !filePathRef || !loaded) return;
 	try {
 		await adapterRef.write(filePathRef, JSON.stringify(cache, null, 2));
 	} catch (err) {
@@ -129,32 +135,49 @@ async function loadCache(plugin: Plugin): Promise<void> {
 	const pluginDir =
 		plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
 	filePathRef = `${pluginDir}/${CACHE_FILE}`;
+
+	let diskCache: PositionCache = {};
 	try {
 		if (await adapterRef.exists(filePathRef)) {
 			const raw = JSON.parse(await adapterRef.read(filePathRef)) as unknown;
 			// 兼容两种落盘格式：早期 {positions:{}} 包裹，以及当前平铺 {path: record}
 			if (raw !== null && typeof raw === 'object' && 'positions' in raw) {
-				cache = (raw as { positions?: PositionCache }).positions ?? {};
+				diskCache = (raw as { positions?: PositionCache }).positions ?? {};
 			} else {
-				cache = raw as PositionCache;
+				diskCache = raw as PositionCache;
 			}
-		} else {
-			cache = {};
 		}
 	} catch {
-		cache = {};
+		diskCache = {};
 	}
 
+	// 合并 async 载入期间（adapter.read 完成前）编辑器已追踪写入的新记录，
+	// 避免整体替换缓存对象时把这些窗口期记录丢弃。
+	for (const key of Object.keys(cache)) {
+		const rec = cache[key];
+		if (rec) diskCache[key] = rec;
+	}
+	cache = diskCache;
+	loaded = true;
+
+	// 清理 vault 中已不存在文件的记录（记录为当前打开文件时不会被误删）。
+	// 仅当 vault 文件索引已就绪时才清理：启动早期（onload 期间）索引尚未填充时
+	// getAbstractFileByPath 会全部返回 null，此时清理会把全部记录误删、再落盘成
+	// 空文件（这是「重启后缓存被清空」的另一潜在根因）。索引未就绪时跳过清理，
+	// 保留旧记录，待下一次正常落盘（用户编辑触发 flush）时再一并净化。
+	const vaultReady = plugin.app.vault.getFiles().length > 0;
 	let pruned = false;
-	for (const path of Object.keys(cache)) {
-		if (!(plugin.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
-			delete cache[path];
-			pruned = true;
+	if (vaultReady) {
+		for (const path of Object.keys(cache)) {
+			if (!(plugin.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+				delete cache[path];
+				pruned = true;
+			}
 		}
 	}
-	if (pruned) {
-		dirty = true;
-		void flushDisk();
+	// 载入完成：补写窗口期累积的脏标记（此时 flushDisk 已允许落盘）
+	if (pruned || dirty) {
+		scheduleDiskWrite();
 	}
 }
 
@@ -335,11 +358,14 @@ function createPositionPlugin(app: App, enabled: () => boolean) {
  * 扩展无条件注册（与 registerTabEnhancer 相同模式），事件时读取
  * enabled() 决定是否记录/恢复，设置开关可即时生效。
  */
-export function registerPositionPersistence(
+export async function registerPositionPersistence(
 	plugin: Plugin,
 	enabled: () => boolean,
-): void {
-	void loadCache(plugin);
+): Promise<void> {
+	// 先完成磁盘缓存载入再注册编辑器扩展，保证：
+	//  1) ViewPlugin 构造后即可读到完整缓存 → 恢复位置不被跳过；
+	//  2) 扩展创建的追踪写入不会与异步载入并发，从根上消除覆盖清空缓存的竞态。
+	await loadCache(plugin);
 
 	plugin.registerEditorExtension(createPositionPlugin(plugin.app, enabled));
 

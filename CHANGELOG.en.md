@@ -1,5 +1,12 @@
 ### Changelog
 
+**2.4.6** (2026-08-19)
+
+- **Fix: Position cache cleared after restarting Obsidian** — position-cache.json losing all records across a restart, traced to two root causes:
+  1. **Load/write race** — The editor extension was registered (and started tracking) before the async cache load finished: the initial selection/scroll of open documents triggered record writes that, before loading completed (up to ~1s on large vaults), overwrote the real, complete position-cache.json on disk with a "partial cache" holding only the currently open files; the loader then read that corrupted data back. Now, disk writes are blocked until loading completes (`loaded` gate + write guard), and the extension is registered **only after** the cache has finished loading — eliminating the concurrent-overwrite race at the root; records written by editors during the load window are preserved by a merge instead of being dropped
+  2. **Early-startup deletion of all records** — On load, records for files no longer in the vault are pruned; if pruning ran before the vault file index was populated, `getAbstractFileByPath` returned empty for every path and deleted **all** records, then wrote an empty cache. Pruning now runs only once the vault index is ready (`getFiles().length > 0`); when the index is not ready it is skipped and old records are kept, to be cleaned on the next normal flush (triggered by a user edit)
+- **Note**: The fix covers both clearing paths (race overwrite and early-startup deletion); already-corrupted cache files rebuild naturally from new records after a clean full restart
+
 **2.4.5** (2026-08-15)
 
 - **New: Changelog popup after update** — When the plugin is updated to a new version, a popup window showing what's new (the latest CHANGELOG section) appears on first launch after the update; once dismissed, the seen version is remembered and it never pops up again for the same version. The changelog text is bundled into main.js at build time — Community-market installs only receive main.js, manifest.json, and styles.css, and the plugin folder holds no CHANGELOG.md, so the bundled copy is required
