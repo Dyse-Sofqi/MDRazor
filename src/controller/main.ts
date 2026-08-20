@@ -36,6 +36,8 @@ import { registerOrphanImageCleaner } from './orphan-image-cleaner/orphan-image-
 import { registerStatusBarEnhancer } from './status-bar-enhancer/status-bar-enhancer';
 import { registerSidebarToggle } from './status-bar-enhancer/sidebar-toggle';
 import { registerFormatToggle } from './status-bar-enhancer/format-toggle';
+import { registerLazyLoad, SELF_PLUGIN_ID } from './lazy-load/lazy-load';
+import type { LazyLoadControl } from './lazy-load/lazy-load';
 
 /**
  * 主插件类。
@@ -68,8 +70,17 @@ export default class MDRazorPlugin extends Plugin {
 	/** 垂直标签页管理（命令调用） */
 	verticalTabsManager!: { toggleView: () => void; refreshUI: () => void };
 
+	/** 懒加载管理（controller/lazy-load/，设置标签页与生命周期调用） */
+	lazyLoadManager!: LazyLoadControl;
+
 	async onload() {
 		await this.loadSettings();
+
+		// 懒加载：注册控制器并按「启用懒加载」开关调度延迟加载
+		this.lazyLoadManager = registerLazyLoad(this);
+		if (this.settings.lazyLoadEnabled) {
+			this.lazyLoadManager.start();
+		}
 
 		// 注册设置面板（Obsidian PluginSettingTab）
 		this.settingTab = new MDRazorSettingTab(this.app, this);
@@ -177,6 +188,18 @@ export default class MDRazorPlugin extends Plugin {
 	}
 
 	onunload() {
+		// 本插件被用户禁用（而非应用关闭）时，把所有懒加载插件恢复为常规加载，
+		// 避免用户离开 Plugin Manager 类功能后被锁死在「持久化禁用」状态。
+		const enabledPlugins = (this.app as unknown as {
+			plugins?: { enabledPlugins?: Set<string> };
+		}).plugins?.enabledPlugins;
+		if (
+			this.settings.lazyLoadEnabled &&
+			enabledPlugins &&
+			!enabledPlugins.has(SELF_PLUGIN_ID)
+		) {
+			this.lazyLoadManager?.restore();
+		}
 		// 清理 ribbon 图标（其他清理由 Obsidian 自动完成）
 		this.orphanImageRibbon?.removeRibbon();
 	}

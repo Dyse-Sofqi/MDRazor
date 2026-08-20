@@ -13,6 +13,11 @@
  * 后续新增功能开关也应默认 true，保持一致的首次体验。
  */
 export interface MDRazorSettings {
+	// ── 懒加载 (controller/lazy-load/) ──
+	/** 懒加载总开关：关闭时全部插件按 Obsidian 默认方式（自然顺序）加载 */
+	lazyLoadEnabled: boolean;
+	/** 各插件的懒加载配置（键 = 插件 id，仅社区插件，不含 MDRazor 自身） */
+	lazyLoadPlugins: Record<string, LazyLoadPluginConfig>;
 	// ── 失联图片清理 (controller/orphan-image-cleaner/) ──
 	orphanImageCleanerEnabled: boolean;
 	/** 清理弹框中用户选择保留（白名单）的失联图片路径，下次弹框默认不勾选并置底 */
@@ -89,7 +94,20 @@ export interface MDRazorSettings {
 	lastSeenVersion: string;
 }
 
+/**
+ * 单个插件的懒加载配置。
+ */
+export interface LazyLoadPluginConfig {
+	/** 启动延迟（毫秒）。0 = 不懒加载，随 Obsidian 正常加载 */
+	delay: number;
+	/** 用户期望该插件处于启用状态 */
+	enabled: boolean;
+}
+
 export const DEFAULT_SETTINGS: MDRazorSettings = {
+	lazyLoadEnabled: false,
+	lazyLoadPlugins: {},
+
 	orphanImageCleanerEnabled: false,
 	orphanImageWhitelist: [],
 	hideBoldFormatting: true,

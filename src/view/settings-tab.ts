@@ -4,13 +4,15 @@
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
  * 純 UI 層，不包含資料定義或業務邏輯。
  *
- * 六大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页 /
- * 状态栏 / 左功能区 / 右键菜单。当前激活标签页在插件生命周期内记忆。
+ * 七大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页 /
+ * 状态栏 / 左功能区 / 右键菜单 / 懒加载。当前激活标签页在插件生命周期内记忆。
  */
 
 import { App, PluginSettingTab, Setting } from 'obsidian';
+import type { PluginManifest } from 'obsidian';
 import type MDRazorPlugin from '../controller/main';
 import type { MDRazorSettings } from '../model/settings';
+import { SELF_PLUGIN_ID } from '../controller/lazy-load/lazy-load';
 
 /**
  * 在 Obsidian 设置中显示的设置面板：设置 → 第三方插件 → MDRazor。
@@ -53,14 +55,15 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		this.createTabbedSection(
 			containerEl,
-			['隐藏样式', '列表增强', '标签页', '状态栏', '左功能区', '右键菜单'],
+			['隐藏样式', '列表增强', '标签页', '状态栏', '左功能区', '右键菜单', '懒加载'],
 			(panel, index) => {
 				if (index === 0) this.buildHideSection(panel);
 				else if (index === 1) this.buildListSection(panel);
 				else if (index === 2) this.buildTabSection(panel);
 				else if (index === 3) this.buildStatusSection(panel);
 				else if (index === 4) this.buildRibbonSection(panel);
-				else this.buildContextMenuSection(panel);
+				else if (index === 5) this.buildContextMenuSection(panel);
+				else this.buildLazyLoadSection(panel);
 			},
 		);
 	}
@@ -510,6 +513,103 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+	}
+
+	/* ------------------------------------------------------------------ */
+	/*  懒加载（移植自 Plugin Manager）                                    */
+	/* ------------------------------------------------------------------ */
+
+	private buildLazyLoadSection(panel: HTMLElement): void {
+		new Setting(panel)
+			.setName('启用懒加载')
+			.setDesc('开启后，下方列出此库中检测到的社区插件，可逐项设置是否懒加载及各插件的启动延迟（秒）。被标记懒加载的插件启动时不会随 Obsidian 立即加载，而是等待设定延迟结束后再加载；各插件延迟的相对大小即构成启动顺序。本插件自身不参与懒加载。关闭本开关或卸载本插件时，所有懒加载插件会自动恢复为常规加载')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.lazyLoadEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.lazyLoadEnabled = value;
+						if (value) {
+							this.plugin.lazyLoadManager.start();
+						} else {
+							this.plugin.lazyLoadManager.restore();
+						}
+						await this.plugin.saveSettings();
+						this.renderLazyPluginList(listEl);
+					}),
+			);
+
+		const listEl = panel.createDiv();
+		this.renderLazyPluginList(listEl);
+	}
+
+	/**
+	 * 渲染「启用懒加载」下按名称排序的社区插件懒加载管理列表。
+	 * 每行：插件名（附描述）+ 启用开关 + 启动延迟（秒）输入。
+	 */
+	private renderLazyPluginList(listEl: HTMLElement): void {
+		listEl.empty();
+		if (!this.plugin.settings.lazyLoadEnabled) return;
+
+		const pmAPI = (this.app as unknown as {
+			plugins: { plugins: Record<string, unknown>; manifests: Record<string, PluginManifest> };
+		}).plugins;
+
+		// 社区插件判断：核心插件 manifest 不含 version
+		const isCommunityManifest = (m: PluginManifest): boolean =>
+			typeof (m as PluginManifest & { version?: string }).version === 'string';
+
+		const entries = Object.entries(pmAPI.manifests)
+			.filter(([id, manifest]) => id !== SELF_PLUGIN_ID && isCommunityManifest(manifest))
+			.sort((a, b) => a[1].name.localeCompare(b[1].name, undefined, { sensitivity: 'base' }));
+
+		// 清理已不存在插件的遗留配置（插件被卸载/改名后残留）
+		let pruned = false;
+		for (const id of Object.keys(this.plugin.settings.lazyLoadPlugins)) {
+			if (id !== SELF_PLUGIN_ID && !pmAPI.manifests[id]) {
+				delete this.plugin.settings.lazyLoadPlugins[id];
+				pruned = true;
+			}
+		}
+		if (pruned) void this.plugin.saveSettings();
+
+		if (entries.length === 0) {
+			new Setting(listEl)
+				.setName('未检测到社区插件')
+				.setDesc('此库当前没有可管理的第三方社区插件');
+			return;
+		}
+
+		for (const [id, manifest] of entries) {
+			let cfg = this.plugin.settings.lazyLoadPlugins[id];
+			if (!cfg) {
+				cfg = {
+					delay: 0,
+					enabled: Object.prototype.hasOwnProperty.call(pmAPI.plugins, id),
+				};
+				this.plugin.settings.lazyLoadPlugins[id] = cfg;
+			}
+
+			new Setting(listEl)
+				.setName(manifest.name)
+				.setDesc(manifest.description || '启动延迟（秒）：0 表示不懒加载，随 Obsidian 正常加载')
+				.addToggle((toggle) =>
+					toggle
+						.setValue(cfg.enabled)
+						.onChange((value) => void this.plugin.lazyLoadManager.setEnabled(id, value)),
+				)
+				.addText((text) => {
+					text.inputEl.type = 'number';
+					text.inputEl.min = '0';
+					text.inputEl.title = '启动延迟（秒）：0 表示不懒加载';
+					text.setPlaceholder('0');
+					text.setValue(cfg.delay === 0 ? '' : String(cfg.delay / 1000));
+					text.onChange((input) => {
+						const num = Number(input);
+						const seconds = Number.isFinite(num) && num > 0 ? num : 0;
+						void this.plugin.lazyLoadManager.setDelay(id, Math.round(seconds * 1000));
+					});
+				});
+		}
 	}
 
 	/* ------------------------------------------------------------------ */
