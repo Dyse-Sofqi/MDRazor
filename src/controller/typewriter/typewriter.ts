@@ -38,6 +38,7 @@
  */
 
 import { type Plugin } from 'obsidian';
+import { tr } from '../../i18n';
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, DecorationSet } from '@codemirror/view';
 import { type StateEffect, RangeSetBuilder } from '@codemirror/state';
 import { type MDRazorSettings } from '../../model/settings';
@@ -413,7 +414,7 @@ export function registerTypewriterCommand(
 ): void {
 	plugin.addCommand({
 		id: 'mdrazor-toggle-typewriter',
-		name: '开启/关闭打字机模式',
+		name: tr('开启/关闭打字机模式', 'Toggle Typewriter Mode'),
 		icon: 'text-cursor-input',
 		callback: async () => {
 			settings.typewriterMode = !settings.typewriterMode;

@@ -9,6 +9,7 @@
  */
 
 import { Plugin, setIcon } from 'obsidian';
+import { tr } from '../../i18n';
 
 export function registerSidebarToggle(
 	plugin: Plugin,
@@ -48,7 +49,7 @@ export function registerSidebarToggle(
 		}
 
 		setIcon(statusBarEl, 'gallery-horizontal');
-		statusBarEl.createSpan({ text: '侧栏' });
+		statusBarEl.createSpan({ text: tr('侧栏', 'Sidebars') });
 
 		statusBarEl.addEventListener('click', toggleSidebars);
 	};
@@ -63,7 +64,7 @@ export function registerSidebarToggle(
 	// 注册 Obsidian 命令，可在快捷键设置中绑定
 	plugin.addCommand({
 		id: 'mdrazor-toggle-sidebars',
-		name: '切换侧边栏：折叠/展开左右侧边栏',
+		name: tr('切换侧边栏：折叠/展开左右侧边栏', 'Toggle Sidebars: Collapse/Expand Both Sidebars'),
 		icon: 'panel-left',
 		callback: toggleSidebars,
 	});

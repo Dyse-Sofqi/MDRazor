@@ -15,6 +15,7 @@
  */
 
 import { MarkdownView, Plugin } from 'obsidian';
+import { tr } from '../i18n';
 import { EditorView } from '@codemirror/view';
 import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
 import { MDRazorSettingTab } from '../view/settings-tab';
@@ -38,6 +39,8 @@ import { registerSidebarToggle } from './status-bar-enhancer/sidebar-toggle';
 import { registerFormatToggle } from './status-bar-enhancer/format-toggle';
 import { registerLazyLoad, SELF_PLUGIN_ID } from './lazy-load/lazy-load';
 import type { LazyLoadControl } from './lazy-load/lazy-load';
+import { createStartupTimingRecorder } from './lazy-load/startup-check';
+import type { StartupTimingRecorder } from './lazy-load/startup-check';
 
 /**
  * 主插件类。
@@ -73,11 +76,20 @@ export default class MDRazorPlugin extends Plugin {
 	/** 懒加载管理（controller/lazy-load/，设置标签页与生命周期调用） */
 	lazyLoadManager!: LazyLoadControl;
 
+	/** 启动耗时记录器（「立即检查」弹窗数据来源，onload 即启动采样） */
+	startupTimings!: StartupTimingRecorder;
+
 	async onload() {
 		await this.loadSettings();
 
-		// 懒加载：注册控制器并按「启用懒加载」开关调度延迟加载
-		this.lazyLoadManager = registerLazyLoad(this);
+		// 启动耗时记录器：测量本插件触发加载的插件的真实加载耗时（「立即检查」用）
+		this.startupTimings = createStartupTimingRecorder(this);
+
+		// 懒加载：注册控制器并按「启用懒加载」开关调度延迟加载；
+		// 每次触发「未加载」插件加载前，通知记录器对该插件计时
+		this.lazyLoadManager = registerLazyLoad(this, (pluginId) => {
+			this.startupTimings.trackLoad(pluginId);
+		});
 		if (this.settings.lazyLoadEnabled) {
 			this.lazyLoadManager.start();
 		}
@@ -155,7 +167,7 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册切换标签页视图命令（verticalTabsEnabled 开启时可绑定快捷键）
 		this.addCommand({
 			id: 'toggle-vertical-tabs-view',
-			name: '切换标签页视图',
+			name: tr('切换标签页视图', 'Toggle Vertical Tabs View'),
 			icon: 'arrow-left-right',
 			checkCallback: (checking: boolean) => {
 				if (!this.settings.verticalTabsEnabled) return false;

@@ -7,6 +7,7 @@
  */
 
 import { Plugin, setIcon } from 'obsidian';
+import { tr } from '../../i18n';
 import type { MDRazorSettings } from '../../model/settings';
 
 /**
@@ -79,7 +80,7 @@ export function registerFormatToggle(
 
 		iconEl = statusBarEl.createSpan();
 		updateIcon();
-		statusBarEl.createSpan({ text: '标识' });
+		statusBarEl.createSpan({ text: tr('标识', 'Markers') });
 
 		statusBarEl.addEventListener('click', toggle);
 	};
@@ -95,7 +96,7 @@ export function registerFormatToggle(
 	// 注册命令面板命令（常驻，不受设置开关影响）
 	plugin.addCommand({
 		id: 'mdrazor-toggle-formatting',
-		name: '切换格式隐藏：开启/关闭所有格式隐藏样式',
+		name: tr('切换格式隐藏：开启/关闭所有格式隐藏样式', 'Toggle Format Hiding: Enable/Disable All Format Hiding Styles'),
 		icon: 'square-dashed-mouse-pointer',
 		callback: toggle,
 	});

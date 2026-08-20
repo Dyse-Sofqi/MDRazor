@@ -6,6 +6,7 @@
  */
 
 import { App, ButtonComponent, Modal, Notice, TFile } from 'obsidian';
+import { tr } from '../../i18n';
 import type MDRazorPlugin from '../main';
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'svg']);
@@ -24,7 +25,7 @@ export function registerOrphanImageCleaner(
 
 	const addRibbon = (): void => {
 		if (ribbonEl) return;
-		ribbonEl = plugin.addRibbonIcon('trash-2', '清理失联图片', async () => {
+		ribbonEl = plugin.addRibbonIcon('trash-2', tr('清理失联图片', 'Clean orphan images'), async () => {
 			await cleanOrphanImages(plugin);
 		});
 	};
@@ -69,9 +70,14 @@ class OrphanImageConfirmModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl('h3', { text: `发现 ${this.files.length} 张失联图片` });
+		contentEl.createEl('h3', {
+			text: tr(`发现 ${this.files.length} 张失联图片`, `Found ${this.files.length} orphan images`),
+		});
 		contentEl.createEl('p', {
-			text: '以下图片未被任何笔记引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。',
+			text: tr(
+				'以下图片未被任何笔记引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。',
+				'These images are not referenced by any note and are checked by default. Unchecked images are added to the whitelist and kept; they appear at the bottom of the next dialog.',
+			),
 			cls: 'mod-desc',
 		});
 
@@ -89,41 +95,41 @@ class OrphanImageConfirmModal extends Modal {
 
 		// 第 1 列列首：全选 / 取消全选 勾选框
 		const thCheck = headRow.createEl('th', { cls: 'mdrazor-orphan-col-check' });
-		const allCb = thCheck.createEl('input', { type: 'checkbox', title: '全选 / 取消全选' });
+		const allCb = thCheck.createEl('input', { type: 'checkbox', title: tr('全选 / 取消全选', 'Select all / select none') });
 
-		headRow.createEl('th', { text: '文件路径' });
+		headRow.createEl('th', { text: tr('文件路径', 'Path') });
 
-		headRow.createEl('th', { text: '状态', cls: 'mdrazor-orphan-col-status' });
+		headRow.createEl('th', { text: tr('状态', 'Status'), cls: 'mdrazor-orphan-col-status' });
 
-		headRow.createEl('th', { text: '缩略图', cls: 'mdrazor-orphan-col-thumb' });
+		headRow.createEl('th', { text: tr('缩略图', 'Thumbnail'), cls: 'mdrazor-orphan-col-thumb' });
 
 		const tbody = table.createEl('tbody');
 		const rows: Array<{ cb: HTMLInputElement; file: TFile }> = [];
 		for (const file of sorted) {
 			const isWhitelisted = this.whitelist.has(file.path);
 
-			const tr = tbody.createEl('tr');
-			if (isWhitelisted) tr.addClass('mdrazor-orphan-whitelisted');
+			const tableRow = tbody.createEl('tr');
+			if (isWhitelisted) tableRow.addClass('mdrazor-orphan-whitelisted');
 
-			const tdCheck = tr.createEl('td', { cls: 'mdrazor-orphan-col-check' });
+			const tdCheck = tableRow.createEl('td', { cls: 'mdrazor-orphan-col-check' });
 			const cb = tdCheck.createEl('input', { type: 'checkbox' });
 			cb.checked = !isWhitelisted; // 白名单默认不勾选
 			rows.push({ cb, file });
 
-			tr.createEl('td', { text: file.path });
+			tableRow.createEl('td', { text: file.path });
 
-			const tdStatus = tr.createEl('td');
+			const tdStatus = tableRow.createEl('td');
 			if (isWhitelisted) {
-				tdStatus.createSpan({ text: '白名单', cls: 'mdrazor-orphan-whitelist-badge' });
+				tdStatus.createSpan({ text: tr('白名单', 'Whitelisted'), cls: 'mdrazor-orphan-whitelist-badge' });
 			}
 
-			const tdImg = tr.createEl('td');
+			const tdImg = tableRow.createEl('td');
 			const img = tdImg.createEl('img', { cls: 'mdrazor-orphan-thumb' });
 			img.alt = file.name;
 			img.setAttribute('src', this.app.vault.getResourcePath(file));
 
 			// 点击行任意处切换勾选状态（勾选框自身不重复触发）
-			tr.addEventListener('click', (e) => {
+			tableRow.addEventListener('click', (e) => {
 				if ((e.target as HTMLElement).closest('input')) return;
 				cb.checked = !cb.checked;
 				updateConfirmText();
@@ -135,7 +141,7 @@ class OrphanImageConfirmModal extends Modal {
 		const updateConfirmText = (): void => {
 			const count = rows.filter((r) => r.cb.checked).length;
 			const total = rows.length;
-			confirmBtn.setButtonText(`确认删除 (${count})`);
+			confirmBtn.setButtonText(tr(`确认删除 (${count})`, `Delete (${count})`));
 			// setDisabled 需 Obsidian v1.2.3+，minAppVersion 1.0.0 兼容：直接操作 buttonEl
 			confirmBtn.buttonEl.disabled = count === 0;
 			// 列首勾选框与各行状态同步（含半选状态）
@@ -152,7 +158,7 @@ class OrphanImageConfirmModal extends Modal {
 		const btnRow = contentEl.createDiv({ cls: 'modal-button-container' });
 
 		confirmBtn = new ButtonComponent(btnRow)
-			.setButtonText('确认删除')
+			.setButtonText(tr('确认删除', 'Delete'))
 			.setCta()
 			.onClick(() => {
 				const selected = rows.filter((r) => r.cb.checked).map((r) => r.file);
@@ -186,7 +192,7 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 	const markdownFiles = allFiles.filter(f => f.extension === 'md');
 
 	if (imageFiles.length === 0) {
-		new Notice('库中未找到图片文件');
+		new Notice(tr('库中未找到图片文件', 'No image files found in this vault'));
 		return;
 	}
 
@@ -195,7 +201,7 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 	const totalMd = markdownFiles.length;
 
 	// 单个常驻进度提示：仅更新内容，不连续弹出新提示
-	const progressNotice = totalMd > 50 ? new Notice('正在扫描引用…', 0) : null;
+	const progressNotice = totalMd > 50 ? new Notice(tr('正在扫描引用…', 'Scanning references…'), 0) : null;
 
 	for (let i = 0; i < markdownFiles.length; i++) {
 		const mdFile = markdownFiles[i]!;
@@ -208,7 +214,7 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 
 		// 每处理 20 个文件刷新一次进度内容
 		if (progressNotice && i % 20 === 0) {
-			progressNotice.setMessage(`正在扫描引用… ${i + 1}/${totalMd}`);
+			progressNotice.setMessage(`${tr('正在扫描引用…', 'Scanning references…')} ${i + 1}/${totalMd}`);
 		}
 	}
 
@@ -218,7 +224,7 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 	const orphaned = imageFiles.filter(f => !referencedPaths.has(f.path));
 
 	if (orphaned.length === 0) {
-		new Notice('未发现失联图片，所有图片均被引用');
+		new Notice(tr('未发现失联图片，所有图片均被引用', 'No orphan images found; all images are referenced'));
 		return;
 	}
 
@@ -244,7 +250,12 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 				}
 			}
 
-			new Notice(`清理完成: 已删除 ${successCount} 个失联图片${failCount > 0 ? `, ${failCount} 个失败` : ''}`);
+			new Notice(
+				tr(
+					`清理完成: 已删除 ${successCount} 个失联图片${failCount > 0 ? `, ${failCount} 个失败` : ''}`,
+					`Cleanup complete: deleted ${successCount} orphan image(s)${failCount > 0 ? `, ${failCount} failed` : ''}`,
+				),
+			);
 		},
 	).open();
 }

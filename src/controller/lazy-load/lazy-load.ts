@@ -50,14 +50,22 @@ export interface LazyLoadControl {
 	setEnabled(pluginId: string, enabled: boolean): Promise<void>;
 	/** 修改某插件启动延迟（毫秒），0 = 取消懒加载 */
 	setDelay(pluginId: string, delayMs: number): Promise<void>;
+	/** 某插件当前是否处于「等待延迟加载」的调度中（仅供诊断展示） */
+	isPending(pluginId: string): boolean;
 }
 
 /**
  * 注册懒加载控制器。
  *
  * 不产生任何副作用，直到 start() 被调用（onload 里根据「启用懒加载」开关决定）。
+ *
+ * @param onEnable 可选：当本控制器把「未加载」的插件触发加载（enablePlugin /
+ *                 enablePluginAndSave）前回调，供启动耗时记录器对被触发的插件计时。
  */
-export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
+export function registerLazyLoad(
+	plugin: MDRazorPlugin,
+	onEnable?: (pluginId: string) => void,
+): LazyLoadControl {
 	// 浏览器 setTimeout 的句柄类型为 number（@types/node 的全局类型会返回 Timeout，
 	// 这里按 DOM 运行环境的实际值显式声明）
 	const timers = new Map<string, number>();
@@ -89,13 +97,30 @@ export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
 		}
 	};
 
+	/** 触发加载：如该插件当前未加载且属「已启用且延迟启动」的懒加载插件，
+	 *  先通知记录器计时，再执行 enable */
+	const enableNow = (pluginId: string, persist: boolean): void => {
+		if (!isPluginLoaded(pluginId)) {
+			const cfg = plugin.settings.lazyLoadPlugins[pluginId];
+			if (cfg && cfg.enabled && cfg.delay > 0) {
+				onEnable?.(pluginId);
+			}
+		}
+		const pm = pluginsAPI();
+		if (persist) {
+			pm.enablePluginAndSave(pluginId);
+		} else {
+			pm.enablePlugin(pluginId);
+		}
+	};
+
 	const scheduleEnable = (pluginId: string, delayMs: number): void => {
 		cancelTimer(pluginId);
 		timers.set(
 			pluginId,
 			window.setTimeout(() => {
 				timers.delete(pluginId);
-				pluginsAPI().enablePlugin(pluginId);
+				enableNow(pluginId, false);
 			}, Math.max(0, delayMs)),
 		);
 	};
@@ -142,7 +167,7 @@ export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
 			cancelTimer(pluginId);
 			const pm = pluginsAPI();
 			if (isPluginLoaded(pluginId)) pm.disablePlugin(pluginId);
-			pm.enablePluginAndSave(pluginId);
+			enableNow(pluginId, true);
 		}
 	};
 
@@ -161,7 +186,7 @@ export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
 					}
 				} else {
 					cancelTimer(pluginId);
-					pm.enablePluginAndSave(pluginId);
+					enableNow(pluginId, true);
 				}
 			} else {
 				cancelTimer(pluginId);
@@ -177,11 +202,10 @@ export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
 		const next = Math.max(0, Math.round(delayMs));
 		cfg.delay = next;
 		if (plugin.settings.lazyLoadEnabled && cfg.enabled && isManaged(pluginId)) {
-			const pm = pluginsAPI();
 			if (next === 0) {
 				// 取消懒加载 → 恢复持久化启用
 				cancelTimer(pluginId);
-				pm.enablePluginAndSave(pluginId);
+				enableNow(pluginId, true);
 			} else if (previous === 0) {
 				// 新启用懒加载
 				if (isPluginLoaded(pluginId)) {
@@ -198,5 +222,7 @@ export function registerLazyLoad(plugin: MDRazorPlugin): LazyLoadControl {
 		await plugin.saveSettings();
 	};
 
-	return { start, restore, setEnabled, setDelay };
+	const hasPendingTimer = (pluginId: string): boolean => timers.has(pluginId);
+
+	return { start, restore, setEnabled, setDelay, isPending: hasPendingTimer };
 }

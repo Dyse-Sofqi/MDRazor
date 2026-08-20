@@ -17,6 +17,7 @@
  */
 
 import { type Editor, MarkdownView, Notice, type Plugin } from 'obsidian';
+import { tr } from '../../i18n';
 import { type EditorState, type StateEffect } from '@codemirror/state';
 import { type EditorView } from '@codemirror/view';
 import { foldEffect, foldable, foldedRanges, unfoldEffect } from '@codemirror/language';
@@ -181,20 +182,23 @@ export function executeSiblingFold(editor: Editor): void {
 
 	const result = toggleSiblingFolds(cm6);
 	if (!result) {
-		new Notice('光标所在行不是列表或标题，无法展开/折叠同级内容');
+		new Notice(tr('光标所在行不是列表或标题，无法展开/折叠同级内容', 'The cursor is not on a list item or heading; nothing can be expanded or collapsed.'));
 		return;
 	}
 
-	const label = result.kind === 'heading' ? '标题' : '列表';
+	const label = result.kind === 'heading' ? tr('标题', 'heading') : tr('列表', 'list');
 	if (result.count === 0) {
 		new Notice(
 			result.folded
-				? `没有可折叠的同级${label}`
-				: `没有可展开的同级${label}`,
+				? tr(`没有可折叠的同级${label}`, `No sibling ${label}s to collapse`)
+				: tr(`没有可展开的同级${label}`, `No sibling ${label}s to expand`),
 		);
 	} else {
 		new Notice(
-			`${result.folded ? '已折叠' : '已展开'} ${result.count} 个同级${label}`,
+			tr(
+				`${result.folded ? '已折叠' : '已展开'} ${result.count} 个同级${label}`,
+				`${result.folded ? 'Collapsed' : 'Expanded'} ${result.count} sibling ${label}s`,
+			),
 		);
 	}
 }
@@ -206,7 +210,7 @@ export function executeSiblingFold(editor: Editor): void {
 export function registerSiblingFold(plugin: Plugin): void {
 	plugin.addCommand({
 		id: 'mdrazor-toggle-sibling-folds',
-		name: '展开/折叠同级列表或标题',
+		name: tr('展开/折叠同级列表或标题', 'Expand/Collapse Sibling Lists or Headings'),
 		icon: 'list-collapse',
 		checkCallback: (checking: boolean) => {
 			const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);

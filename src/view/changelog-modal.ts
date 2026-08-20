@@ -10,6 +10,8 @@
  */
 
 import { Component, MarkdownRenderer, Modal, Setting } from 'obsidian';
+import { tr } from '../i18n';
+
 import changelogText from '../../CHANGELOG.md';
 
 /**
@@ -43,7 +45,7 @@ export class ChangelogModal extends Modal {
 	private renderComponent: Component | null = null;
 
 	onOpen() {
-		this.titleEl.setText('📜 更新日志');
+		this.titleEl.setText(tr('📜 更新日志', '📜 Changelog'));
 		this.modalEl.addClass('mdrazor-changelog-modal');
 
 		const body = this.contentEl.createDiv({ cls: 'mdrazor-changelog-body' });
@@ -60,7 +62,7 @@ export class ChangelogModal extends Modal {
 		);
 
 		new Setting(this.contentEl).addButton((btn) =>
-			btn.setButtonText('关闭').setCta().onClick(() => this.close()),
+			btn.setButtonText(tr('关闭', 'Close')).setCta().onClick(() => this.close()),
 		);
 	}
 
