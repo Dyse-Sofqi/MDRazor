@@ -70,6 +70,12 @@
 	text-overflow: ellipsis;
 }
 
+/* 延迟输入框：固定宽度，不随内容伸缩 */
+.mdrazor-lazy-grid .setting-item .mdrazor-lazy-delay-input {
+	width: 60px;
+	flex: 0 0 auto;
+}
+
 /* 窄屏（小窗口/低分辨率）回退为单栏，避免内容过挤 */
 @media (max-width: 600px) {
 	.mdrazor-lazy-grid {

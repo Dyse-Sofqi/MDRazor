@@ -733,8 +733,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				.addText((text) => {
 					text.inputEl.type = 'number';
 					text.inputEl.min = '0';
-					text.inputEl.style.width = '60px';
-					text.inputEl.style.flex = '0 0 auto';
+					text.inputEl.addClass('mdrazor-lazy-delay-input');
 					text.inputEl.title = tr('启动延迟（秒）：0 表示不懒加载', 'Startup delay (seconds): 0 = no lazy loading');
 					text.setPlaceholder('0');
 					text.setValue(cfg.delay === 0 ? '' : String(cfg.delay / 1000));
