@@ -40,6 +40,43 @@
 	display: block;
 }
 
+/* ── 懒加载插件列表 — 两栏网格 ── */
+.mdrazor-lazy-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 16px;
+	align-items: start;
+}
+
+.mdrazor-lazy-grid .setting-item {
+	padding: 8px 12px;
+	align-items: center;
+	gap: 6px;
+}
+
+/* 插件名：垂直居中 + 美化 */
+.mdrazor-lazy-grid .setting-item-info {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+.mdrazor-lazy-grid .setting-item-name {
+	font-weight: 600;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* 窄屏（小窗口/低分辨率）回退为单栏，避免内容过挤 */
+@media (max-width: 600px) {
+	.mdrazor-lazy-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
 /* ── 空格可视化 — 半透明 · 标记 ── */
 .mdrazor-space-char {
 	color: var(--text-muted);

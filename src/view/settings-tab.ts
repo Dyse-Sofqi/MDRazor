@@ -677,13 +677,13 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		const listEl = panel.createDiv();
+		const listEl = panel.createDiv({ cls: 'mdrazor-lazy-grid' });
 		this.renderLazyPluginList(listEl);
 	}
 
 	/**
 	 * 渲染「懒加载第三方插件」下按名称排序的社区插件懒加载管理列表。
-	 * 每行：插件名（附描述）+ 启用开关 + 启动延迟（秒）输入。
+	 * 两栏网格展示，每项：插件名 + 启用开关 + 启动延迟（秒）输入（不展示插件简介）。
 	 */
 	private renderLazyPluginList(listEl: HTMLElement): void {
 		listEl.empty();
@@ -730,7 +730,6 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 			new Setting(listEl)
 				.setName(manifest.name)
-				.setDesc(manifest.description || tr('启动延迟（秒）：0 表示不懒加载，随 Obsidian 正常加载', 'Startup delay (seconds): 0 means no lazy loading; the plugin loads normally with Obsidian.'))
 				.addText((text) => {
 					text.inputEl.type = 'number';
 					text.inputEl.min = '0';
