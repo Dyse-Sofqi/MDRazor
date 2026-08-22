@@ -474,7 +474,7 @@ export function registerCommandSurfaceManager(
 	} else {
 		// 全局包装 Menu.addItem，记录 Obsidian 原生/插件注册的右键菜单项，
 		// 并在弹出时对已隐藏的菜单项进行隐藏。
-		// eslint-disable-next-line @typescript-eslint/unbound-method
+		// eslint-disable-next-line @typescript-eslint/unbound-method -- 需要保存 Menu 原型原始 addItem 方法以便包装后恢复
 		const originalAddItem = Menu.prototype.addItem;
 		Menu.prototype.addItem = function (this: Menu, cb: (item: MenuItem) => unknown) {
 			return originalAddItem.call(this, (item: MenuItem) => {
