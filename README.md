@@ -17,11 +17,16 @@
 ### 简介
 
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
-目前提供**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**和**右键菜单**六大功能模块，更多功能正在开发中。
+目前提供**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**七大功能模块，更多功能正在开发中。
+
+### 新关键词
+
+- 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 中英文 i18n
+
 
 ### 功能
 
-功能按设置面板的六大区域组织，每项均可在设置面板中独立开关。
+功能按设置面板的七大区域组织，每项均可在设置面板中独立开关。
 
 ---
 
@@ -58,6 +63,10 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 #### 🗑️ 左功能区
 
 - **清理失联图片** — 在设置中启用后，左侧 ribbon 功能区出现垃圾桶图标按钮（trash-2）。点击后扫描库中所有 Markdown 笔记，提取四种图片引用语法（`![[path]]`、`[[path]]`、`![](path)`、`<img src>`），找出未被任何笔记引用过的图片文件（jpg/jpeg/png/gif/svg），弹出多选确认框（列表含勾选、路径、状态与缩略图，默认全选）供确认后移入系统回收站。确认时未勾选的图片记入白名单，下次弹框自动保持未勾选并置底显示，可重新勾选解除白名单。
+
+- **自定义命令** — 在左功能区设置页可把 Obsidian 原生命令或插件命令添加为功能区图标：从命令列表选择 → 确认名称 → 选择 Lucide 图标（支持筛选）。列表项可删除、拖拽排序，顺序双向同步到左侧功能区。
+- **隐藏命令** — 自动统计功能区现有命令（自定义 / 插件注册 / Obsidian 原生），以 eye / eye-off 按钮切换隐藏与显示；可拖拽排序并持久化，重启或功能区 DOM 重建后自动恢复。
+
 
 ---
 
@@ -116,6 +125,10 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **侧边栏伸缩按钮** — 状态栏最左侧显示按钮，点击一键折叠/展开左右侧边栏。
 - **隐藏样式启闭按钮** — 状态栏最左侧显示「标识」按钮，一键开启/关闭所有格式隐藏样式（加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签），不影响空格可视化。按钮图标与设置面板中隐藏样式开关双向同步。命令面板命令 `mdrazor-toggle-formatting` 可绑定快捷键。
 
+- **自定义命令** — 将任意命令添加为状态栏按钮（图标 + 名称），点击执行；支持删除与拖拽排序。
+- **隐藏命令** — 检测状态栏中的 Obsidian 原生 / 插件注册 / 自定义命令，用 eye / eye-off 切换显示隐藏，支持排序并持久化。
+
+
 ---
 
 #### 🖱️ 右键菜单
@@ -123,6 +136,22 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 编辑器右键菜单增强，提供以下独立开关：
 
 - **展开/折叠同级列表或标题** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。点击执行与命令面板命令完全相同的逻辑：以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档所有同层级的列表项或标题（同为某级标题、或同为某缩进层级的列表项），完成后弹出提示告知实际折叠/展开了多少个同级标题或列表。关闭后右键菜单不再显示该项，命令面板命令与快捷键不受影响。
+
+- **自定义命令** — 将任意命令添加为编辑器右键菜单项（图标 + 名称），点击执行；支持删除与拖拽排序。
+- **隐藏命令** — 捕获 Obsidian 原生 / 插件注册的自定义右键菜单项，用 eye / eye-off 切换显示隐藏，支持拖拽排序；菜单项按 section 以可折叠小标题分组展示。
+
+
+---
+
+#### 🚀 懒加载
+
+控制社区插件启动时机，优化 Obsidian 冷启动体验，提供以下开关：
+
+- **启用懒加载** — 总开关。开启后按下方的插件延迟列表逐个控制社区插件的启动；关闭则所有插件恢复 Obsidian 自然加载。总线前提供「立即检查」按钮。
+- **立即检查** — 「启用懒加载」开关前的计时器按钮（tooltip「立即检查」）。点击弹出启动耗时检查弹窗：以「延迟 x s，启动耗时 x ms」单列合并展示所有已启用且延迟启动插件的实测加载耗时（含 onload）与配置延迟及加载状态（未开始/加载中/已完成/未测量），环境栏展示仓库文件数与社区插件数，弹窗底部可一键复制全文。因 Obsidian 原生「立即检查」弹窗不对外暴露，故复刻其按钮外观并自实现等效统计。
+- **插件延迟列表** — 对范围内每个社区插件设置「启用」开关与「延迟（秒）」输入框。被标记的插件不再随 Obsidian 启动立即加载，而是等待各自设定的延迟后再加载（各插件延迟相对大小即构成启动顺序）；延迟设为 0 或关闭开关即恢复即时加载。插件卸载时自动移除其配置。
+
+> 说明：懒加载作用范围仅限社区插件；关闭总开关或插件卸载时自动恢复自然加载。
 
 ### 设置
 
@@ -134,7 +163,8 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
 - **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
-- **标签页切换** — 上述六大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
+- **懒加载** — 1 个总开关 + 每插件启用与延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件启用 + 延迟秒数）
+- **标签页切换** — 上述七大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
 
@@ -183,11 +213,16 @@ Designed to refine your writing experience with precision like a razor.
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, and **Context Menu** — six feature modules, with more in development.
+Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, **Context Menu**, and **Lazy Load** — seven feature modules, with more in development.
+
+### Keywords
+
+- Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · i18n (Chinese/English)
+
 
 ### Features
 
-Features are organized by the six settings-panel sections. Each toggle is independently switchable in settings.
+Features are organized by the seven settings-panel sections. Each toggle is independently switchable in settings.
 
 ---
 
@@ -224,6 +259,10 @@ All hidden formats share these behaviors:
 #### 🗑️ Left Ribbon
 
 - **Orphan Image Cleaner** — Enable in settings to show a trash-2 ribbon icon. Click it to scan all Markdown notes in the vault for image references via four syntaxes (`![[path]]`, `[[path]]`, `![](path)`, `<img src>`). Finds unreferenced image files (jpg/jpeg/png/gif/svg) and shows a multi-select confirm dialog (columns for checkbox, path, status, and thumbnail; all checked by default) before moving the selected ones to the system recycle bin. Images left unchecked are added to a whitelist — on subsequent dialogs they stay unchecked and are pinned to the bottom of the list; re-checking them removes them from the whitelist.
+
+- **Custom Commands** — Add any native or plugin command to the left ribbon: pick a command → confirm its name → choose a Lucide icon (with filtering). Items can be deleted, drag-reordered, and the order syncs back to the ribbon.
+- **Hidden Commands** — Lists all current ribbon commands (custom / plugin-registered / Obsidian native). Toggle visibility with the eye / eye-off buttons, drag to reorder, and the state persists across restarts and ribbon DOM rebuilds.
+
 
 ---
 
@@ -280,6 +319,34 @@ Status bar enhancements with the following independent toggles:
 - **Sidebar Toggle Button** — Shows a button at the leftmost position of the status bar to collapse/expand both sidebars with one click.
 - **Format Toggle Button** — Shows a "标识" button at the leftmost position of the status bar to toggle all format hiding styles (bold, italic, highlight, strikethrough, inline code, escape, heading, wiki link brackets, HTML color tags, HTML underline tags, HTML inline tags) at once; space visualization is excluded. The button icon stays bidirectionally in sync with the Style Hiding switches in settings. The command `mdrazor-toggle-formatting` can be bound to a hotkey.
 
+- **Custom Commands** — Add any command as a status bar button (icon + name); click to execute. Supports delete and drag reorder.
+- **Hidden Commands** — Detects Obsidian native / plugin-registered / custom status bar commands, toggles visibility with eye / eye-off, and persists ordering.
+
+
+---
+
+#### 🖱️ Context Menu
+
+Editor right-click menu enhancements with the following independent toggle:
+
+- **Expand/Collapse Sibling Lists or Headings** — When enabled (default), a same-named item appears in the Markdown editor's right-click menu. Clicking it runs exactly the same logic as the command-palette command: based on the folded state of the list item / heading at the cursor, it uniformly collapses or expands the current line plus every list item or heading at the same level across the whole document (the same heading level, or the same indentation level of list items), then notifies how many sibling headings/lists were collapsed or expanded. Disabling removes the item from the right-click menu; the command-palette command and hotkey binding are unaffected.
+
+- **Custom Commands** — Add any command to the editor context menu (icon + name); click to execute. Supports delete and drag reorder.
+- **Hidden Commands** — Captures Obsidian native / plugin-registered context menu items, toggles visibility with eye / eye-off, supports drag reorder, and groups items into collapsible section headings.
+
+
+---
+
+#### 🚀 Lazy Load
+
+Control when community plugins start up to optimize Obsidian cold-start, with the following toggles:
+
+- **Enable Lazy Load** — Master switch. When on, each community plugin is launched according to the plugin delay list below; when off, all plugins restore Obsidian's natural loading. A "Check Now" button sits in front of the master switch.
+- **Check Now** — The timer button before the "Enable Lazy Load" switch (tooltip "Check Now"). Opens a startup-time inspection modal that lists, as a single column formatted like "delay x s, startup x ms", the measured load time (including onload) of every enabled and delayed plugin together with its configured delay and load state (not started / loading / done / not measured). The environment bar shows the vault's file count and community plugin count, and a "copy" button at the bottom copies the full text. Because Obsidian's native "Check Now" modal is not exposed to plugins, its button appearance is reproduced and an equivalent measurement is implemented internally.
+- **Plugin Delay List** — For each in-scope community plugin, sets an "Enable" switch and a "Delay (seconds)" input. Marked plugins no longer load immediately at startup but wait for their own configured delay before loading (relative delays define the startup order); a delay of 0 or disabling the switch restores immediate loading. Uninstalling a plugin automatically removes its configuration.
+
+> Note: Lazy Load applies to community plugins only; turning off the master switch or uninstalling a plugin restores natural loading.
+
 ### Settings
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
@@ -290,7 +357,8 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
 - **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
-- **Tabbed sections** — the six modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
+- **Lazy Load** — 1 master toggle + per-plugin enable & delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin enable + delay in seconds)
+- **Tabbed sections** — the seven modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
 

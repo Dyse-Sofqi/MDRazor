@@ -15,6 +15,8 @@ import type MDRazorPlugin from '../controller/main';
 import type { MDRazorSettings } from '../model/settings';
 import { SELF_PLUGIN_ID } from '../controller/lazy-load/lazy-load';
 import { StartupCheckModal } from '../controller/lazy-load/startup-check';
+import { renderRibbonCustomization } from './ribbon-customization';
+import { renderCommandSurfaceSettings } from './command-surface-view';
 
 /**
  * 在 Obsidian 设置中显示的设置面板：设置 → 第三方插件 → MDRazor。
@@ -102,8 +104,13 @@ export class MDRazorSettingTab extends PluginSettingTab {
 							this.plugin.orphanImageRibbon?.removeRibbon();
 						}
 						await this.plugin.saveSettings();
+						// 其他功能区图标增删后，重新应用隐藏命令状态
+						this.plugin.ribbonManager?.refresh();
 					}),
 			);
+
+		const ribbonCustomizationEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
+		renderRibbonCustomization(ribbonCustomizationEl, this.plugin);
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -127,6 +134,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		const contextCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
+		renderCommandSurfaceSettings(contextCmdEl, this.plugin, 'contextMenu');
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -639,6 +649,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		const statusCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
+		renderCommandSurfaceSettings(statusCmdEl, this.plugin, 'statusBar');
 	}
 
 	/* ------------------------------------------------------------------ */

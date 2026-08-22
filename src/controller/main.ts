@@ -34,6 +34,10 @@ import { registerBookmarkOpener } from './tab-enhancer/bookmark-opener';
 import { registerVerticalTabs } from './tab-enhancer/vertical-tabs';
 import { registerPositionPersistence } from './tab-enhancer/position-persistence';
 import { registerOrphanImageCleaner } from './orphan-image-cleaner/orphan-image-cleaner';
+import { registerRibbonManager } from './ribbon-manager/ribbon-manager';
+import type { RibbonManager } from './ribbon-manager/ribbon-manager';
+import { registerCommandSurfaceManager } from './command-surface/command-surface';
+import type { SurfaceCommandManager } from './command-surface/command-surface';
 import { registerStatusBarEnhancer } from './status-bar-enhancer/status-bar-enhancer';
 import { registerSidebarToggle } from './status-bar-enhancer/sidebar-toggle';
 import { registerFormatToggle } from './status-bar-enhancer/format-toggle';
@@ -54,6 +58,15 @@ export default class MDRazorPlugin extends Plugin {
 
 	/** Ribbon 图标控制：用于在设置开关变化时添加/移除 */
 	orphanImageRibbon!: { addRibbon: () => void; removeRibbon: () => void };
+
+	/** 左功能区自定义命令 / 隐藏命令管理 */
+	ribbonManager!: RibbonManager;
+
+	/** 状态栏自定义命令 / 隐藏命令管理 */
+	statusBarCommandManager!: SurfaceCommandManager;
+
+	/** 右键菜单自定义命令 / 隐藏命令管理 */
+	contextMenuCommandManager!: SurfaceCommandManager;
 
 	/** 状态栏控制 */
 	statusBarEnhancer!: { addButton: () => void; removeButton: () => void };
@@ -93,6 +106,14 @@ export default class MDRazorPlugin extends Plugin {
 		if (this.settings.lazyLoadEnabled) {
 			this.lazyLoadManager.start();
 		}
+
+		// 注册左功能区自定义命令与隐藏命令管理，并恢复已保存的自定义 ribbon 图标
+		this.ribbonManager = registerRibbonManager(this);
+		this.ribbonManager.refresh();
+
+		// 注册状态栏 / 右键菜单共用命令管理
+		this.statusBarCommandManager = registerCommandSurfaceManager(this, 'statusBar');
+		this.contextMenuCommandManager = registerCommandSurfaceManager(this, 'contextMenu');
 
 		// 注册设置面板（Obsidian PluginSettingTab）
 		this.settingTab = new MDRazorSettingTab(this.app, this);
@@ -182,6 +203,9 @@ export default class MDRazorPlugin extends Plugin {
 		if (this.settings.orphanImageCleanerEnabled) {
 			this.orphanImageRibbon.addRibbon();
 		}
+		// 初始 ribbon 图标就绪后，再次应用隐藏/排序状态
+		this.ribbonManager.refresh();
+
 		// 如果设置已启用，添加状态栏按钮
 		if (this.settings.statusBarEnhancement) {
 			this.statusBarEnhancer.addButton();
@@ -283,7 +307,7 @@ export default class MDRazorPlugin extends Plugin {
 			// 落盘失败不阻断弹窗（本次仍展示，下次加载再补记）
 			console.error('MDRazor: 保存已读更新日志版本失败', e);
 		}
-		new ChangelogModal(this.app).open();
+		new ChangelogModal(this.app, this).open();
 	}
 
 	/**

@@ -92,6 +92,38 @@ export interface MDRazorSettings {
 	// ── 更新日志弹窗 (view/changelog-modal.ts) ──
 	/** 上次展示过更新日志的插件版本（内部状态，随 data.json 持久化，非用户设置项） */
 	lastSeenVersion: string;
+
+	// ── 左功能区自定义命令 / 隐藏命令 (controller/ribbon-manager/) ──
+	/** 自定义功能区命令列表（数组顺序即功能区顺序） */
+	customRibbonCommands: CustomRibbonCommand[];
+	/** 功能区中各命令的隐藏状态，key 见 ribbon-manager 的 key 规则 */
+	hiddenRibbonCommands: Record<string, boolean>;
+	/** 功能区内所有命令的展示顺序（key 列表；自定义键为 custom:<id>，其他为 ribbon:<icon>:<name>） */
+	ribbonCommandOrder: string[];
+
+	// ── 状态栏自定义命令 / 隐藏命令 ──
+	customStatusBarCommands: CustomRibbonCommand[];
+	hiddenStatusBarCommands: Record<string, boolean>;
+	statusBarCommandOrder: string[];
+
+	// ── 右键菜单自定义命令 / 隐藏命令 ──
+	customContextMenuCommands: CustomRibbonCommand[];
+	hiddenContextMenuCommands: Record<string, boolean>;
+	contextMenuCommandOrder: string[];
+}
+
+/**
+ * 左功能区自定义命令条目。
+ */
+export interface CustomRibbonCommand {
+	/** 本插件内唯一条目 ID（仅用于设置项管理） */
+	id: string;
+	/** Obsidian 内部完整命令 ID（含插件前缀） */
+	commandId: string;
+	/** 在功能区/设置中显示的名称 */
+	name: string;
+	/** lucide 图标名 */
+	icon: string;
 }
 
 /**
@@ -152,6 +184,18 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	typewriterOpacity: 50,
 	typewriterTopPadding: true,
 	typewriterBottomJumpToTop: false,
+
+
+	customRibbonCommands: [],
+	hiddenRibbonCommands: {},
+	ribbonCommandOrder: [],
+
+	customStatusBarCommands: [],
+	hiddenStatusBarCommands: {},
+	statusBarCommandOrder: [],
+	customContextMenuCommands: [],
+	hiddenContextMenuCommands: {},
+	contextMenuCommandOrder: [],
 
 	lastSeenVersion: '',
 };

@@ -4,6 +4,78 @@
 
 ---
 
+## 2.4.9 (2026-08-23)
+
+### 左功能区/状态栏/右键菜单：统一命令管理与隐藏
+
+**需求：** 左功能区、状态栏、右键菜单复用「自定义命令 + 隐藏命令」；并检测 Obsidian 原生/插件注册的现有命令。
+
+**实现位置：**
+- `src/controller/ribbon-manager/ribbon-manager.ts`
+- `src/controller/command-surface/command-surface.ts`
+- `src/view/ribbon-customization.ts`、`src/view/command-surface-view.ts`
+- `src/view/ribbon-command-wizard.ts`
+- `src/model/settings.ts`
+
+**避坑记录：**
+
+1. **功能区检测勿用 DOM 类名扫描** — 左功能区真实数据源是 `app.workspace.leftRibbon.items`（`{icon,title,buttonEl}`），`querySelector('.ribbon-item')` 扫不到 Obsidian 原生/插件条目。
+2. **状态栏检测须用 `app.statusBar.containerEl`** — `app.statusBar.containerEl` 才是状态栏真实容器，扫描 `.status-bar` 会漏掉原生/插件状态栏命令；其子元素类名为 `.status-bar-item`。
+3. **右键菜单是临时构建，没有常驻 DOM** — 通过包装 `Menu.prototype.addItem` 在菜单构建时记录原生/插件菜单项，并读取 `item.dom` / `data-section` 捕获 section 层级。
+4. **包装 `Menu.addItem` 必须保留实例 `this`** — 曾把原方法 `bind(Menu.prototype)` 后调用，导致菜单内部 `this` 错误、右键菜单完全无法呼出。正确写法是 `originalAddItem.call(this, ...)`，修复后菜单正常。
+5. **隐藏状态重启/拖拽失效** — 仅设置变更时应用隐藏不够：Obsidian 会在重启后补载、拖拽后重建功能区/状态栏 DOM。需配合 `workspace.onLayoutReady()`、1 秒兜底刷新与 `MutationObserver`（回调延迟到下一轮，等 `leftRibbon.items`/状态栏容器同步后再应用）。
+6. **图标列表要读取当前版本全量** — 低版本静态列表不完整；Obsidian 1.7.3+ 应使用官方 `getIconIds()`，旧版本保留完整静态回退列表。
+7. **内置菜单项勿重复统计** — 右键菜单记录器会捕获「展开/折叠同级列表或标题」，而隐藏命令又显式添加同一条内置项；需在展示层按标题去重。
+8. **隐藏状态用 `setCssProps` 而非直接 `element.style`** — 新增代码遇到 `no-static-styles-assignment` lint；动态 CSS 用 Obsidian `setCssProps` 或 CSS 类。
+
+
+## 2.4.8 (2026-08-20)
+
+### 懒加载延迟输入框内联样式 lint 修复
+
+**需求：** 消除 settings-tab.ts 中 `no-static-styles-assignment` lint 报错（延迟输入框宽度）。
+
+**实现位置：** `src/view/settings-tab.ts`（renderLazyPluginList）+ `styles.css`（`.mdrazor-lazy-grid .setting-item .mdrazor-lazy-delay-input`）。
+
+**避坑记录：**
+
+1. **静态内联样式触发 obsidianmd lint 规则 `no-static-styles-assignment`** — 直接用 `element.style.width='60px'` 或 `style.flex='0 0 auto'` 给元素赋固定样式被 eslint-plugin-obsidianmd 拦截。正确做法是 `el.addClass('mdrazor-lazy-delay-input')`，再把对应 rule（`width:60px;flex:0 0 auto`）写进 styles.css，选择器带上 `.mdrazor-lazy-grid .setting-item` 前缀限定作用域。
+2. **lint 只报静态赋值** — 若样式值会根据运行时状态动态计算，仍可走 `style.*`；固定值一律 CSS 类。
+
+---
+
+## 2.4.7 (2026-08-20)
+
+### 懒加载启动耗时统计（loadingPluginId 轮询）
+
+**需求：** 精确测量各懒加载社区插件从触发加载到完成（含 onload）的启动耗时，供「立即检查」弹窗按「延迟 x s，启动耗时 x ms」展示；仅统计已启用且延迟>0 的插件。
+
+**实现位置：** `src/controller/lazy-load/startup-check.ts`（`StartupTimingRecorder` + `StartupCheckModal`）、`src/controller/lazy-load/lazy-load.ts`（`enableNow`）、`src/controller/main.ts`（onload 先建 recorder 再 `registerLazyLoad(this,(id)=>this.startupTimings.trackLoad(id))`）。
+
+**避坑记录：**
+
+1. **勿轮询 `app.plugins.plugins[id]` 测加载耗时** — Obsidian 的 `plLoadPlugin` 里 `this.plugins[e]=n` 发生在 `await n.load()`（即 onload）**之前**，轮询 plugins 只能量到 bundle 解析+实例化，各插件实测都约 105ms、与插件实际工作量无关、不可信。应轮询 `app.plugins.loadingPluginId`：它在 enablePlugin→loadPlugin 全程保持当前正在加载的插件 id（**含 onload**），加载完成后置 null。trackLoad 在 enablePlugin 前打 baseStart，然后 ~20ms 轮询，捕捉 loadingPluginId 出现→消失即真实含 onload 的加载窗口。
+2. **极快加载会错过窗口** — 若插件在首个轮询间隔内就完成（loadingPluginId 已回 null 且插件实例已出现），退化为 baseStart→plugins[id] 出现的近似值。
+3. **打点必须在 enableNow 内触发而非 onload begin()** — 原实现 recorder 在 onload 后创建、采样器对已加载插件统一用 `now-startTs` 计算，导致所有插件显示同一耗时（此前都显示 951ms）的根因。改为由 `enableNow(pluginId)` 在 `enablePlugin` 之前先 `onEnable?.(id)` 打点，仅对 MDRazor 触发加载的插件计算真实耗时，自然加载插件显示「未测量/随启动加载」。
+4. **超时与资源释放** — 轮询用 `window.setInterval` 并经 `plugin.registerInterval` 注册，Obsidian 卸载时自动清理；单插件追踪设 60s 超时兜底，避免计时器泄漏。interval 句柄类型用 `ReturnType<typeof window.setInterval>`。
+5. **Modal 类型无 addButton** — 当前 obsidian.d.ts 的 `Modal` 未声明 `addButton`（TS2339）。改用 `this.modalEl.createDiv({cls:'modal-button-container'})` + `new ButtonComponent(...).setClass('mod-secondary')` 手工构建底部「复制」/「完成」按钮；复制走 `navigator.clipboard?.writeText` + `new Notice('已复制')`。
+6. **访问内部 API 的类型断言** — `app.plugins.plugins/manifests/loadingPluginId` 均未在 obsidian.d.ts 声明，用 `as unknown as` 断言自定义接口（`PluginManagerView{plugins,manifests,loadingPluginId?}`）；遍历时 `manifests[id]` 可能 undefined，先 `const m=...` 缓存再判空，避免 TS2345。
+7. **setTooltip 提升 minAppVersion** — 「立即检查」按钮用 `addExtraButton(...).setTooltip(...)`，`setTooltip` 需 Obsidian ≥1.1.0（lint no-unsupported-api），故 minAppVersion 由 1.0.0 提至 1.1.0。
+
+### 懒加载列表 UI
+
+**需求：** 删插件简介、两栏网格、插件名垂直居中美化、内边距 4→12px、启用开关移到延迟框右侧、延迟输入框统一 60px 宽。
+
+**实现位置：** `src/view/settings-tab.ts`（buildLazyLoadSection / renderLazyPluginList）+ `styles.css`（`.mdrazor-lazy-grid` 等）。
+
+**避坑记录：**
+
+1. **两栏网格窄屏要回退** — `.mdrazor-lazy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px;align-items:start}`，`@media(max-width:600px)` 回退 `grid-template-columns:1fr`。
+2. **插件名长名防溢出** — `.setting-item-name` 用 `overflow-wrap:anywhere;overflow:hidden;text-overflow:ellipsis`；`.setting-item-info{display:flex;align-items:center;min-width:0;flex:1 1 auto}` 保证列内垂直居中与收缩。
+3. **行内边距是`padding:8px 4px`→改`12px`** —— 初始 4px 太贴边，扩大到 12px 防贴边且不破坏网格对齐。
+
+---
+
 ## 2.4.3 (2026-08-13)
 
 ### 位置持久化：缓存读写格式不一致 + 文件夹重命名同步

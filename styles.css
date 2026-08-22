@@ -358,3 +358,241 @@ div.nav-folder-title {
 .mdrazor-changelog-body strong {
 	color: var(--text-normal);
 }
+
+/* ── 左功能区设置：自定义命令 / 隐藏命令 ── */
+.mdrazor-ribbon-customization {
+	margin-top: 16px;
+}
+
+.mdrazor-collapsible-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	margin-bottom: 12px;
+	overflow: hidden;
+}
+
+.mdrazor-collapsible-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+	cursor: pointer;
+	background: var(--background-secondary);
+	user-select: none;
+}
+
+.mdrazor-collapsible-header:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdrazor-collapsible-title {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.mdrazor-collapsible-chevron {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.mdrazor-collapsible-heading {
+	font-weight: 600;
+}
+
+.mdrazor-collapsible-body {
+	padding: 8px 12px;
+}
+
+.mdrazor-command-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.mdrazor-command-empty {
+	color: var(--text-muted);
+	padding: 6px 2px;
+	font-size: var(--font-ui-small);
+}
+
+.mdrazor-command-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+}
+
+.mdrazor-command-item[draggable="true"] {
+	cursor: grab;
+}
+
+.mdrazor-command-item[draggable="true"].is-dragging {
+	opacity: 0.45;
+	border-style: dashed;
+}
+
+.mdrazor-command-item-icon,
+.mdrazor-command-item .btn-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	color: var(--text-normal);
+}
+
+.mdrazor-command-item-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--font-ui-small);
+}
+
+.mdrazor-command-item-delete,
+.mdrazor-command-item-visibility {
+	flex-shrink: 0;
+}
+
+/* 命令选择向导 */
+.mdrazor-wizard-search {
+	margin: 8px 0;
+}
+
+.mdrazor-wizard-search input {
+	width: 100%;
+}
+
+.mdrazor-command-picker-list,
+.mdrazor-icon-picker-list {
+	max-height: 320px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin: 8px 0;
+}
+
+.mdrazor-command-picker-item,
+.mdrazor-icon-picker-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mdrazor-command-picker-item:last-child,
+.mdrazor-icon-picker-item:last-child {
+	border-bottom: none;
+}
+
+.mdrazor-command-picker-item:hover,
+.mdrazor-icon-picker-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.mdrazor-command-picker-icon,
+.mdrazor-icon-picker-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+}
+
+.mdrazor-command-picker-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdrazor-command-picker-id {
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-size: 0.8em;
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mdrazor-icon-picker-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--font-ui-small);
+}
+
+.mdrazor-command-picker-empty {
+	padding: 16px;
+	text-align: center;
+	color: var(--text-muted);
+}
+
+.mdrazor-wizard-name-input input {
+	width: 100%;
+}
+
+/* ── 状态栏自定义命令按钮 ── */
+.mdrazor-statusbar-command {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: pointer;
+}
+.mdrazor-statusbar-command:hover {
+	background: var(--background-modifier-hover);
+	border-radius: 4px;
+	color: var(--text-normal);
+}
+.mdrazor-statusbar-command-icon,
+.mdrazor-statusbar-command-name {
+	display: inline-flex;
+	align-items: center;
+}
+
+/* ── 右键菜单层级分组 ── */
+.mdrazor-command-group {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	margin-bottom: 8px;
+	overflow: hidden;
+}
+.mdrazor-command-group-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	cursor: pointer;
+	background: var(--background-secondary);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	color: var(--text-muted);
+	user-select: none;
+}
+.mdrazor-command-group-header:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.mdrazor-command-group-title {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mdrazor-command-group-body {
+	padding: 6px 8px;
+}
