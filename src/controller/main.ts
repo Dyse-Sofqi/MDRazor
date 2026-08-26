@@ -17,7 +17,8 @@
 import { MarkdownView, Plugin } from 'obsidian';
 import { tr } from '../i18n';
 import { EditorView } from '@codemirror/view';
-import { DEFAULT_SETTINGS, MDRazorSettings } from '../model/settings';
+import { MDRazorSettings } from '../model/settings';
+import { loadPluginSettings, savePluginSettings } from './settings-storage';
 import { MDRazorSettingTab } from '../view/settings-tab';
 import { ChangelogModal } from '../view/changelog-modal';
 import { formattingConfig, createFormatHiderExtension } from './format-hider/format-hider';
@@ -241,30 +242,20 @@ export default class MDRazorPlugin extends Plugin {
 	}
 
 	/**
-	 * 从磁盘加载设置，与默认值合并，然后同步到功能模块
+	 * 从磁盘加载设置（.obsidian/md-razor-settings.json，旧位置 data.json
+	 * 自动迁移），与默认值合并，然后同步到功能模块
 	 */
 	async loadSettings() {
-		const rawData = (await this.loadData()) as Record<string, unknown> | null;
-		if (rawData) {
-			// Migration: enhancedListMarkers → enterSoftBreak
-			if ('enhancedListMarkers' in rawData && !('enterSoftBreak' in rawData)) {
-				rawData.enterSoftBreak = rawData.enhancedListMarkers;
-			}
-		}
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			rawData as Partial<MDRazorSettings>,
-		);
+		this.settings = await loadPluginSettings(this);
 		this.syncConfig();
 	}
 
 	/**
-	 * 将当前设置持久化到磁盘，然后同步到功能模块，
+	 * 将当前设置持久化到磁盘（.obsidian/md-razor-settings.json），然后同步到功能模块，
 	 * 使 CM6 扩展立即生效（无需重新加载插件）
 	 */
 	async saveSettings() {
-		await this.saveData(this.settings);
+		await savePluginSettings(this, this.settings);
 		this.syncConfig();
 		this.repaintAllEditors();
 		this.dirFileCountRefresher.forceRefresh();
@@ -291,10 +282,10 @@ export default class MDRazorPlugin extends Plugin {
 	 *
 	 * 以 `manifest.version` 与持久化的 `lastSeenVersion` 比较：
 	 * 版本不同说明用户刚更新了插件，弹出本次更新的 CHANGELOG 摘要。
-	 * **必须先 `await saveData` 落盘成功再弹窗**——弹窗一旦出现，用户可能
+	 * **必须先落盘成功再弹窗**——弹窗一旦出现，用户可能
 	 * 立即重载插件/重启 Obsidian，未等待的异步写入会被丢掉，导致
 	 * lastSeenVersion 永远停留在旧值、每次加载都弹窗。
-	 * 直写 `saveData` 而非 `saveSettings()`：后者会触发 repaintAllEditors
+	 * 直写存储而非 `saveSettings()`：后者会触发 repaintAllEditors
 	 * 与目录计数强制刷新，onload 阶段不必要。
 	 */
 	private async maybeShowChangelog() {
@@ -302,7 +293,7 @@ export default class MDRazorPlugin extends Plugin {
 		if (this.settings.lastSeenVersion === currentVersion) return;
 		this.settings.lastSeenVersion = currentVersion;
 		try {
-			await this.saveData(this.settings);
+			await savePluginSettings(this, this.settings);
 		} catch (e) {
 			// 落盘失败不阻断弹窗（本次仍展示，下次加载再补记）
 			console.error('MDRazor: 保存已读更新日志版本失败', e);

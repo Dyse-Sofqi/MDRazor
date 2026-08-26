@@ -14,6 +14,7 @@
 
 import { type Plugin, type WorkspaceLeaf, TFolder, TFile, setIcon, Menu } from 'obsidian';
 import { getAllFolderPaths, type CollapseState } from '../list-enhancer/dir-focus';
+import { getFileTabPath } from './tab-utils';
 
 /* ------------------------------------------------------------------ */
 /*  File-explorer view shape (same pattern as dir-focus.ts)            */
@@ -83,17 +84,8 @@ export function registerVerticalTabs(
 	const getOpenFilePaths = (): Set<string> => {
 		const paths = new Set<string>();
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			const file = (leaf.view as { file?: TFile })?.file;
-			if (file instanceof TFile) {
-				paths.add(file.path);
-				return;
-			}
-			try {
-				const vs = leaf.getViewState?.();
-				if (vs?.state?.file && typeof vs.state.file === 'string') {
-					paths.add(vs.state.file);
-				}
-			} catch { /* leaf not ready */ }
+			const path = getFileTabPath(app, leaf);
+			if (path) paths.add(path);
 		});
 		return paths;
 	};
@@ -227,11 +219,6 @@ export function registerVerticalTabs(
 		});
 	};
 
-	const isInMainArea = (leaf: WorkspaceLeaf): boolean => {
-		const rootEl = app.workspace.containerEl.querySelector('.workspace-split.mod-root');
-		return !rootEl || rootEl.contains(leaf.view.containerEl);
-	};
-
 	/** Get open file paths in visual tab order (left-to-right). */
 	const getOrderedOpenPaths = (): string[] => {
 		const paths: string[] = [];
@@ -242,13 +229,8 @@ export function registerVerticalTabs(
 				return;
 			}
 			if ('view' in item) {
-				if (!isInMainArea(item as WorkspaceLeaf)) return;
-				const file = ((item as WorkspaceLeaf).view as { file?: TFile })?.file;
-				if (file instanceof TFile) { paths.push(file.path); return; }
-				try {
-					const vs = (item as WorkspaceLeaf).getViewState?.();
-					if (vs?.state?.file && typeof vs.state.file === 'string') paths.push(vs.state.file);
-				} catch { /* skip */ }
+				const path = getFileTabPath(app, item as WorkspaceLeaf);
+				if (path) paths.push(path);
 			}
 		};
 		walk(app.workspace.rootSplit);
@@ -259,18 +241,12 @@ export function registerVerticalTabs(
 		const orderedPaths = getOrderedOpenPaths();
 		const closedIndex = orderedPaths.indexOf(path);
 		const wasActive = getActiveFilePath() === path;
+		let detachedAny = false;
 
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			if (!isInMainArea(leaf)) return;
-			if ((leaf.view as { file?: { path: string } })?.file?.path === path) {
+			if (getFileTabPath(app, leaf) === path) {
 				leaf.detach();
-				return;
-			}
-			if (!(leaf.view as { file?: unknown })?.file) {
-				try {
-					const vs = leaf.getViewState?.();
-					if (vs?.state?.file === path && leaf.view.getViewType?.() === 'markdown') leaf.detach();
-				} catch { /* leaf not ready */ }
+				detachedAny = true;
 			}
 		});
 
@@ -278,6 +254,12 @@ export function registerVerticalTabs(
 			const targetIdx = closedIndex > 0 ? closedIndex - 1 : (orderedPaths.length > 1 ? closedIndex + 1 : -1);
 			const prevPath = orderedPaths[targetIdx];
 			if (prevPath) openOrSwitchTab(prevPath);
+		}
+
+		// Refresh close buttons / tab list immediately instead of waiting
+		// for a workspace event that may not fire for this leaf.
+		if (detachedAny) {
+			window.setTimeout(() => onLeafChange(), 0);
 		}
 	};
 
@@ -288,15 +270,10 @@ export function registerVerticalTabs(
 	const openOrSwitchTab = (path: string): void => {
 		let existingLeaf: WorkspaceLeaf | null = null;
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
-			const lf = (leaf.view as { file?: TFile })?.file;
-			if (lf instanceof TFile && lf.path === path) {
+			if (existingLeaf) return;
+			if (getFileTabPath(app, leaf) === path) {
 				existingLeaf = leaf;
-				return;
 			}
-			try {
-				const vs = leaf.getViewState?.();
-				if (vs?.state?.file === path) existingLeaf = leaf;
-			} catch { /* skip */ }
 		});
 		if (existingLeaf) {
 			void app.workspace.setActiveLeaf(existingLeaf, { focus: true });
@@ -311,12 +288,8 @@ export function registerVerticalTabs(
 	const getActiveFilePath = (): string | null => {
 		const al = app.workspace.getMostRecentLeaf();
 		if (al) {
-			const f = (al.view as { file?: TFile })?.file;
-			if (f instanceof TFile) return f.path;
-			try {
-				const vs = al.getViewState?.();
-				if (vs?.state?.file && typeof vs.state.file === 'string') return vs.state.file;
-			} catch { /* skip */ }
+			const path = getFileTabPath(app, al);
+			if (path) return path;
 		}
 		return lastActiveFilePath;
 	};

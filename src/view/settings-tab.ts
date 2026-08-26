@@ -5,7 +5,7 @@
  * 純 UI 層，不包含資料定義或業務邏輯。
  *
  * 七大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页 /
- * 状态栏 / 左功能区 / 右键菜单 / 懒加载。当前激活标签页在插件生命周期内记忆。
+ * 左功能区 / 状态栏 / 右键菜单 / 懒加载。当前激活标签页在插件生命周期内记忆。
  */
 
 import { App, PluginSettingTab, Setting } from 'obsidian';
@@ -17,6 +17,7 @@ import { SELF_PLUGIN_ID } from '../controller/lazy-load/lazy-load';
 import { StartupCheckModal } from '../controller/lazy-load/startup-check';
 import { renderRibbonCustomization } from './ribbon-customization';
 import { renderCommandSurfaceSettings } from './command-surface-view';
+import { DataCleanupModal } from './data-cleanup-modal';
 
 /**
  * 在 Obsidian 设置中显示的设置面板：设置 → 第三方插件 → MDRazor。
@@ -63,8 +64,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				tr('隐藏样式', 'Hide Formatting'),
 				tr('列表增强', 'List Enhancement'),
 				tr('标签页', 'Tabs'),
-				tr('状态栏', 'Status Bar'),
 				tr('左功能区', 'Left Ribbon'),
+				tr('状态栏', 'Status Bar'),
 				tr('右键菜单', 'Context Menu'),
 				tr('懒加载', 'Lazy Load'),
 			],
@@ -72,8 +73,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				if (index === 0) this.buildHideSection(panel);
 				else if (index === 1) this.buildListSection(panel);
 				else if (index === 2) this.buildTabSection(panel);
-				else if (index === 3) this.buildStatusSection(panel);
-				else if (index === 4) this.buildRibbonSection(panel);
+				else if (index === 3) this.buildRibbonSection(panel);
+				else if (index === 4) this.buildStatusSection(panel);
 				else if (index === 5) this.buildContextMenuSection(panel);
 				else this.buildLazyLoadSection(panel);
 			},
@@ -489,8 +490,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setName(tr('MD文档光标和滚轴位置持久化', 'Remember Cursor & Scroll Position'))
 			.setDesc(
 				tr(
-					'开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置',
-					'When enabled, the cursor and scroll position of each Markdown document are recorded automatically (the final position is saved 250 ms after changes stop) and restored when the document is reopened.',
+					`开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置。位置记录保存在 ${this.plugin.app.vault.configDir}/md-razor-position-cache.json，卸载重装插件后仍保留`,
+					`When enabled, the cursor and scroll position of each Markdown document are recorded automatically (the final position is saved 250 ms after changes stop) and restored when the document is reopened. Position records are stored in ${this.plugin.app.vault.configDir}/md-razor-position-cache.json and survive plugin reinstall.`,
 				),
 			)
 			.addToggle((toggle) =>
@@ -499,6 +500,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.positionPersistenceEnabled = value;
 						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
+			.setName(tr('清理本地数据', 'Clear Local Data'))
+			.setDesc(
+				tr(
+					`设置与位置记录保存在 ${this.plugin.app.vault.configDir} 目录（md-razor-settings.json / md-razor-position-cache.json），卸载重装插件后仍保留；此按钮可在彻底停用插件前手动清除（复选框默认不勾选 = 保留）`,
+					`Settings and position records are stored in the ${this.plugin.app.vault.configDir} folder (md-razor-settings.json / md-razor-position-cache.json) and survive uninstall/reinstall; use this to clear them before fully dropping the plugin (unchecked by default = keep).`,
+				),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(tr('清理…', 'Clear…'))
+					.setWarning()
+					.onClick(() => {
+						new DataCleanupModal(this.plugin).open();
 					}),
 			);
 

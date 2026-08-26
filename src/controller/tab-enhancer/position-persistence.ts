@@ -16,8 +16,12 @@
  *   再以还原后的位置为基础继续监测新变动。
  *
  * ── 持久化 ──
- *   独立缓存文件 .obsidian/plugins/MDRazor/position-cache.json，
- *   与用户设置 data.json 分离；磁盘写入节流 ~1s，插件卸载时 flush。
+ *   独立缓存文件 .obsidian/md-razor-position-cache.json（与用户设置 data.json 分离），
+ *   位于 .obsidian 配置目录而非插件目录：卸载重装插件后记录仍保留，不随插件目录删除。
+ *   磁盘写入节流 ~1s，插件卸载时 flush。
+ *   旧版本缓存在插件目录（.obsidian/plugins/MDRazor/position-cache.json）：
+ *   新位置不存在时回退读取旧位置并自动迁移（写入新文件成功即切换，
+ *   旧文件保留不再读取；迁移失败则继续使用旧文件，下次加载再试迁移）。
  *   文件夹重命名时同步改写缓存中的路径前缀，旧路径记录不丢失。
  */
 
@@ -37,8 +41,10 @@ const CHANGE_DEBOUNCE_MS = 250;
 const DISK_DEBOUNCE_MS = 1000;
 /** 恢复滚动位置的最大重试帧数（长文档布局分帧完成） */
 const MAX_SCROLL_RETRY = 8;
-/** 缓存文件名（位于插件目录） */
+/** 旧版本缓存文件名（位于插件目录，仅用于迁移） */
 const CACHE_FILE = 'position-cache.json';
+/** 缓存文件名（位于 .obsidian 配置目录；带插件命名空间避免与其他插件冲突） */
+const VAULT_CACHE_FILE = 'md-razor-position-cache.json';
 
 /** 光标位置，line 0 基（与 Obsidian EditorPosition 一致） */
 interface CursorPos {
@@ -93,6 +99,23 @@ function flushNow(): void {
 	void flushDisk();
 }
 
+/**
+ * 清空位置缓存（「清理本地数据」弹窗用）。
+ *
+ * 清空内存记录并取消待落盘标记，然后主动写一次空缓存到当前目标文件，
+ * 防止残存的脏标记 / 下次 flush 把旧记录写回；同时保证新位置文件存在，
+ * 下次加载不会回退到旧位置把已清理的数据迁移回来。
+ */
+export function resetPositionCache(): void {
+	cache = {};
+	dirty = false;
+	if (diskTimer !== null) {
+		window.clearTimeout(diskTimer);
+		diskTimer = null;
+	}
+	void flushDisk();
+}
+
 async function flushDisk(): Promise<void> {
 	if (!adapterRef || !filePathRef || !loaded) return;
 	try {
@@ -134,19 +157,29 @@ async function loadCache(plugin: Plugin): Promise<void> {
 	// manifest.dir = 实际插件文件夹路径（插件目录名可能与 id 不一致，如 id=md-razor / 目录=MDRazor）
 	const pluginDir =
 		plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
-	filePathRef = `${pluginDir}/${CACHE_FILE}`;
+	const pluginFile = `${pluginDir}/${CACHE_FILE}`;
+	const vaultFile = `${plugin.app.vault.configDir}/${VAULT_CACHE_FILE}`;
 
+	// 优先沿用 .obsidian 下缓存（卸载重装插件后记录仍保留）；
+	// 新位置不存在时才回退读取插件目录的旧缓存，载入后迁移过去。
 	let diskCache: PositionCache = {};
+	let fromVault = false;
+	let readFromPlugin = false;
 	try {
-		if (await adapterRef.exists(filePathRef)) {
-			const raw = JSON.parse(await adapterRef.read(filePathRef)) as unknown;
+		let raw: unknown = null;
+		if (await adapterRef.exists(vaultFile)) {
+			fromVault = true;
+			raw = JSON.parse(await adapterRef.read(vaultFile)) as unknown;
+		} else if (await adapterRef.exists(pluginFile)) {
+			readFromPlugin = true;
+			raw = JSON.parse(await adapterRef.read(pluginFile)) as unknown;
+		}
 			// 兼容两种落盘格式：早期 {positions:{}} 包裹，以及当前平铺 {path: record}
 			if (raw !== null && typeof raw === 'object' && 'positions' in raw) {
 				diskCache = (raw as { positions?: PositionCache }).positions ?? {};
 			} else {
 				diskCache = raw as PositionCache;
 			}
-		}
 	} catch {
 		diskCache = {};
 	}
@@ -175,6 +208,25 @@ async function loadCache(plugin: Plugin): Promise<void> {
 			}
 		}
 	}
+
+	// 迁移旧缓存到 .obsidian：写入新文件成功即切换（单真相源由「新位置存在时
+	// 优先」保证，旧文件保留在插件目录、之后不再被读取，卸载插件时一并删除；
+	// 不主动删除旧文件，避免删除失败导致本次会话回退到插件目录）。
+	// 写失败则继续用插件目录文件（当前会话照常读写），下次加载再试迁移。
+	if (fromVault) {
+		filePathRef = vaultFile;
+	} else if (readFromPlugin) {
+		try {
+			await adapterRef.write(vaultFile, JSON.stringify(cache, null, 2));
+			filePathRef = vaultFile;
+		} catch (err) {
+			console.error('[MDRazor] 位置缓存迁移失败，继续使用插件目录缓存', err);
+			filePathRef = pluginFile;
+		}
+	} else {
+		filePathRef = vaultFile;
+	}
+
 	// 载入完成：补写窗口期累积的脏标记（此时 flushDisk 已允许落盘）
 	if (pruned || dirty) {
 		scheduleDiskWrite();

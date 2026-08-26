@@ -10,6 +10,7 @@
 
 import { EditorView } from '@codemirror/view';
 import { type Plugin, TFile, type WorkspaceLeaf } from 'obsidian';
+import { getFileTabPath } from './tab-utils';
 
 interface LinkTarget {
 	linkText: string;
@@ -218,21 +219,13 @@ export function registerLinkOpener(
 
 		const targetPath = targetFile.path;
 
-		// Check if target file is already open in any leaf
+		// Check if target file is already open in any main-area file tab
 		let existingLeaf: WorkspaceLeaf | null = null;
 		app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
 			if (existingLeaf) return;
-			const file = (leaf.view as { file?: TFile })?.file;
-			if (file instanceof TFile && file.path === targetPath) {
+			if (getFileTabPath(app, leaf) === targetPath) {
 				existingLeaf = leaf;
-				return;
 			}
-			try {
-				const vs = leaf.getViewState?.();
-				if (vs?.state?.file === targetPath) {
-					existingLeaf = leaf;
-				}
-			} catch { /* leaf not ready */ }
 		});
 
 		handled = true;

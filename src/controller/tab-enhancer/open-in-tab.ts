@@ -24,6 +24,7 @@ import {
 	Workspace,
 	WorkspaceLeaf,
 } from 'obsidian';
+import { getFileTabPath } from './tab-utils';
 
 /** Window in ms during which a pending request is honored. */
 const WINDOW_MS = 500;
@@ -57,15 +58,9 @@ function openInEnhancerMode(file: TFile, openState?: OpenViewState): Promise<voi
 	let existingLeaf: WorkspaceLeaf | null = null;
 	app.workspace.iterateAllLeaves((leaf: WorkspaceLeaf) => {
 		if (existingLeaf) return;
-		const f = (leaf.view as { file?: TFile })?.file;
-		if (f instanceof TFile && f.path === file.path) {
+		if (getFileTabPath(app, leaf) === file.path) {
 			existingLeaf = leaf;
-			return;
 		}
-		try {
-			const vs = leaf.getViewState?.();
-			if (vs?.state?.file === file.path) existingLeaf = leaf;
-		} catch { /* leaf not ready */ }
 	});
 
 	if (existingLeaf) {

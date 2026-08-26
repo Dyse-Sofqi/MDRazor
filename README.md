@@ -19,8 +19,9 @@
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 目前提供**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**七大功能模块，更多功能正在开发中。
 
-### 新关键词
+### 关键词
 
+- 隐藏格式标记 · 列表增强软换行 · 目录聚焦 · 垂直标签页 · 自动保存工作区 · 自动清理失联图片
 - 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 中英文 i18n
 
 
@@ -110,7 +111,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **目录展开关联标签页** — 开启后，从垂直标签页视图切换回文件列表时，仅展开包含已打开标签页的文件夹；关闭后，切换时恢复文件列表原来的展开结构。
 
-- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。
+- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。位置记录保存在 Obsidian 配置目录（默认 `.obsidian/`）的 `md-razor-position-cache.json`，卸载重装插件后仍保留；旧版插件目录缓存（`position-cache.json`）首次加载时自动迁移。
 
 - **打字机模式** — 开启后聚焦中部阅读带：视口高度分为顶部 1/8、中部 3/4、底部 1/8，死区（12.5%~87.5%）之外（顶部/底部 1/8）的行按「死区外的不透明度」淡化显示，死区内与当前行保持明亮。光标跨行时维持视觉位置：落入顶部 1/8 → 滚回死区上沿（12.5%）；落入底部 1/8 → 默认滚回死区下沿（87.5%）。子设置项「死区外的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留视口高度 1/8 的空白，使光标位于文档第一行时也能滚入中部区域；子开关「死区下沿跳转上沿」（默认关闭）开启后，光标跨过死区下沿时跳到上沿（12.5%）而非滚回下沿。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
 
@@ -168,6 +169,15 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ---
 
+### 数据存储
+
+MDRazor 的两份数据文件保存在 Obsidian 配置目录（默认 `.obsidian/`）下，**不随插件卸载删除**，重装后可继续沿用：
+
+- `.obsidian/md-razor-settings.json` — 全部设置：开关状态、自定义命令、隐藏命令、排序、懒加载延迟等
+- `.obsidian/md-razor-position-cache.json` — 各文档的光标与滚轴位置记录
+
+旧版本的数据文件（插件目录 `data.json` / `position-cache.json`）在新版本首次加载时自动迁移，迁移后不再读写。卸载前如不再需要数据，可在 **设置 → 标签页 → 清理本地数据** 中清除（两个数据项默认不勾选 = 保留；勾选确认后即时生效）。
+
 ### 安装
 
 #### 通过社区插件市场安装（推荐）
@@ -217,6 +227,7 @@ Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusba
 
 ### Keywords
 
+- Hide formatting markers · List enhancement with soft-break · Dir focus · Vertical tabs · Auto save workspace · Auto pic clean
 - Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · i18n (Chinese/English)
 
 
@@ -304,7 +315,7 @@ File tab management with the following independent toggles:
 
 - **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
 
-- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low.
+- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Records are stored in `md-razor-position-cache.json` inside the Obsidian config folder (default `.obsidian/`) and survive plugin uninstall/reinstall; the legacy plugin-dir cache (`position-cache.json`) is migrated automatically on first load.
 
 - **Typewriter Mode** — When enabled, focuses the middle reading band: the viewport is split into a top eighth, a middle 3/4, and a bottom eighth; lines outside the dead zone (12.5%–87.5%, i.e. the top/bottom eighth) are dimmed per the "Outside Dead-Zone Opacity" sub-setting, while lines inside the dead zone and the current line stay bright. The cursor's visual position is maintained across lines: entering the top eighth scrolls it back to the dead zone's top edge (12.5%); entering the bottom eighth scrolls it back to the bottom edge (87.5%) by default. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space of 1/8 viewport height above the document so the cursor can reach the middle band even on the very first line. The "Dead-Zone Bottom Edge Jump to Top Edge" sub-toggle (default off) makes the cursor jump to the top edge (12.5%) when it crosses the bottom edge, instead of scrolling back to the bottom edge. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
 
@@ -361,6 +372,15 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Tabbed sections** — the seven modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
+
+### Data Storage
+
+MDRazor keeps two data files inside the Obsidian config folder (default `.obsidian/`). They are **not deleted when the plugin is uninstalled** and are reused after reinstalling:
+
+- `.obsidian/md-razor-settings.json` — all settings: toggles, custom commands, hidden commands, ordering, lazy-load delays, etc.
+- `.obsidian/md-razor-position-cache.json` — cursor & scroll position records per document
+
+Legacy data files (the plugin-dir `data.json` / `position-cache.json`) are migrated automatically on the first load of a new version and are no longer read or written afterwards. To wipe the data before fully dropping the plugin, use **Settings → Tabs → Clear Local Data** (both items default to unchecked = keep; clearing takes effect immediately).
 
 ### Installation
 

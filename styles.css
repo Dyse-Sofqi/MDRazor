@@ -197,6 +197,7 @@ div.nav-folder-title {
 	gap: 4px;
 }
 .mdrazor-statusbar-workspace:hover {
+	background-color: var(--background-modifier-border);
 	color: var(--text-normal);
 }
 .mdrazor-workspace-menu {
