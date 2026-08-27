@@ -86,6 +86,27 @@ export async function loadPluginSettings(plugin: Plugin): Promise<MDRazorSetting
 		if ('enhancedListMarkers' in raw && !('enterSoftBreak' in raw)) {
 			raw.enterSoftBreak = raw.enhancedListMarkers;
 		}
+		// Migration (2.5.3)：懒加载配置去掉 enabled 字段 —— 插件启停完全交给
+		// 「第三方插件」设置管理。旧数据 enabled:false 表示用户已关闭该插件的
+		// 懒加载（其插件本身也被置为停用），迁移为「不懒加载」（延迟 0），
+		// 避免新逻辑把它当成懒加载意图而重新启动插件。
+		if (raw.lazyLoadPlugins instanceof Object && !Array.isArray(raw.lazyLoadPlugins)) {
+			const oldPlugins = raw.lazyLoadPlugins as Record<
+				string,
+				{ delay?: unknown; enabled?: unknown }
+			>;
+			const normalized: Record<string, { delay: number }> = {};
+			for (const [id, entry] of Object.entries(oldPlugins)) {
+				if (entry == null || typeof entry !== 'object') continue;
+				const rawDelay =
+					typeof entry.delay === 'number' && Number.isFinite(entry.delay)
+						? Math.max(0, Math.round(entry.delay))
+						: 0;
+				const delay = entry.enabled === false ? 0 : rawDelay;
+				normalized[id] = { delay };
+			}
+			raw.lazyLoadPlugins = normalized;
+		}
 		return Object.assign({}, DEFAULT_SETTINGS, raw);
 	}
 	return { ...DEFAULT_SETTINGS };

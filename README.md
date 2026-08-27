@@ -21,8 +21,8 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 关键词
 
-- 隐藏格式标记 · 列表增强软换行 · 目录聚焦 · 垂直标签页 · 自动保存工作区 · 自动清理失联图片
-- 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 中英文 i18n
+- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片
+- 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 懒加载 · 中英文 i18n
 
 
 ### 功能
@@ -75,7 +75,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 列表编辑体验优化，提供以下独立开关：
 
-- **列一体化** — 将列表标记（`-`、`1.`、`*`）视为原子单元：光标定位跳过标记，退格键一次删除整个标记。编辑体验更接近所见即所得。
+- **列一体化** — 将列表标记（`-`、`1.`、`*`）视为原子单元：光标定位跳过标记（点击 / Home / 方向键 / 程序化移动均不驻留标记区），退格键一次删除整个标记。光标永不驻留列表标记区，列表符号（圆点 / 自定义符号 / 折叠箭头）在光标所在行始终显示，不会退化为原始 `- ` 标记。编辑体验更接近所见即所得。
+
+- **勾选框一体化** — 将任务项标记 `- [ ]`（含 `[ ]` 内的状态字符）视为原子单元：光标定位跳过、退格键一次整体删除标记；与「列一体化」同时开启时合并为一个整体区间（`- [ ]` 视为一个整体），只开勾选框一体化时 `[ ]` 单独作为一个原子单元。勾选框样式（复选框 widget）在光标所在行始终显示，不会退化为原始 `[ ]`；点击勾选框切换任务状态不受影响。
+
+- **光标行列表符号折叠** — 实时预览中光标所在列表行（活动行）原本悬停列表符号不显示折叠箭头、点击列表符号也无法折叠/展开列表（Obsidian 原生在活动行禁用的机制）；开启后恢复与非活动行一致的折叠行为：悬停箭头正常显现、点击列表符号照常折叠/展开。任务行沿用原生规则。设置变更即时生效，无需重启。
 
 - **回车软换行** — 在列表项内按 Enter 仅插入换行、缩进及两个空格（等效原生 `Shift+Enter` 行为），不新建列表项。需要新建列表项时，再按一次 Enter 即可，也就是连续回车新建列表项。适合多行列表项。
 
@@ -107,7 +111,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **新标签页打开书签** — 点击 Obsidian 核心插件「书签」视图中的文件书签时，自动检测目标文件是否已存在标签页：若已存在则跳转到该标签页，否则在新标签页中打开。Ctrl/Meta/Shift+ 点击时恢复 Obsidian 原生行为。
 
-- **🗂️ 垂直标签页** — 在文件列表中为已打开的文件提供标签页管理。顶部添加切换按钮（`arrow-left-right` 图标），一键切换「仅标签页」视图，隐藏未打开的文件和空文件夹；已打开的文件标题右侧显示关闭按钮。支持「仅标签页」与「完整目录」两种视图切换。标签页视图下隐藏未打开的文件和空文件夹，专注当前工作文件。关闭按钮显示在标题右侧，一目了然。关闭当前激活标签页时自动聚焦上一个标签页，与原生标签栏行为一致。
+- **🗂️ 垂直标签页** — 在文件列表中为已打开的文件提供标签页管理。顶部添加切换按钮（`arrow-left-right` 图标），一键切换「仅标签页」视图，隐藏未打开的文件和空文件夹；已打开的文件标题右侧显示关闭按钮。支持「仅标签页」与「完整目录」两种视图切换。标签页视图下隐藏未打开的文件和空文件夹，专注当前工作文件。关闭按钮显示在标题右侧，一目了然。关闭当前激活标签页时自动聚焦上一个标签页，与原生标签栏行为一致。顶部「切换标签页视图」按钮可独立隐藏（见「展示/隐藏切换标签页视图按钮」开关），隐藏后仍可通过命令面板命令或快捷键切换视图。
 
 - **目录展开关联标签页** — 开启后，从垂直标签页视图切换回文件列表时，仅展开包含已打开标签页的文件夹；关闭后，切换时恢复文件列表原来的展开结构。
 
@@ -150,7 +154,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **启用懒加载** — 总开关。开启后按下方的插件延迟列表逐个控制社区插件的启动；关闭则所有插件恢复 Obsidian 自然加载。总线前提供「立即检查」按钮。
 - **立即检查** — 「启用懒加载」开关前的计时器按钮（tooltip「立即检查」）。点击弹出启动耗时检查弹窗：以「延迟 x s，启动耗时 x ms」单列合并展示所有已启用且延迟启动插件的实测加载耗时（含 onload）与配置延迟及加载状态（未开始/加载中/已完成/未测量），环境栏展示仓库文件数与社区插件数，弹窗底部可一键复制全文。因 Obsidian 原生「立即检查」弹窗不对外暴露，故复刻其按钮外观并自实现等效统计。
-- **插件延迟列表** — 对范围内每个社区插件设置「启用」开关与「延迟（秒）」输入框。被标记的插件不再随 Obsidian 启动立即加载，而是等待各自设定的延迟后再加载（各插件延迟相对大小即构成启动顺序）；延迟设为 0 或关闭开关即恢复即时加载。插件卸载时自动移除其配置。
+- **插件延迟列表** — 对范围内每个社区插件设置「延迟（秒）」输入框：延迟 > 0 即懒加载，0 即恢复即时加载；各插件延迟相对大小即构成启动顺序。插件启停由「设置 → 第三方插件」管理（本列表不再提供逐插件启用开关）：在第三方插件设置中关闭某插件时，其懒加载配置自动取消，重启后不会再次被拉起；插件卸载时自动移除其配置。
 
 > 说明：懒加载作用范围仅限社区插件；关闭总开关或插件卸载时自动恢复自然加载。
 
@@ -159,12 +163,12 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 在 Obsidian 设置 → 第三方插件 → MDRazor 中配置：
 
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
-- **列表增强** — 9 个开关 + 1 个滑块：列一体化、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
-- **标签页** — 9 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
+- **列表增强** — 11 个开关 + 1 个滑块：列一体化、勾选框一体化、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
+- **标签页** — 10 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
 - **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
-- **懒加载** — 1 个总开关 + 每插件启用与延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件启用 + 延迟秒数）
+- **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理）
 - **标签页切换** — 上述七大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
@@ -227,8 +231,8 @@ Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusba
 
 ### Keywords
 
-- Hide formatting markers · List enhancement with soft-break · Dir focus · Vertical tabs · Auto save workspace · Auto pic clean
-- Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · i18n (Chinese/English)
+- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner
+- Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Lazy Load · i18n (Chinese/English)
 
 
 ### Features
@@ -281,7 +285,11 @@ All hidden formats share these behaviors:
 
 Optimized list editing experience with the following independent toggles:
 
-- **List Integration** — Treats list markers (`-`, `1.`, `*`) as atomic units: cursor navigation skips the marker, backspace removes the entire marker at once. Editing experience closer to WYSIWYG.
+- **List Integration** — Treats list markers (`-`, `1.`, `*`) as atomic units: cursor navigation skips the marker (clicks / Home / arrow keys / programmatic moves never rest inside the marker range) and Backspace removes the entire marker at once. The cursor never rests inside the marker, so the list bullet (dot / custom marker / fold arrow) always stays visible on the current line — it never degrades back to the raw `- ` text. Editing experience closer to WYSIWYG.
+
+- **Checkbox Integration** — Treats task markers `- [ ]` (including the status character in `[ ]`) as atomic units: cursor navigation skips them and Backspace removes the whole marker at once. With List Integration on, the list marker and the checkbox merge into a single atomic range (`- [ ]` as one unit); with only Checkbox Integration on, `[ ]` is its own unit. The checkbox widget always stays visible on the current line instead of degrading to raw `[ ]`; clicking the checkbox to toggle its state is unaffected.
+
+- **List Fold on Active Line** — In live preview, the currently edited (active) list line normally shows no fold arrow on hover, and clicking the bullet does not fold the list (Obsidian deliberately disables this on active lines). When enabled, the active line folds exactly like inactive lines: the hover arrow appears and clicking the bullet collapses/expands the list. Task lines keep the native behavior. Takes effect immediately, no restart needed.
 
 - **Enter Soft Break** — Pressing Enter inside a list item inserts a line break, indentation, and two trailing spaces (equivalent to native `Shift+Enter` behavior), without creating a new list item. Press Enter again to create a new list item — consecutive Enter presses create new items. Ideal for multi-line list items.
 
@@ -311,7 +319,7 @@ File tab management with the following independent toggles:
 
 - **Open Bookmark in New Tab** — Click a file bookmark in Obsidian's core Bookmarks view: if the target file already has an open tab, switch to it; otherwise open in a new tab. Ctrl/Meta/Shift+click bypasses to native behavior.
 
-- **🗂️ Vertical Tabs** — Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles. Supports "tabs-only" and "full directory" view toggle. Tabs-only view hides unopened files and empty folders, focuses on active files. Close button displayed on the right of each open file title. Closing the active tab auto-focuses the previous tab, matching native tab bar behavior.
+- **🗂️ Vertical Tabs** — Tab management in the file explorer. Toggle button (`arrow-left-right` icon) in nav buttons switches to a "tabs-only" view that hides inactive files and empty folders; close buttons on open file titles. Supports "tabs-only" and "full directory" view toggle. Tabs-only view hides unopened files and empty folders, focuses on active files. Close button displayed on the right of each open file title. Closing the active tab auto-focuses the previous tab, matching native tab bar behavior. The nav toggle button can be hidden independently (see the "Show/Hide the Toggle Tab View Button" toggle); once hidden, the command-palette command or a hotkey still switches the view.
 
 - **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
 
@@ -354,7 +362,7 @@ Control when community plugins start up to optimize Obsidian cold-start, with th
 
 - **Enable Lazy Load** — Master switch. When on, each community plugin is launched according to the plugin delay list below; when off, all plugins restore Obsidian's natural loading. A "Check Now" button sits in front of the master switch.
 - **Check Now** — The timer button before the "Enable Lazy Load" switch (tooltip "Check Now"). Opens a startup-time inspection modal that lists, as a single column formatted like "delay x s, startup x ms", the measured load time (including onload) of every enabled and delayed plugin together with its configured delay and load state (not started / loading / done / not measured). The environment bar shows the vault's file count and community plugin count, and a "copy" button at the bottom copies the full text. Because Obsidian's native "Check Now" modal is not exposed to plugins, its button appearance is reproduced and an equivalent measurement is implemented internally.
-- **Plugin Delay List** — For each in-scope community plugin, sets an "Enable" switch and a "Delay (seconds)" input. Marked plugins no longer load immediately at startup but wait for their own configured delay before loading (relative delays define the startup order); a delay of 0 or disabling the switch restores immediate loading. Uninstalling a plugin automatically removes its configuration.
+- **Plugin Delay List** — For each in-scope community plugin, sets a "Delay (seconds)" input: a delay > 0 defers its startup, 0 restores immediate loading (relative delays define the startup order). Plugin enable/disable is managed by Obsidian's Settings → Community Plugins (the per-plugin enable switch was removed): closing a plugin there cancels its lazy-load configuration so it is never relaunched on the next restart; uninstalling a plugin automatically removes its configuration.
 
 > Note: Lazy Load applies to community plugins only; turning off the master switch or uninstalling a plugin restores natural loading.
 
@@ -363,12 +371,12 @@ Control when community plugins start up to optimize Obsidian cold-start, with th
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
-- **List Enhancements** — 9 toggles + 1 slider: List Integration, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
-- **Tabs** — 9 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top, Dead-Zone Bottom Edge Jump to Top Edge)
+- **List Enhancements** — 11 toggles + 1 slider: List Integration, Checkbox Integration, List Fold on Active Line, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
+- **Tabs** — 10 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Show/Hide the Toggle Tab View Button, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top, Dead-Zone Bottom Edge Jump to Top Edge)
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
 - **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
-- **Lazy Load** — 1 master toggle + per-plugin enable & delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin enable + delay in seconds)
+- **Lazy Load** — 1 master toggle + per-plugin delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin delay in seconds; plugin enable/disable is handled by the community plugins settings)
 - **Tabbed sections** — the seven modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---

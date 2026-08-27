@@ -170,9 +170,27 @@ export function registerCommandSurfaceManager(
 		return { name, icon };
 	};
 
+	// 稳定 key：Obsidian 会给每个状态栏条目加上 plugin-<插件id> 类，结构性身份跨重启恒定。
+	// 旧的 status:${icon}:${name} 不稳定（editor-status 的 aria-label/图标随视图模式变化、
+	// word-count 的文本随计数变化），晚创建的条目会匹配不上记录而被追加到最右。
 	const getStatusBarElementKey = (el: HTMLElement): string => {
 		const customId = el.getAttribute('data-mdrazor-status-id');
 		if (customId) return customKey(customId);
+		const pluginClass = Array.from(el.classList).find((cls) => cls.startsWith('plugin-'));
+		if (pluginClass) {
+			const pluginId = pluginClass.slice('plugin-'.length);
+			const parent = el.parentElement;
+			if (parent) {
+				let index = 0;
+				for (const child of Array.from(parent.children)) {
+					if (child.classList.contains(pluginClass)) {
+						if (child === el) return index > 0 ? `plugin:${pluginId}#${index}` : `plugin:${pluginId}`;
+						index++;
+					}
+				}
+			}
+			return `plugin:${pluginId}`;
+		}
 		const meta = getStatusItemMeta(el);
 		return `status:${meta.icon}:${meta.name}`;
 	};
@@ -213,7 +231,92 @@ export function registerCommandSurfaceManager(
 		}
 	};
 
+	const statusBarSignature = (): string =>
+		getStatusBarItemEls()
+			.map((el) => getStatusBarElementKey(el))
+			.join('|');
+
+	// 旧版本以 status:${icon}:${name} 记录顺序/隐藏（key 随视图模式、字符计数变化，不稳定）。
+	// 用当前元素的实时 volatile key 反查匹配，把记录中的旧 key 改写为新稳定 key（幂等，无匹配则不改）。
+	const migrateLegacyStatusKeys = (): void => {
+		const order = getOrder();
+		const hiddenMap = getHiddenMap();
+		const hasLegacyOrder = order.some((k) => k.startsWith('status:'));
+		const hasLegacyHidden = Object.keys(hiddenMap).some((k) => k.startsWith('status:'));
+		if (!hasLegacyOrder && !hasLegacyHidden) return;
+
+		const exact = new Map<string, string>();
+		for (const el of getStatusBarItemEls()) {
+			const key = getStatusBarElementKey(el);
+			if (!key.startsWith('plugin:')) continue;
+			const meta = getStatusItemMeta(el);
+			exact.set(`status:${meta.icon}:${meta.name}`, key);
+		}
+
+		let orderChanged = false;
+		const newOrder: string[] = [];
+		const unmatchedOld: string[] = [];
+		for (const k of order) {
+			const mapped = exact.get(k);
+			if (mapped) {
+				newOrder.push(mapped);
+				orderChanged = true;
+			} else {
+				newOrder.push(k);
+				if (k.startsWith('status:')) unmatchedOld.push(k);
+			}
+		}
+		// 一一对应兜底：恰好一个未匹配旧 key + 恰好一个未匹配稳定 key（如 word-count 因计数变化反查不到）
+		if (unmatchedOld.length === 1) {
+			const present = new Set(newOrder);
+			const unmatchedNew = getStatusBarItemEls()
+				.map((el) => getStatusBarElementKey(el))
+				.filter((k) => k.startsWith('plugin:') && !present.has(k));
+			if (unmatchedNew.length === 1) {
+				const oldKey = unmatchedOld[0];
+				const newKey = unmatchedNew[0];
+				if (oldKey && newKey) {
+					const idx = newOrder.indexOf(oldKey);
+					if (idx >= 0) {
+						newOrder[idx] = newKey;
+						orderChanged = true;
+					}
+				}
+			}
+		}
+
+		let hiddenChanged = false;
+		const newHidden: Record<string, boolean> = {};
+		for (const [k, v] of Object.entries(hiddenMap)) {
+			const mapped = exact.get(k);
+			if (mapped && mapped !== k) {
+				newHidden[mapped] = (newHidden[mapped] ?? false) || v;
+				hiddenChanged = true;
+			} else {
+				newHidden[k] = v;
+			}
+		}
+
+		if (orderChanged) setOrder(newOrder);
+		if (hiddenChanged) setHiddenMap(newHidden);
+		if (orderChanged || hiddenChanged) void plugin.saveSettings();
+	};
+
+	let lastStatusBarSignature = '';
+	// DOM 变化时重放记录顺序：晚创建的条目（视图模式/笔记属性/字符数统计等，在非 Markdown 视图
+	// 重启时不会被创建）不再滞留最右。签名相同说明容器顺序未变，跳过，避免 appendChild 移动节点
+	// 触发 childList 变更形成自激循环。
+	const reconcileStatusBar = (): void => {
+		const signature = statusBarSignature();
+		if (signature === lastStatusBarSignature) return;
+		migrateLegacyStatusKeys();
+		applyStatusBarOrder();
+		applyStatusBarVisibility();
+		lastStatusBarSignature = statusBarSignature();
+	};
+
 	const refreshStatusBar = (): void => {
+		migrateLegacyStatusKeys();
 		removeAllCustomStatusItems();
 		for (const cmd of getCustomCommands()) {
 			if (isHidden(customKey(cmd.id))) continue;
@@ -451,7 +554,7 @@ export function registerCommandSurfaceManager(
 			if (!container) return;
 			if (observer) observer.disconnect();
 			observer = new MutationObserver(() => {
-				window.setTimeout(() => applyStatusBarVisibility(), 0);
+				window.setTimeout(() => reconcileStatusBar(), 0);
 			});
 			observer.observe(container, { childList: true, subtree: true });
 			if (!cleanupRegistered) {

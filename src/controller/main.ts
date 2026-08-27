@@ -14,7 +14,8 @@
  * 它们完全基于 CM6 原生 API 运作。
  */
 
-import { MarkdownView, Plugin } from 'obsidian';
+import { MarkdownView, Notice, Plugin } from 'obsidian';
+import type { PluginManifest } from 'obsidian';
 import { tr } from '../i18n';
 import { EditorView } from '@codemirror/view';
 import { MDRazorSettings } from '../model/settings';
@@ -24,7 +25,7 @@ import { ChangelogModal } from '../view/changelog-modal';
 import { formattingConfig, createFormatHiderExtension } from './format-hider/format-hider';
 import { createCursorBoundaryHintExtension } from './format-hider/cursor-boundary-hint';
 import { spaceConfig, createSpaceVisualizationExtension } from './format-hider/whitespace-visible';
-import { listEnhancerConfig, createListEnhancerExtension } from './list-enhancer/list-enhancer';
+import { listEnhancerConfig, createListEnhancerExtension, applyListFoldOnActiveLineClass, removeListFoldOnActiveLineClass } from './list-enhancer/list-enhancer';
 import { registerDirFocus } from './list-enhancer/dir-focus';
 import { registerDirFileCount } from './list-enhancer/dir-file-count';
 import { registerSiblingFold, registerSiblingFoldContextMenu } from './list-enhancer/sibling-fold';
@@ -100,10 +101,28 @@ export default class MDRazorPlugin extends Plugin {
 		this.startupTimings = createStartupTimingRecorder(this);
 
 		// 懒加载：注册控制器并按「启用懒加载」开关调度延迟加载；
-		// 每次触发「未加载」插件加载前，通知记录器对该插件计时
-		this.lazyLoadManager = registerLazyLoad(this, (pluginId) => {
-			this.startupTimings.trackLoad(pluginId);
-		});
+		// 每次触发「未加载」插件加载前，通知记录器对该插件计时；
+		// 检测到某懒加载插件在第三方插件设置中被关闭时，自动取消其
+		// 懒加载配置、通知用户并刷新懒加载设置列表
+		this.lazyLoadManager = registerLazyLoad(
+			this,
+			(pluginId) => {
+				this.startupTimings.trackLoad(pluginId);
+			},
+			(pluginId) => {
+				const name =
+					(this.app as unknown as {
+						plugins?: { manifests?: Record<string, PluginManifest> };
+					}).plugins?.manifests?.[pluginId]?.name ?? pluginId;
+				new Notice(
+					tr(
+						`已同步社区插件设置：「${name}」已在社区插件列表中关闭，懒加载配置已取消`,
+						`Community plugin settings synced: "${name}" was disabled in the community plugins list; its lazy-load configuration has been cancelled`,
+					),
+				);
+				this.settingTab?.refreshLazyList();
+			},
+		);
 		if (this.settings.lazyLoadEnabled) {
 			this.lazyLoadManager.start();
 		}
@@ -176,6 +195,7 @@ export default class MDRazorPlugin extends Plugin {
 		this.verticalTabsManager = registerVerticalTabs(
 			this,
 			() => this.settings.verticalTabsEnabled,
+			() => this.settings.verticalTabsToggleButtonEnabled,
 			() => this.settings.verticalTabsViewActive,
 			(active: boolean) => {
 				this.settings.verticalTabsViewActive = active;
@@ -239,6 +259,8 @@ export default class MDRazorPlugin extends Plugin {
 		}
 		// 清理 ribbon 图标（其他清理由 Obsidian 自动完成）
 		this.orphanImageRibbon?.removeRibbon();
+		// 移除「光标所在列表行也可折叠」的 body 开关类（JS 添加，需手动清理）
+		removeListFoldOnActiveLineClass();
 	}
 
 	/**
@@ -313,6 +335,8 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(formattingConfig, this.settings);
 		Object.assign(spaceConfig, this.settings);
 		Object.assign(listEnhancerConfig, this.settings);
+		// 「光标所在列表行也可折叠」为 CSS 类驱动，需在设置同步后刷新 body 类
+		applyListFoldOnActiveLineClass();
 		Object.assign(typewriterConfig, {
 			mode: this.settings.typewriterMode,
 			opacity: this.settings.typewriterOpacity,

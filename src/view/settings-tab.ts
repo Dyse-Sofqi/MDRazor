@@ -42,6 +42,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/** 当前激活的标签页索引（会话内记忆，设置面板重开时保留） */
 	private activeTabIndex = 0;
 
+	/** 懒加载插件列表容器引用（第三方插件设置中关闭插件后同步刷新列表） */
+	private lazyListEl?: HTMLElement;
+
 	constructor(app: App, plugin: MDRazorPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
@@ -57,6 +60,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		this.typewriterOpacitySetting = undefined;
 		this.typewriterTopPaddingSetting = undefined;
 		this.typewriterDeadZoneJumpSetting = undefined;
+		this.lazyListEl = undefined;
 
 		this.createTabbedSection(
 			containerEl,
@@ -276,6 +280,30 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(panel)
+			.setName(tr('勾选框一体化', 'Checkbox Integration'))
+			.setDesc(tr('将任务项标记 - [ ] 视为一个整体：光标（点击/Home/方向键）不驻留其内，Backspace/Delete 整体删除标记，与列一体化同等处理', 'Treat the task marker - [ ] as a single unit: the cursor (click/Home/arrow keys) never rests inside it, and Backspace/Delete removes the whole marker, just like List Integration.'))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.checkboxIntegration)
+					.onChange(async (value) => {
+						this.plugin.settings.checkboxIntegration = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
+			.setName(tr('光标行列表符号折叠', 'Fold Active Line via List Bullet'))
+			.setDesc(tr('即使光标位于列表项所在行，悬停列表符号仍显示折叠箭头，点击列表符号可折叠/展开该列表（Obsidian 原生仅在非活动行开放，本开关通过 CSS 为活动行恢复该功能）', 'Even when the cursor is on the list line, hovering the list bullet shows the fold arrow and clicking the bullet folds/unfolds the list. Obsidian only allows this on inactive lines; this toggle restores it for the active line via CSS.'))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.listFoldOnActiveLine)
+					.onChange(async (value) => {
+						this.plugin.settings.listFoldOnActiveLine = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
 			.setName(tr('回车软换行', 'Insert Soft Break on Enter'))
 			.setDesc(tr('在列表项内按回车时插入软换行（续行缩进）而非创建新列表项', 'Pressing Enter inside a list item inserts a soft line break (continuation indentation) instead of creating a new list item.'))
 			.addToggle((toggle) =>
@@ -470,6 +498,20 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						if (!value) {
 							this.plugin.verticalTabsManager?.toggleView();
 						}
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		// 垂直标签页开启时，是否显示文件列表工具栏中的「切换标签页视图」按钮
+		new Setting(panel)
+			.setName(tr('展示/隐藏切换标签页视图按钮', 'Show/Hide the Toggle Tab View Button'))
+			.setDesc(tr('展示或隐藏文件列表工具栏中的「切换标签页视图」按钮（开启时显示，即默认状态；仅在「垂直标签页」开启时生效）', 'Show or hide the "Toggle Tab View" button in the file explorer toolbar (enabled = shown, the default; applies only when Vertical Tabs is enabled).'))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.verticalTabsToggleButtonEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.verticalTabsToggleButtonEnabled = value;
+						this.plugin.verticalTabsManager?.refreshUI();
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -681,8 +723,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setName(tr('懒加载第三方插件', 'Enable Lazy Loading'))
 			.setDesc(
 				tr(
-					'开启后，下方列出此库中检测到的社区插件，可逐项设置是否懒加载及各插件的启动延迟（秒）。被标记懒加载的插件启动时不会随 Obsidian 立即加载，而是等待设定延迟结束后再加载；各插件延迟的相对大小即构成启动顺序。本插件自身不参与懒加载。关闭本开关或卸载本插件时，所有懒加载插件会自动恢复为常规加载',
-					'When enabled, community plugins detected in this vault are listed below so you can set lazy loading and the startup delay (in seconds) per plugin. Plugins marked for lazy loading do not load immediately with Obsidian; they load after their configured delay, and the relative delays form the startup order. This plugin itself never participates in lazy loading. Turning this off or unloading this plugin restores all lazily-loaded plugins to normal loading.',
+					'开启后，下方列出此库中检测到的社区插件，可逐项设置各插件的启动延迟（秒）：延迟大于 0 的插件启动时不会随 Obsidian 立即加载，而是等待设定延迟结束后再加载；各插件延迟的相对大小即构成启动顺序。插件是否启用（启停）请在「设置 → 第三方插件」中管理；在第三方插件设置中关闭某插件时，其懒加载配置会自动取消。本插件自身不参与懒加载。关闭本开关或卸载本插件时，所有懒加载插件会自动恢复为常规加载',
+					'When enabled, community plugins detected in this vault are listed below so you can set the startup delay (in seconds) per plugin. Plugins with a delay greater than 0 do not load immediately with Obsidian; they load after their configured delay, and the relative delays form the startup order. Whether a plugin is enabled is managed in Settings → Community plugins: disabling a plugin there automatically cancels its lazy-load configuration. This plugin itself never participates in lazy loading. Turning this off or unloading this plugin restores all lazily-loaded plugins to normal loading.',
 				),
 			)
 			.addExtraButton((button) =>
@@ -704,17 +746,19 @@ export class MDRazorSettingTab extends PluginSettingTab {
 							this.plugin.lazyLoadManager.restore();
 						}
 						await this.plugin.saveSettings();
-						this.renderLazyPluginList(listEl);
+						this.refreshLazyList();
 					}),
 			);
 
-		const listEl = panel.createDiv({ cls: 'mdrazor-lazy-grid' });
-		this.renderLazyPluginList(listEl);
+		this.lazyListEl = panel.createDiv({ cls: 'mdrazor-lazy-grid' });
+		this.renderLazyPluginList(this.lazyListEl);
 	}
 
 	/**
 	 * 渲染「懒加载第三方插件」下按名称排序的社区插件懒加载管理列表。
-	 * 两栏网格展示，每项：插件名 + 启用开关 + 启动延迟（秒）输入（不展示插件简介）。
+	 * 两栏网格展示，每项：插件名 + 启动延迟（秒）输入（不展示插件简介）。
+	 * 无逐插件启用开关：插件启停完全由「设置 → 第三方插件」管理，
+	 * 在第三方插件设置中关闭某插件时其懒加载配置会被自动取消。
 	 */
 	private renderLazyPluginList(listEl: HTMLElement): void {
 		listEl.empty();
@@ -754,7 +798,6 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			if (!cfg) {
 				cfg = {
 					delay: 0,
-					enabled: Object.prototype.hasOwnProperty.call(pmAPI.plugins, id),
 				};
 				this.plugin.settings.lazyLoadPlugins[id] = cfg;
 			}
@@ -773,13 +816,13 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						const seconds = Number.isFinite(num) && num > 0 ? num : 0;
 						void this.plugin.lazyLoadManager.setDelay(id, Math.round(seconds * 1000));
 					});
-				})
-				.addToggle((toggle) =>
-					toggle
-						.setValue(cfg.enabled)
-						.onChange((value) => void this.plugin.lazyLoadManager.setEnabled(id, value)),
-				);
+				});
 		}
+	}
+
+	/** 重新渲染懒加载插件列表（第三方插件设置中关闭插件后同步刷新） */
+	refreshLazyList(): void {
+		if (this.lazyListEl) this.renderLazyPluginList(this.lazyListEl);
 	}
 
 	/* ------------------------------------------------------------------ */

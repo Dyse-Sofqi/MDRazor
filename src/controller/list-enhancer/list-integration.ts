@@ -2,11 +2,14 @@
  * MDRazor — 列一体化模块（Controller）
  *
  * 将列表标记（如 `- `、`1. `、`* `）视为原子单元进行光标定位和删除，
- * 改善实时预览模式下列表编辑体验。
+ * 改善实时预览模式下列表编辑体验。「勾选框一体化」将任务项标记
+ * `- [ ]`（含复选框）并入同一套原子单元处理，规则完全一致。
  *
  * 本模块处理：
- *   1. ViewPlugin — 从 Lezer 语法树构建原子区间集，每次点击后将
- *      落在原子区间内的光标推到边界外。
+ *   1. ViewPlugin — 从 Lezer 语法树构建原子区间集；点击或键盘移动后，
+ *      将落入原子区间（含行首左端点）的光标推到右端点（标记之后），
+ *      使光标永不驻留标记区。这同时避免了 Obsidian 的「光标感知装饰」
+ *      被触发重建——否则光标一进入标记区，列表符号就会退化为原始 `- `。
  *   2. DOM 事件处理器 — 拦截 Backspace 和 Delete。如果被删除的字符
  *      与原子区间有交集，删除范围扩展为覆盖整个标记。如果该项后为空
  *      且上一行也有列表标记，则吞入前一个换行符使内容向上合并。
@@ -24,7 +27,6 @@ import {
 	getCurrentAtomicRanges,
 	AtomicRange,
 	buildAtomicRanges,
-	nudgeOutOfAtomicRanges,
 } from '../../model/shared';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -97,7 +99,7 @@ function expandDeletion(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * 维护原子区间集、修正点击后光标位置的 ViewPlugin。
+ * 维护原子区间集、修正点击或键盘移动后光标位置的 ViewPlugin。
  */
 const listEnhancerPlugin = ViewPlugin.fromClass(
 	class {
@@ -111,34 +113,50 @@ const listEnhancerPlugin = ViewPlugin.fromClass(
 		update(update: ViewUpdate) {
 			this.atomicRanges = buildAtomicRanges(update.view);
 			setCurrentAtomicRanges(this.atomicRanges);
-			this.correctCursorAfterClick(update);
+			this.correctCursorPosition(update);
 		}
 
 		/**
-		 * 鼠标点击后，如果光标落在原子区间内（在 `-` 和内容之间），
-		 * 将其推到最近的边界。
+		 * 光标修正：无论鼠标点击还是键盘移动（Home / ← 等），只要主光标
+		 * 落入列表标记范围 [from, to)，一律推到 to（标记之后、内容之前）。
+		 *
+		 * 注意与 `nudgeOutOfAtomicRanges` 的差异：这里把左端点 from（行首）
+		 * 也视为「区间内」——光标停在 from 上同样会让 Obsidian 的光标感知
+		 * 装饰省去 `list-bullet` 标记，使列表符号退化为原始 `- `。推到 to
+		 * 后光标永不驻留标记区，列表符号因此始终显示。
 		 */
-		private correctCursorAfterClick(update: ViewUpdate) {
+		private correctCursorPosition(update: ViewUpdate) {
 			if (!listEnhancerConfig.listIntegration) return;
 
 			for (const tr of update.transactions) {
-				if (!tr.isUserEvent('select.pointer')) continue;
+				if (!tr.selection) continue; // 事务未改变光标
 
 				const sel = tr.state.selection.main;
-				if (sel.anchor !== sel.head) continue; // 不是简单点击
+				if (sel.anchor !== sel.head) continue; // 只处理单光标（无选区）
 
 				const pos = sel.head;
-				const adjusted = nudgeOutOfAtomicRanges(pos, this.atomicRanges);
-				if (adjusted === pos) continue;
+				const target = this.targetForAtomicRange(pos);
+				if (target === null) continue;
 
 				const view = update.view;
 				queueMicrotask(() => {
 					view.dispatch({
-						selection: { anchor: adjusted, head: adjusted },
+						selection: { anchor: target, head: target },
 						scrollIntoView: false,
 					});
 				});
 			}
+		}
+
+		/**
+		 * 若 `pos` 落在某个原子区间 [from, to) 内（含左端点、不含右端点），
+		 * 返回 to；否则返回 null。
+		 */
+		private targetForAtomicRange(pos: number): number | null {
+			for (const r of this.atomicRanges) {
+				if (pos >= r.from && pos < r.to) return r.to;
+			}
+			return null;
 		}
 	},
 );

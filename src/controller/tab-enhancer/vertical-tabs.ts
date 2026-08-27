@@ -49,6 +49,7 @@ interface TreeNode {
 export function registerVerticalTabs(
 	plugin: Plugin,
 	enabled: () => boolean,
+	showToggleButton: () => boolean,
 	isViewActive: () => boolean,
 	setViewActive: (active: boolean) => void,
 	_foldersSyncedOnExit: () => boolean,
@@ -173,8 +174,9 @@ export function registerVerticalTabs(
 		const navButtons = containerEl.querySelector('.nav-buttons-container');
 		if (!navButtons) return;
 		const existing = navButtons.querySelector('.mdr-vertical-tabs-toggle');
-		if (existing) existing.remove();
-		if (!enabled()) return;
+		if (existing) { existing.remove(); toggleBtn = null; }
+		// 垂直标签页关闭或「切换标签页视图」按钮被隐藏时，不创建按钮
+		if (!enabled() || !showToggleButton()) return;
 
 		const btn = doc.createElement('div');
 		btn.className = 'clickable-icon nav-action-button mdr-vertical-tabs-toggle';

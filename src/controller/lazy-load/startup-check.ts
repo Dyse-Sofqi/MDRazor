@@ -226,11 +226,11 @@ export class StartupCheckModal extends Modal {
 			.sort((a, b) => a.manifest.name.localeCompare(b.manifest.name, undefined, { sensitivity: 'base' }));
 	}
 
-	/** 仅「已启用且延迟启动」（懒加载配置生效）的社区插件 */
+	/** 仅「已设置延迟」（懒加载配置生效）的社区插件 */
 	private managedPlugins(): Array<{ id: string; manifest: PluginManifest }> {
 		return this.communityPlugins().filter(({ id }) => {
 			const cfg = this.plugin.settings.lazyLoadPlugins[id];
-			return cfg != null && cfg.enabled && cfg.delay > 0;
+			return cfg != null && cfg.delay > 0;
 		});
 	}
 
@@ -247,13 +247,13 @@ export class StartupCheckModal extends Modal {
 
 	/**
 	 * 插件状态列表（合并加载耗时 + 懒加载状态，单列显示）：
-	 * 仅统计「已启用且延迟启动」的懒加载插件；
+	 * 仅统计「已设置延迟」的懒加载插件；
 	 * 每行 = 插件名；行内值 = 加载耗时 · 延迟 · 当前状态。
 	 */
 	private buildPluginStatusSection(parent: HTMLElement): void {
 		new Setting(parent).setHeading().setName('插件状态');
 		new Setting(parent)
-			.setName('仅统计已启用且延迟启动的懒加载插件')
+			.setName('仅统计已设置延迟的懒加载插件')
 			.setDesc('加载耗时为触发加载实测值；随 Obsidian 自然加载的插件未计时。');
 
 		if (!this.plugin.settings.lazyLoadEnabled) {
@@ -264,7 +264,7 @@ export class StartupCheckModal extends Modal {
 
 		const rows = this.managedPlugins();
 		if (rows.length === 0) {
-			new Setting(parent).setName('无已启用且延迟启动的插件');
+			new Setting(parent).setName('无已设置延迟的插件');
 			return;
 		}
 

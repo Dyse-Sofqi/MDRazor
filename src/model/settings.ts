@@ -45,6 +45,13 @@ export interface MDRazorSettings {
 
 	// ── 列表增强 (controller/list-enhancer/) ──
 	listIntegration: boolean;
+	/** 勾选框一体化：将任务项标记 `- [ ]` 视为一个整体原子单元——光标不驻留
+	 * 其内（点击/Home/方向键落入即推到 `]` 之后），Backspace/Delete 整体删除
+	 * 该标记；与列表标记（`- `）合并为一个区间，复刻列一体化的处理 */
+	checkboxIntegration: boolean;
+	/** 光标所在列表行也可折叠：悬停列表符号显示折叠箭头，点击列表符号折叠/展开该列表
+	 * （Obsidian 原生仅在非活动行开放——活动行上折叠指示器被压缩为 0 尺寸） */
+	listFoldOnActiveLine: boolean;
 	enterSoftBreak: boolean;
 	listFocusOption: boolean;
 	listFocusSecondThreshold: number;
@@ -66,6 +73,8 @@ export interface MDRazorSettings {
 	tabEnhancerOpenBookmark: boolean;
 	verticalTabsEnabled: boolean;
 	verticalTabsViewActive: boolean;
+	/** 在文件列表工具栏显示「切换标签页视图」按钮（垂直标签页开启时生效） */
+	verticalTabsToggleButtonEnabled: boolean;
 	tabExpansionAssociatedFolders: boolean;
 	positionPersistenceEnabled: boolean;
 
@@ -128,12 +137,14 @@ export interface CustomRibbonCommand {
 
 /**
  * 单个插件的懒加载配置。
+ *
+ * 2.5.3 起不再有 enabled 字段：插件是否启用完全由「设置 → 第三方插件」
+ * 管理（enabledPlugins），本配置只记录启动延迟；在第三方插件设置中
+ * 关闭某插件时，其懒加载配置会被自动取消（条目删除）。
  */
 export interface LazyLoadPluginConfig {
 	/** 启动延迟（毫秒）。0 = 不懒加载，随 Obsidian 正常加载 */
 	delay: number;
-	/** 用户期望该插件处于启用状态 */
-	enabled: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
@@ -155,6 +166,8 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHtmlSpanFormatting: true,
 	symbolBoundaryHint: true,
 	listIntegration: true,
+	checkboxIntegration: true,
+	listFoldOnActiveLine: true,
 	enterSoftBreak: true,
 	listFocusOption: true,
 	listFocusSecondThreshold: 3,
@@ -170,6 +183,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	tabEnhancerOpenBookmark: true,
 	verticalTabsEnabled: true,
 	verticalTabsViewActive: false,
+	verticalTabsToggleButtonEnabled: true,
 	tabExpansionAssociatedFolders: true,
 	positionPersistenceEnabled: true,
 

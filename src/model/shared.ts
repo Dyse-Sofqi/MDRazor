@@ -48,24 +48,95 @@ export function getCurrentAtomicRanges(): readonly AtomicRange[] {
 /**
  * 从当前语法树构建原子区间集。
  *
- * HyperMD 的 `formatting-list` 节点已包含尾随空格，
- * 因此 `node.from` → `node.to` 正是我们要保护的范围。
+ * 两种原子单元：
+ *   1. 列表标记（`formatting-list` 节点，如 `- `、`1. `）—— 由「列一体化」
+ *      控制；HyperMD 的该节点已包含尾随空格，`node.from` → `node.to` 正是
+ *      要保护的范围。
+ *   2. 任务勾选框标记（`formatting-task` 节点，如 `[ ]`、`[x]`）—— 由
+ *      「勾选框一体化」控制。若其同行紧邻列表标记，则两个节点合并为
+ *      一个整体区间（`- [ ]` 视为一个整体），并吞入紧随其后的一个空格
+ *      （与列表标记节点含尾随空格的语义一致，保证内容起点 Backspace
+ *      一次即可整体删除）。
  *
  * @param view  当前的 EditorView
- * @returns     原子区间数组（功能关闭时返回空数组）
+ * @returns     原子区间数组（两个开关均关闭时返回空数组）
  */
 export function buildAtomicRanges(view: EditorView): AtomicRange[] {
-	if (!listEnhancerConfig.listIntegration) return [];
+	if (!listEnhancerConfig.listIntegration && !listEnhancerConfig.checkboxIntegration) return [];
 
 	const ranges: AtomicRange[] = [];
 	const tree = syntaxTree(view.state);
+	// 列表标记专用暂存：仅用于勾选框合并查找，最终输出见下方合并步骤。
+	const listRanges: AtomicRange[] = [];
 
 	tree.iterate({
 		enter(node) {
-			if (!node.type.name.includes('formatting-list')) return;
-			ranges.push({ from: node.from, to: node.to });
+			const typeName = node.type.name;
+
+			// ── 列表标记（- / 1. 等）──
+			if (listEnhancerConfig.listIntegration && typeName.includes('formatting-list')) {
+				listRanges.push({ from: node.from, to: node.to });
+				return undefined;
+			}
+
+			// ── 任务勾选框标记（[ ] / [x]）──
+			// Obsidian 树节点名由 Mp 记号以下划线连接（如
+			// formatting-link_formatting-link-start），故用 includes 匹配。
+			if (listEnhancerConfig.checkboxIntegration && typeName.includes('formatting-task')) {
+				// 防御：校验切片确实是复选框标记（`[` + 单字符状态 + `]`），
+				// 解析器异常时宁可放弃也不保护错误范围。
+				const text = view.state.doc.sliceString(node.from, node.to);
+				if (
+					text.length !== 3 ||
+					text[0] !== '[' ||
+					text[2] !== ']' ||
+					text[1] === '[' ||
+					text[1] === ']'
+				) {
+					return undefined;
+				}
+
+				const line = view.state.doc.lineAt(node.from);
+				let from = node.from;
+				let to = node.to;
+
+				// 与同行、紧邻其前的列表标记合并为一个整体（- [ ]）。
+				// iterate 按文档序访问，formatting-list 节点先于
+				// formatting-task 进入，listRanges 此时已收集完毕。
+				if (listEnhancerConfig.listIntegration) {
+					for (const r of listRanges) {
+						if (
+							r.to <= node.from &&
+							view.state.doc.lineAt(r.from).number === line.number &&
+							/^[ \t]*$/.test(view.state.doc.sliceString(r.to, node.from))
+						) {
+							from = r.from;
+							break;
+						}
+					}
+				}
+
+				// 吞入紧随其后、与内容之间的一个空格（若存在）。
+				if (to + 1 <= line.to && view.state.doc.sliceString(to, to + 1) === ' ') {
+					to += 1;
+				}
+
+				ranges.push({ from, to });
+				return undefined;
+			}
+
+			return undefined;
 		},
 	});
+
+	// ── 合并输出：列表标记 + 勾选框区间 ──
+	// 被勾选框区间吸收（from 相同）的列表标记不重复输出，避免重叠区间；
+	// 其余列表标记与独立的勾选框区间按文档序输出。
+	for (const r of listRanges) {
+		const absorbed = ranges.some((c) => c.from === r.from && c.to > r.to);
+		if (!absorbed) ranges.push(r);
+	}
+	ranges.sort((a, b) => a.from - b.from || a.to - b.to);
 
 	return ranges;
 }
