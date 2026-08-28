@@ -76,6 +76,15 @@
 	flex: 0 0 auto;
 }
 
+/* 配置休眠（插件已停用）：整条目降透明度，输入框禁用态不响应指针 */
+.mdrazor-lazy-grid .setting-item.mdrazor-lazy-dormant {
+	opacity: 0.45;
+}
+
+.mdrazor-lazy-grid .setting-item.mdrazor-lazy-dormant .mdrazor-lazy-delay-input {
+	pointer-events: none;
+}
+
 /* 窄屏（小窗口/低分辨率）回退为单栏，避免内容过挤 */
 @media (max-width: 600px) {
 	.mdrazor-lazy-grid {

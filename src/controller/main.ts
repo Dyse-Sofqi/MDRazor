@@ -14,8 +14,7 @@
  * 它们完全基于 CM6 原生 API 运作。
  */
 
-import { MarkdownView, Notice, Plugin } from 'obsidian';
-import type { PluginManifest } from 'obsidian';
+import { MarkdownView, Plugin } from 'obsidian';
 import { tr } from '../i18n';
 import { EditorView } from '@codemirror/view';
 import { MDRazorSettings } from '../model/settings';
@@ -104,25 +103,9 @@ export default class MDRazorPlugin extends Plugin {
 		// 每次触发「未加载」插件加载前，通知记录器对该插件计时；
 		// 检测到某懒加载插件在第三方插件设置中被关闭时，自动取消其
 		// 懒加载配置、通知用户并刷新懒加载设置列表
-		this.lazyLoadManager = registerLazyLoad(
-			this,
-			(pluginId) => {
-				this.startupTimings.trackLoad(pluginId);
-			},
-			(pluginId) => {
-				const name =
-					(this.app as unknown as {
-						plugins?: { manifests?: Record<string, PluginManifest> };
-					}).plugins?.manifests?.[pluginId]?.name ?? pluginId;
-				new Notice(
-					tr(
-						`已同步社区插件设置：「${name}」已在社区插件列表中关闭，懒加载配置已取消`,
-						`Community plugin settings synced: "${name}" was disabled in the community plugins list; its lazy-load configuration has been cancelled`,
-					),
-				);
-				this.settingTab?.refreshLazyList();
-			},
-		);
+		this.lazyLoadManager = registerLazyLoad(this, (pluginId) => {
+			this.startupTimings.trackLoad(pluginId);
+		});
 		if (this.settings.lazyLoadEnabled) {
 			this.lazyLoadManager.start();
 		}

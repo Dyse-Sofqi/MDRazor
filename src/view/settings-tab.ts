@@ -723,8 +723,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setName(tr('懒加载第三方插件', 'Enable Lazy Loading'))
 			.setDesc(
 				tr(
-					'开启后，下方列出此库中检测到的社区插件，可逐项设置各插件的启动延迟（秒）：延迟大于 0 的插件启动时不会随 Obsidian 立即加载，而是等待设定延迟结束后再加载；各插件延迟的相对大小即构成启动顺序。插件是否启用（启停）请在「设置 → 第三方插件」中管理；在第三方插件设置中关闭某插件时，其懒加载配置会自动取消。本插件自身不参与懒加载。关闭本开关或卸载本插件时，所有懒加载插件会自动恢复为常规加载',
-					'When enabled, community plugins detected in this vault are listed below so you can set the startup delay (in seconds) per plugin. Plugins with a delay greater than 0 do not load immediately with Obsidian; they load after their configured delay, and the relative delays form the startup order. Whether a plugin is enabled is managed in Settings → Community plugins: disabling a plugin there automatically cancels its lazy-load configuration. This plugin itself never participates in lazy loading. Turning this off or unloading this plugin restores all lazily-loaded plugins to normal loading.',
+					'开启后，下方列出此库中检测到的社区插件，可逐项设置各插件的启动延迟（秒）：延迟大于 0 的插件启动时不会随 Obsidian 立即加载，而是等待设定延迟结束后再加载；各插件延迟的相对大小即构成启动顺序。延迟配置与插件启用状态相互独立：在第三方插件设置中关闭某插件时配置保留（输入框变暗表示休眠），重新启用后无需重新设置即可恢复懒加载；已停用的插件不会被本功能擅自启动。本插件自身不参与懒加载。关闭本开关或卸载本插件时，「启用中」的懒加载插件会自动恢复为常规加载，已停用插件保持停用',
+					'When enabled, community plugins detected in this vault are listed below so you can set the startup delay (in seconds) per plugin. Plugins with a delay greater than 0 do not load immediately with Obsidian; they load after their configured delay, and the relative delays form the startup order. Delay configs are independent of plugin enable state: disabling a plugin in Settings → Community plugins keeps its config dormant (input dims); re-enabling it later restores lazy loading without re-entering the delay, and disabled plugins are never started by this feature. This plugin itself never participates in lazy loading. Turning this off or unloading this plugin restores enabled lazily-loaded plugins to normal loading; disabled ones stay disabled.',
 				),
 			)
 			.addExtraButton((button) =>
@@ -757,15 +757,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/**
 	 * 渲染「懒加载第三方插件」下按名称排序的社区插件懒加载管理列表。
 	 * 两栏网格展示，每项：插件名 + 启动延迟（秒）输入（不展示插件简介）。
-	 * 无逐插件启用开关：插件启停完全由「设置 → 第三方插件」管理，
-	 * 在第三方插件设置中关闭某插件时其懒加载配置会被自动取消。
+	 * 已停用的插件条目输入框变暗（配置休眠）：配置保留，重新启用后无需重设。
 	 */
 	private renderLazyPluginList(listEl: HTMLElement): void {
 		listEl.empty();
 		if (!this.plugin.settings.lazyLoadEnabled) return;
 
 		const pmAPI = (this.app as unknown as {
-			plugins: { plugins: Record<string, unknown>; manifests: Record<string, PluginManifest> };
+			plugins: {
+				plugins: Record<string, unknown>;
+				manifests: Record<string, PluginManifest>;
+				enabledPlugins: Set<string>;
+			};
 		}).plugins;
 
 		// 社区插件判断：核心插件 manifest 不含 version
@@ -801,22 +804,34 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				};
 				this.plugin.settings.lazyLoadPlugins[id] = cfg;
 			}
+			// 休眠条目（active === false）：配置保留、待插件重新启用后自动恢复接管；
+			// 注意不能用 enabledPlugins 判定（被管理插件持久化开关恒为停用）
+			const dormant = cfg.delay > 0 && cfg.active === false;
 
-			new Setting(listEl)
-				.setName(manifest.name)
-				.addText((text) => {
-					text.inputEl.type = 'number';
-					text.inputEl.min = '0';
-					text.inputEl.addClass('mdrazor-lazy-delay-input');
-					text.inputEl.title = tr('启动延迟（秒）：0 表示不懒加载', 'Startup delay (seconds): 0 = no lazy loading');
-					text.setPlaceholder('0');
-					text.setValue(cfg.delay === 0 ? '' : String(cfg.delay / 1000));
-					text.onChange((input) => {
-						const num = Number(input);
-						const seconds = Number.isFinite(num) && num > 0 ? num : 0;
-						void this.plugin.lazyLoadManager.setDelay(id, Math.round(seconds * 1000));
-					});
+			const setting = new Setting(listEl).setName(manifest.name);
+			if (dormant) setting.setClass('mdrazor-lazy-dormant');
+			setting.addText((text) => {
+				text.inputEl.type = 'number';
+				text.inputEl.min = '0';
+				text.inputEl.addClass('mdrazor-lazy-delay-input');
+				text.inputEl.title = tr(
+					'启动延迟（秒）：0 表示不懒加载',
+					'Startup delay (seconds): 0 = no lazy loading',
+				);
+				if (dormant) {
+					text.inputEl.title = tr(
+						'插件已停用，配置休眠中；重新启用后无需重新设置即可恢复懒加载',
+						'Plugin is disabled; its lazy-load config is dormant and resumes automatically when re-enabled',
+					);
+				}
+				text.setPlaceholder('0');
+				text.setValue(cfg.delay === 0 ? '' : String(cfg.delay / 1000));
+				text.onChange((input) => {
+					const num = Number(input);
+					const seconds = Number.isFinite(num) && num > 0 ? num : 0;
+					void this.plugin.lazyLoadManager.setDelay(id, Math.round(seconds * 1000));
 				});
+			});
 		}
 	}
 

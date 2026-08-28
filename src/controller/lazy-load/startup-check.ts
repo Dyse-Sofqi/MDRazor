@@ -272,11 +272,14 @@ export class StartupCheckModal extends Modal {
 			const cfg = this.plugin.settings.lazyLoadPlugins[id];
 			const delay = cfg?.delay ?? 0;
 			const pending = this.plugin.lazyLoadManager.isPending(id);
+			const dormant = cfg?.active === false;
 
 			const duration = this.recorder.getDuration(id);
 			const loading = this.recorder.isLoading(id);
 			let timingText: string;
-			if (loading && duration !== undefined) {
+			if (dormant) {
+				timingText = '配置休眠（插件已停用）';
+			} else if (loading && duration !== undefined) {
 				timingText = `启动耗时 ${duration}ms（加载中）`;
 			} else if (duration !== undefined) {
 				timingText = `启动耗时 ${duration}ms`;
@@ -310,11 +313,14 @@ export class StartupCheckModal extends Modal {
 			const cfg = this.plugin.settings.lazyLoadPlugins[id];
 			const delay = cfg?.delay ?? 0;
 			const pending = this.plugin.lazyLoadManager.isPending(id);
+			const dormant = cfg?.active === false;
 
 			const duration = this.recorder.getDuration(id);
 			const loading = this.recorder.isLoading(id);
 			let timingText: string;
-			if (loading && duration !== undefined) {
+			if (dormant) {
+				timingText = '配置休眠（插件已停用）';
+			} else if (loading && duration !== undefined) {
 				timingText = `启动耗时 ${duration}ms（加载中）`;
 			} else if (duration !== undefined) {
 				timingText = `启动耗时 ${duration}ms`;
@@ -326,7 +332,7 @@ export class StartupCheckModal extends Modal {
 			lines.push(`  - ${manifest.name}: 延迟 ${delay / 1000}s，${timingText}`);
 		}
 		return lines.join('\n');
-	}
+	};
 
 	private copyToClipboard(): void {
 		const text = this.buildCopyText();

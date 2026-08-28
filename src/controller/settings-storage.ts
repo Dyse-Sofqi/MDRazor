@@ -194,12 +194,16 @@ export async function loadPluginSettings(plugin: Plugin): Promise<MDRazorSetting
 		// 「第三方插件」设置管理。旧数据 enabled:false 表示用户已关闭该插件的
 		// 懒加载（其插件本身也被置为停用），迁移为「不懒加载」（延迟 0），
 		// 避免新逻辑把它当成懒加载意图而重新启动插件。
+		// （2.5.4：引入 active 休眠标记后，已停用插件的配置休眠保留；
+		// 但 2.5.3 时代产生的 enabled:false 条目语义是「用户已确认不要懒加载」，
+		// 保持归零迁移不变，不凭空恢复。规范化时必须保留 active 字段，
+		// 否则每次加载都会把休眠标记洗掉。）
 		if (raw.lazyLoadPlugins instanceof Object && !Array.isArray(raw.lazyLoadPlugins)) {
 			const oldPlugins = raw.lazyLoadPlugins as Record<
 				string,
-				{ delay?: unknown; enabled?: unknown }
+				{ delay?: unknown; enabled?: unknown; active?: unknown }
 			>;
-			const normalized: Record<string, { delay: number }> = {};
+			const normalized: Record<string, { delay: number; active?: boolean }> = {};
 			for (const [id, entry] of Object.entries(oldPlugins)) {
 				if (entry == null || typeof entry !== 'object') continue;
 				const rawDelay =
@@ -207,7 +211,8 @@ export async function loadPluginSettings(plugin: Plugin): Promise<MDRazorSetting
 						? Math.max(0, Math.round(entry.delay))
 						: 0;
 				const delay = entry.enabled === false ? 0 : rawDelay;
-				normalized[id] = { delay };
+				normalized[id] =
+					entry.active === false ? { delay, active: false } : { delay };
 			}
 			raw.lazyLoadPlugins = normalized;
 		}

@@ -138,13 +138,22 @@ export interface CustomRibbonCommand {
 /**
  * 单个插件的懒加载配置。
  *
- * 2.5.3 起不再有 enabled 字段：插件是否启用完全由「设置 → 第三方插件」
- * 管理（enabledPlugins），本配置只记录启动延迟；在第三方插件设置中
- * 关闭某插件时，其懒加载配置会被自动取消（条目删除）。
+ * active 标记配置是否处于「接管」状态：
+ *   - active !== false（缺省即接管）：MDRazor 正常管理——插件被本模块
+ *     持久化禁用、按延迟补载；调度 / flip / restore 均只处理此类条目；
+ *   - active === false：休眠——用户已在「第三方插件设置」中停用该插件
+ *     （或对未启用插件设置延迟），配置与延迟值保留，但本模块不调度、
+ *     不补载、不参与 flip / restore；用户重新启用插件后自动恢复接管，
+ *     延迟值无需重新设置。
+ * 注意：被管理插件的持久化开关状态恒为「停用」（本模块
+ * disablePluginAndSave 的结果），与用户主动停用无法用 enabledPlugins
+ * 区分，必须用本标记；判定与恢复由懒加载控制器的轮询完成。
  */
 export interface LazyLoadPluginConfig {
 	/** 启动延迟（毫秒）。0 = 不懒加载，随 Obsidian 正常加载 */
 	delay: number;
+	/** 是否处于接管状态；缺省 true。false = 休眠（保留配置，待插件重新启用后自动恢复） */
+	active?: boolean;
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
