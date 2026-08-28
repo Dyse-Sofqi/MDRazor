@@ -273,11 +273,14 @@ export default class MDRazorPlugin extends Plugin {
 	}
 
 	/**
-	 * 将当前设置持久化到磁盘（.obsidian/md-razor-settings.json），然后同步到功能模块，
-	 * 使 CM6 扩展立即生效（无需重新加载插件）
+	 * 将当前设置持久化到磁盘（.obsidian/md-razor-settings.json，延迟同步插件目录镜像），
+	 * 然后同步到功能模块，使 CM6 扩展立即生效（无需重新加载插件）。
+	 *
+	 * options.forceMirror：跳过镜像节流立即写镜像。「清理本地数据」等
+	 * 重置场景必须使用，防止旧设置残留在镜像中被下次加载补洞复活。
 	 */
-	async saveSettings() {
-		await savePluginSettings(this, this.settings);
+	async saveSettings(options?: { forceMirror?: boolean }) {
+		await savePluginSettings(this, this.settings, options);
 		this.syncConfig();
 		this.repaintAllEditors();
 		this.dirFileCountRefresher.forceRefresh();

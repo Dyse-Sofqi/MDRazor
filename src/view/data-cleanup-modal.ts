@@ -88,9 +88,10 @@ export class DataCleanupModal extends Modal {
 			cleared.push(tr('位置记录', 'Position records'));
 		}
 		if (clearSettings) {
-			// 重置为默认设置并落盘：覆盖新位置文件，防止下次加载从旧 data.json 回迁
+			// 重置为默认设置并落盘：覆盖新位置文件，防止下次加载从旧 data.json 回迁；
+			// forceMirror 同步覆盖镜像，防止旧设置从镜像补洞复活。
 			this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
-			await this.plugin.saveSettings();
+			await this.plugin.saveSettings({ forceMirror: true });
 			this.plugin.ribbonManager?.refresh();
 			this.plugin.settingTab?.display();
 			cleared.push(tr('设置与命令', 'Settings & commands'));

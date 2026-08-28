@@ -16,8 +16,12 @@ main.js
 *.map
 
 # obsidian
+# 本地数据文件：插件目录内的历史数据与 2.5.4 新增的镜像兑底文件
+# （均属用户运行时数据，不入库；.obsidian 配置目录下的主数据文件不在仓库内）
 data.json
 position-cache.json
+md-razor-settings.mirror.json
+md-razor-position-cache.mirror.json
 
 # Claude Code metadata
 .agents/

@@ -19,6 +19,14 @@
  *   独立缓存文件 .obsidian/md-razor-position-cache.json（与用户设置 data.json 分离），
  *   位于 .obsidian 配置目录而非插件目录：卸载重装插件后记录仍保留，不随插件目录删除。
  *   磁盘写入节流 ~1s，插件卸载时 flush。
+ *   镜像兑底（插件目录 md-razor-position-cache.mirror.json）：
+ *   .obsidian 配置目录下的缓存文件可能被同步 / 备份 / 清理工具触碰
+ *   （删除、损坏、截断），因此在插件目录保留延迟快照（首次 10 分钟、
+ *   之后≥10 分钟一次；卸载 / 清理时立即同步）：
+ *   - 主缓存存在且合法 → 镜像不参与（不补洞：缺失键大多来自合法清理，
+ *     回填会让已删记录复活）；
+ *   - 主缓存缺失 / 损坏 → 镜像整体恢复，载入完成后回写主文件自愈；
+ *   - 镜像读取失败一律按「无镜像」处理，绝不影响正常加载。
  *   旧版本缓存在插件目录（.obsidian/plugins/MDRazor/position-cache.json）：
  *   新位置不存在时回退读取旧位置并自动迁移（写入新文件成功即切换，
  *   旧文件保留不再读取；迁移失败则继续使用旧文件，下次加载再试迁移）。
@@ -45,6 +53,12 @@ const MAX_SCROLL_RETRY = 8;
 const CACHE_FILE = 'position-cache.json';
 /** 缓存文件名（位于 .obsidian 配置目录；带插件命名空间避免与其他插件冲突） */
 const VAULT_CACHE_FILE = 'md-razor-position-cache.json';
+/** 镜像文件名（位于插件目录，主缓存丢失/损坏时的恢复兑底） */
+const MIRROR_FILE = 'md-razor-position-cache.mirror.json';
+/** 载入后首次写镜像的延迟（ms）：镜像允许略旧，避免每次落盘都双写 */
+const MIRROR_DELAY_MS = 10 * 60 * 1000;
+/** 之后每次写镜像的最小间隔（ms）：10 分钟 */
+const MIRROR_MIN_INTERVAL_MS = 10 * 60 * 1000;
 
 /** 光标位置，line 0 基（与 Obsidian EditorPosition 一致） */
 interface CursorPos {
@@ -67,12 +81,42 @@ type PositionCache = Record<string, PositionRecord>;
 
 let adapterRef: DataAdapter | null = null;
 let filePathRef = '';
+let mirrorPathRef = '';
 let cache: PositionCache = {};
 let dirty = false;
 let diskTimer: number | null = null;
+let mirrorTimer: number | null = null;
+/** 上次写镜像时间（节流用） */
+let lastMirrorAt = 0;
 /** 磁盘缓存是否已从磁盘载入；载入完成前禁止落盘，避免异步载入与
  *  编辑器追踪并发时把真实缓存覆盖成部分/空数据（重启后缓存被清空的根因） */
 let loaded = false;
+
+/** 立即写镜像快照（尽力而为，失败仅记日志） */
+async function flushMirrorNow(): Promise<void> {
+	if (!adapterRef || !mirrorPathRef || !loaded) return;
+	try {
+		await adapterRef.write(mirrorPathRef, JSON.stringify(cache, null, 2));
+		lastMirrorAt = Date.now();
+	} catch (err) {
+		console.error('[MDRazor] 位置缓存镜像写入失败（不影响主文件）', err);
+	}
+}
+
+/** 节流调度镜像快照：有 pending 则不重复调度；首次写镜像延迟 MIRROR_DELAY_MS，
+ *  避免启动阶段额外 IO，也让镜像保持「略旧于主文件」的快照语义 */
+function scheduleMirrorWrite(): void {
+	if (!loaded || !mirrorPathRef) return;
+	if (mirrorTimer !== null) return;
+	const wait =
+		lastMirrorAt === 0
+			? MIRROR_DELAY_MS
+			: Math.max(0, MIRROR_MIN_INTERVAL_MS - (Date.now() - lastMirrorAt));
+	mirrorTimer = window.setTimeout(() => {
+		mirrorTimer = null;
+		void flushMirrorNow();
+	}, wait);
+}
 
 function scheduleDiskWrite(): void {
 	dirty = true;
@@ -88,15 +132,22 @@ function scheduleDiskWrite(): void {
 	}, DISK_DEBOUNCE_MS);
 }
 
-/** 立即把内存缓存写入磁盘（卸载 / 关闭编辑器时调用，尽力而为） */
+/** 立即把内存缓存写入磁盘，并同步一次镜像快照（卸载 / 关闭编辑器时调用，尽力而为） */
 function flushNow(): void {
 	if (diskTimer !== null) {
 		window.clearTimeout(diskTimer);
 		diskTimer = null;
 	}
-	if (!dirty) return;
-	dirty = false;
-	void flushDisk();
+	if (mirrorTimer !== null) {
+		window.clearTimeout(mirrorTimer);
+		mirrorTimer = null;
+	}
+	if (dirty) {
+		dirty = false;
+		void flushDisk();
+	}
+	// 卸载边界补一次镜像快照，缩小镜像滞后窗口
+	void flushMirrorNow();
 }
 
 /**
@@ -105,6 +156,7 @@ function flushNow(): void {
  * 清空内存记录并取消待落盘标记，然后主动写一次空缓存到当前目标文件，
  * 防止残存的脏标记 / 下次 flush 把旧记录写回；同时保证新位置文件存在，
  * 下次加载不会回退到旧位置把已清理的数据迁移回来。
+ * 镜像同步覆盖：镜像里也可能残留旧记录，立即覆盖防止恢复路径复活。
  */
 export function resetPositionCache(): void {
 	cache = {};
@@ -114,6 +166,12 @@ export function resetPositionCache(): void {
 		diskTimer = null;
 	}
 	void flushDisk();
+	// 同步覆盖镜像：清空后镜像里也可能残留旧记录，立即覆盖防止恢复路径复活
+	if (mirrorTimer !== null) {
+		window.clearTimeout(mirrorTimer);
+		mirrorTimer = null;
+	}
+	void flushMirrorNow();
 }
 
 async function flushDisk(): Promise<void> {
@@ -159,12 +217,14 @@ async function loadCache(plugin: Plugin): Promise<void> {
 		plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
 	const pluginFile = `${pluginDir}/${CACHE_FILE}`;
 	const vaultFile = `${plugin.app.vault.configDir}/${VAULT_CACHE_FILE}`;
+	mirrorPathRef = `${pluginDir}/${MIRROR_FILE}`;
 
 	// 优先沿用 .obsidian 下缓存（卸载重装插件后记录仍保留）；
 	// 新位置不存在时才回退读取插件目录的旧缓存，载入后迁移过去。
 	let diskCache: PositionCache = {};
 	let fromVault = false;
 	let readFromPlugin = false;
+	let mainBroken = false;
 	try {
 		let raw: unknown = null;
 		if (await adapterRef.exists(vaultFile)) {
@@ -176,9 +236,11 @@ async function loadCache(plugin: Plugin): Promise<void> {
 		}
 		// 标量 JSON（null / 数字 / 字符串）此前会以 raw 原样逃过 catch，把 null
 		// 写入模块级缓存，后续 Object.keys(cache) 抛 TypeError 使 onload 失败
-		//（用户报告的「重启后插件加载失败」）。此处统一按空缓存处理。
+		//（用户报告的「重启后插件加载失败」）。此处统一按空缓存处理；
+		// 文件存在但内容不可用时同时标记损坏，让下方镜像恢复介入。
 		if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
 			diskCache = {};
+			if (fromVault || readFromPlugin) mainBroken = true;
 		} else if ('positions' in raw) {
 			// 兼容两种落盘格式：早期 {positions:{}} 包裹，以及当前平铺 {path: record}
 			diskCache = (raw as { positions?: PositionCache }).positions ?? {};
@@ -187,6 +249,28 @@ async function loadCache(plugin: Plugin): Promise<void> {
 		}
 	} catch {
 		diskCache = {};
+		mainBroken = true;
+	}
+
+	// 镜像兑底（仅恢复，不补洞）：主缓存缺失（被同步/清理工具删除）或损坏
+	// （截断 / 非法 JSON）时，从插件目录镜像整体恢复；主文件存在且合法
+	// （哪怕为空）时绝不从镜像回填——位置缓存的“缺失键”大多来自合法的
+	// 清理/修剪，回填会让已删记录复活（与「清理本地数据」语义冲突）。
+	if (!fromVault || mainBroken) {
+		try {
+			if (await adapterRef.exists(mirrorPathRef)) {
+				const parsed = JSON.parse(await adapterRef.read(mirrorPathRef)) as unknown;
+				if (
+					parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) &&
+					Object.keys(parsed).length > 0
+				) {
+					diskCache = parsed as PositionCache;
+					console.warn('[MDRazor] 主位置缓存缺失或损坏，已从镜像恢复', vaultFile);
+				}
+			}
+		} catch (err) {
+			console.error('[MDRazor] 位置缓存镜像读取失败，按无镜像处理', err);
+		}
 	}
 
 	// 合并 async 载入期间（adapter.read 完成前）编辑器已追踪写入的新记录，
@@ -222,7 +306,7 @@ async function loadCache(plugin: Plugin): Promise<void> {
 	// 优先」保证，旧文件保留在插件目录、之后不再被读取，卸载插件时一并删除；
 	// 不主动删除旧文件，避免删除失败导致本次会话回退到插件目录）。
 	// 写失败则继续用插件目录文件（当前会话照常读写），下次加载再试迁移。
-	if (fromVault) {
+	if (fromVault && !mainBroken) {
 		filePathRef = vaultFile;
 	} else if (readFromPlugin) {
 		try {
@@ -236,9 +320,18 @@ async function loadCache(plugin: Plugin): Promise<void> {
 		filePathRef = vaultFile;
 	}
 
-	// 载入完成：补写窗口期累积的脏标记（此时 flushDisk 已允许落盘）
+	// 载入完成：补写窗口期累积的脏标记（此时 flushDisk 已允许落盘），
+	// 并调度首次镜像快照（内部有延迟与节流）
 	if (pruned || dirty) {
 		scheduleDiskWrite();
+	}
+	scheduleMirrorWrite();
+
+	// 主缓存缺失/损坏时的自愈：载入已完成（合并+清理后）才回写主文件，
+	// 避免把载入窗口期的部分数据当作最终状态写入（覆盖竞态，2.4.6 同类问题）；
+	// 写失败时主文件仍处于缺失/损坏态，后续每次落盘都会继续自愈。
+	if (!fromVault || mainBroken) {
+		void flushDisk();
 	}
 }
 
