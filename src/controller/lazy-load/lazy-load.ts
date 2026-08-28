@@ -61,7 +61,7 @@ const WATCH_INTERVAL_MS = 500;
 /** 判定「外部关闭/重新启用」所需的连续缺席/出现轮询次数 */
 const WATCH_REQUIRED_STREAK = 2;
 
-/** obsidian.d.ts 未公开的 app.plugins 内部接口（运行时存在） */
+/** obsidian.d.ts 未公开的 app.plugins 内部接口（运行时存在；四个方法均为异步） */
 interface PluginManagerAPI {
 	plugins: Record<string, Plugin>;
 	manifests: Record<string, PluginManifest>;
@@ -69,10 +69,10 @@ interface PluginManagerAPI {
 	enabledPlugins: Set<string>;
 	/** enablePlugin 期间 = 正在加载的插件 id，完成后置 null */
 	loadingPluginId?: string | null;
-	enablePlugin(id: string): void;
-	disablePlugin(id: string): void;
-	enablePluginAndSave(id: string): void;
-	disablePluginAndSave(id: string): void;
+	enablePlugin(id: string): Promise<void>;
+	disablePlugin(id: string): Promise<void>;
+	enablePluginAndSave(id: string): Promise<void>;
+	disablePluginAndSave(id: string): Promise<void>;
 }
 
 /** 安全的 own-property 检查（规避 no-prototype-builtins） */
@@ -159,9 +159,9 @@ export function registerLazyLoad(
 		}
 		const pm = pluginsAPI();
 		if (persist) {
-			pm.enablePluginAndSave(pluginId);
+			pm.enablePluginAndSave(pluginId).catch(() => {});
 		} else {
-			pm.enablePlugin(pluginId);
+			pm.enablePlugin(pluginId).catch(() => {});
 		}
 	};
 
@@ -192,16 +192,23 @@ export function registerLazyLoad(
 	};
 
 	/** 把「当前已加载」的懒加载插件翻转为懒加载模式：持久化禁用 + 会话内保持运行。
-	 *  重载前通知记录器计时：恢复接管的插件在下次启动会被 Obsidian 先行自动加载
-	 * （其启停已被用户重新启用时持久化为启用），走此路径重载 —— 若不计时，
-	 *  「立即检查」将永远显示未测量。顺序：先禁用卸载实例 → trackLoad 建立监听
-	 *  → enablePlugin 重载，20ms 轮询即可捕捉完整 onload 窗口。 */
+	 *
+	 *  必须等待卸载完成再计时重载：Obsidian 的 disablePlugin 异步卸载，
+	 *  await 完成后才从 plugins 表删除实例；若不等待就通知计时，
+	 *  trackLoad 的「实例已存在则忽略」守卫会静默跳过测量（恢复接管
+	 *  路径「立即检查永远未测量」的根因：该路径重启时插件被 Obsidian
+	 *  先行自动加载，只能走 flip 重载）。顺序：await 卸载 → 通知计时 →
+	 *  enablePlugin 重载，20ms 轮询即可捕捉完整 onload 窗口。 */
 	const flipToLazy = (pluginId: string): void => {
 		if (!isPluginLoaded(pluginId)) return;
 		const pm = pluginsAPI();
-		pm.disablePluginAndSave(pluginId);
-		onEnable?.(pluginId);
-		pm.enablePlugin(pluginId);
+		void (async () => {
+			await pm.disablePluginAndSave(pluginId);
+			// 异常防御：卸载未完成（实例仍在）时放弃重载，避免状态混乱
+			if (isPluginLoaded(pluginId)) return;
+			onEnable?.(pluginId);
+			pm.enablePlugin(pluginId).catch(() => {});
+		})();
 	};
 
 	const start = (): void => {
@@ -221,8 +228,16 @@ export function registerLazyLoad(
 			if (!isLazyCandidate(pluginId, cfg)) continue;
 			cancelTimer(pluginId);
 			const pm = pluginsAPI();
-			if (isPluginLoaded(pluginId)) pm.disablePlugin(pluginId);
-			enableNow(pluginId, true);
+			if (isPluginLoaded(pluginId)) {
+				// 同 flipToLazy：等待异步卸载完成再启用，避免 enable 在旧实例
+				// 尚在卸载时空操作（插件停在本会话未加载态）
+				void (async () => {
+					await pm.disablePlugin(pluginId);
+					enableNow(pluginId, true);
+				})();
+			} else {
+				enableNow(pluginId, true);
+			}
 		}
 	};
 
