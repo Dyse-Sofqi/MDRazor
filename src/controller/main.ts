@@ -100,14 +100,13 @@ export default class MDRazorPlugin extends Plugin {
 		this.startupTimings = createStartupTimingRecorder(this);
 
 		// 懒加载：注册控制器并按「启用懒加载」开关调度延迟加载；
-		// 每次触发「未加载」插件加载前（含 flip 重载），通知记录器计时；
+		// 每次触发插件加载（含 flip 重载）时建立计时并返回测量 Promise，
+		// 全局加载队列 await 它实现窗口串行（loadingPluginId 单槽位互斥）；
 		// 检测到接管中的插件被外部停用/重新启用时，仅翻转其休眠标记并
 		// 刷新设置界面（2.5.4 起配置保留，不再删除）
 		this.lazyLoadManager = registerLazyLoad(
 			this,
-			(pluginId) => {
-				this.startupTimings.trackLoad(pluginId);
-			},
+			(pluginId) => this.startupTimings.trackLoad(pluginId),
 			() => {
 				this.settingTab?.refreshLazyList();
 			},

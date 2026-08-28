@@ -58,11 +58,21 @@ interface LoadWatch {
 	id: string;
 	/** 我们触发 enable 的时刻（兜底基准：快速加载可能错过 loadingPluginId 窗口） */
 	baseStart: number;
-	/** 观察到 loadingPluginId === id 的精确保准时刻（即 onload 真正开始的时刻） */
+	/** 观察到 loadingPluginId === id 的精保证准时刻（即 onload 真正开始的时刻） */
 	loadingStart?: number;
 	/** 是否已捕捉到「正在加载」窗口 */
 	loading: boolean;
+	/** 是否已结束（resolve 测量 Promise） */
+	done: boolean;
 	interval: number;
+	/** 测量 Promise 的 resolve（全局加载队列 await 测量 Promise 实现串行） */
+	resolve: (value: number) => void;
+	/** 测量 Promise（供全局加载队列等待，实现窗口串行） */
+	measurement: Promise<number>;
+	/** 硬超时定时器句柄：刻意不经 registerInterval —— 插件卸载会清空全部
+	 *  已注册 interval，若用之，卸载时测量 Promise 将永不 resolve，队列卡死；
+	 *  原生 setTimeout 不受清理影响，保证队列必然推进 */
+	timeoutHandle: number;
 }
 
 /**
@@ -86,22 +96,46 @@ export class StartupTimingRecorder {
 
 	/**
 	 * 开始测量某插件的加载耗时（应在本插件触发 enablePlugin 之前调用）。
-	 * 幂等：已有完成或进行中的测量时忽略。
+	 * 幂等：已有进行中/已完成的测量时直接返回对应的测量 Promise。
+	 * 注意：不再做「实例已存在则忽略」守卫 —— 全局加载队列在 waitSlotIdle
+	 * 与双检之后才调用本方法，调用时实例必然不存在；保留守卫反而会吞掉
+	 * 极快加载（实例在 trackLoad 与 enable 之间的微秒窗口内出现）的测量。
+	 *
+	 * @returns 测量 Promise：窗口关闭（或放弃/超时）后 resolve 为耗时值
+	 *          （放弃 = 0），供全局加载队列作为串行栅栏 await。
 	 */
-	trackLoad(pluginId: string): void {
-		if (this.watches.has(pluginId) || this.completed.has(pluginId)) return;
-		if (hasOwn(this.api().plugins, pluginId)) return;
+	trackLoad(pluginId: string): Promise<number> {
+		const existing = this.watches.get(pluginId);
+		if (existing) return existing.measurement;
+		const completedValue = this.completed.get(pluginId);
+		if (completedValue !== undefined) return Promise.resolve(completedValue);
 
+		let resolve!: (value: number) => void;
+		const measurement = new Promise<number>((r) => {
+			resolve = r;
+		});
 		const watch: LoadWatch = {
 			id: pluginId,
 			baseStart: performance.now(),
 			loading: false,
+			done: false,
 			interval: 0,
+			resolve,
+			measurement,
+			timeoutHandle: 0,
 		};
+		this.watches.set(pluginId, watch);
+
 		const interval = window.setInterval(() => this.pollLoad(watch), LOAD_POLL_INTERVAL_MS);
 		watch.interval = interval;
-		this.watches.set(pluginId, watch);
 		this.plugin.registerInterval(interval);
+
+		// 硬超时兜底（原生 setTimeout，见 LoadWatch.timeoutHandle 注释）
+		watch.timeoutHandle = window.setTimeout(() => {
+			if (!watch.done) this.finish(watch, 0);
+		}, LOAD_WATCH_TIMEOUT);
+
+		return measurement;
 	}
 
 	/** 某插件当前是否处于「正在加载」（含 onload 执行中） */
@@ -126,6 +160,7 @@ export class StartupTimingRecorder {
 	}
 
 	private pollLoad(watch: LoadWatch): void {
+		if (watch.done) return;
 		const pm = this.api();
 		const loadingNow = pm.loadingPluginId ?? null;
 		const now = performance.now();
@@ -142,27 +177,25 @@ export class StartupTimingRecorder {
 			return;
 		}
 
-		// 未捕捉到窗口：加载极快（窗口短于轮询周期）或 enablePlugin 被去重短路。
-		// 不用「触发→实例出现」近似——那会把 main.js 读取+eval 全算进去，
-		// 系统性虚高；宁可放弃本次测量（显示未测量），避免展示失真数值。
-		// 实例长期不出现（加载失败/被去重）由超时兑底结算为 0（视作未测）。
+		// 未捕捉到窗口（enablePlugin 被去重短路，或窗口短于轮询周期）：
+		// 放弃测量（结算 0）。不用「触发→实例出现」近似——那会把
+		// main.js 读取+eval 全算进去，系统性虚高。
 		if (!watch.loading && hasOwn(pm.plugins, watch.id)) {
 			this.finish(watch, 0);
 			return;
 		}
-
-		// 超时兜底
-		if (now - watch.baseStart > LOAD_WATCH_TIMEOUT) {
-			this.finish(watch, 0);
-		}
+		// 实例长期不出现（加载失败）由硬超时兜底结算为 0
 	}
 
 	private finish(watch: LoadWatch, durationMs: number): void {
+		if (watch.done) return;
+		watch.done = true;
 		window.clearInterval(watch.interval);
-		if (this.watches.get(watch.id)?.interval === watch.interval) {
-			this.watches.delete(watch.id);
-		}
-		this.completed.set(watch.id, Math.max(0, Math.round(durationMs)));
+		window.clearTimeout(watch.timeoutHandle);
+		this.watches.delete(watch.id);
+		const value = Math.max(0, Math.round(durationMs));
+		this.completed.set(watch.id, value);
+		watch.resolve(value);
 	}
 }
 

@@ -98,15 +98,16 @@ export interface LazyLoadControl {
  *
  * 不产生任何副作用，直到 start() 被调用（onload 里根据「启用懒加载」开关决定）。
  *
- * @param onEnable 可选：当本控制器把「未加载」的插件触发加载（enablePlugin /
- *                 enablePluginAndSave / flip 重载）前回调，供启动耗时记录器计时。
+ * @param onEnable 可选：当本控制器触发某插件加载（enablePlugin / flip 重载）时
+ *                 调用，应返回计时器的测量 Promise（在加载窗口关闭后 resolve）——
+ *                 全局加载队列会 await 它，保证同一时刻只有一个加载在窗口内。
  * @param onConfigChange 可选：某条目的休眠/接管标记翻转时回调
  *                 (pluginId, active)，供设置界面刷新条目视觉状态。
  */
 export function registerLazyLoad(
-	plugin: MDRazorPlugin,
-	onEnable?: (pluginId: string) => void,
-	onConfigChange?: (pluginId: string, active: boolean) => void,
+plugin: MDRazorPlugin,
+onEnable?: (pluginId: string) => Promise<number>,
+onConfigChange?: (pluginId: string, active: boolean) => void,
 ): LazyLoadControl {
 	// 浏览器 setTimeout 的句柄类型为 number（@types/node 的全局类型会返回 Timeout，
 	// 这里按 DOM 运行环境的实际值显式声明）
@@ -148,26 +149,74 @@ export function registerLazyLoad(
 		}
 	};
 
-	/** 触发加载：如该插件当前未加载且属「延迟启动」的懒加载插件，
-	 *  先通知记录器计时，再执行 enable。
-	 *
-	 *  竞态防御（未测量根因）：定时器等待期间插件可能被 Obsidian 启动序列
-	 *  自然加载（休眠恢复路径：重新启用时持久化了启用状态）——此时实例
-	 *  已存在，enablePlugin 会静默去重返回，不产生 loadingPluginId 窗口。
-	 *  实例已存在时直接让位：不重复计时、不强行重载，持久化状态由后续
-	 *  flip 路径统一处理。 */
-	const enableNow = (pluginId: string, persist: boolean): void => {
-		if (isPluginLoaded(pluginId)) return;
-		const cfg = plugin.settings.lazyLoadPlugins[pluginId];
-		if (cfg && cfg.delay > 0) {
-			onEnable?.(pluginId);
+	// ---- 全局加载串行队列 ----
+	// loadingPluginId 是 PluginManager 的单槽位字段：并发触发多个加载时窗口
+	// 互相覆盖，导致 0ms（窗口被抢先结算）、异常虚高（窗口内混入其他插件的
+	// 主线程争用）与未测量（去重短路）。所有 enable / flip 统一经队列串行
+	// 执行：前一项的加载窗口完全关闭后（测量 Promise resolve）才开下一项。
+	type LoadJob = () => Promise<void>;
+	const loadQueue: LoadJob[] = [];
+	let queueDraining = false;
+
+	/** 入队一个加载作业，队列空闲时立即排水 */
+	const enqueueLoad = (job: LoadJob): void => {
+		loadQueue.push(job);
+		if (!queueDraining) void drainQueue();
+	};
+
+	const drainQueue = async (): Promise<void> => {
+		queueDraining = true;
+		try {
+			while (loadQueue.length > 0) {
+				const job = loadQueue.shift();
+				if (!job) break;
+				await job();
+			}
+		} finally {
+			queueDraining = false;
 		}
+	};
+
+	/** 等待 loadingPluginId 槽位空闲（不为任何插件占用），避免与 Obsidian
+	 *  启动序列或外部启用操作互踩窗口。最长等 10s，防启动序列卡住时死等。 */
+	const waitSlotIdle = async (): Promise<void> => {
 		const pm = pluginsAPI();
-		if (persist) {
-			pm.enablePluginAndSave(pluginId).catch(() => {});
-		} else {
-			pm.enablePlugin(pluginId).catch(() => {});
+		const start = Date.now();
+		while ((pm.loadingPluginId ?? null) !== null) {
+			if (Date.now() - start > 10000) return;
+			await new Promise<void>((r) => window.setTimeout(r, 25));
 		}
+	};
+
+	/** 触发加载：如该插件当前未加载且属「延迟启动」的懒加载插件，
+	 *  经全局串行队列触发（先计时监听、后 enable、等待窗口结算）。
+	 *  定时器等待期间插件可能被 Obsidian 自然加载（休眠恢复路径）——
+	 *  此时转入 flip（卸载重载并计时）而非放弃，保证测量永不丢失。 */
+	const enableNow = (pluginId: string, persist: boolean): void => {
+		enqueueLoad(async () => {
+			const pm = pluginsAPI();
+			if (isPluginLoaded(pluginId)) {
+				// 竞态：等待期间已被自然加载。若无需持久化（persist=false）
+				// 则让位结束；需持久化启用（restore 路径）时仅补写状态，
+				// 不重载（实例运行中，无窗口可测，测量交由后续 flip）。
+				if (persist) {
+					await pm.enablePluginAndSave(pluginId).catch(() => {});
+				}
+				return;
+			}
+			await waitSlotIdle();
+			if (isPluginLoaded(pluginId)) return; // 双检：等待窗口期间被加载
+			const cfg = plugin.settings.lazyLoadPlugins[pluginId];
+			const measurement =
+				cfg && cfg.delay > 0 ? onEnable?.(pluginId) : undefined;
+			if (persist) {
+				await pm.enablePluginAndSave(pluginId).catch(() => {});
+			} else {
+				await pm.enablePlugin(pluginId).catch(() => {});
+			}
+			// 等待测量完成（窗口关闭）再放行下一项，串行保证窗口纯净
+			await measurement;
+		});
 	};
 
 	const scheduleEnable = (pluginId: string, delayMs: number): void => {
@@ -197,27 +246,23 @@ export function registerLazyLoad(
 	};
 
 	/** 把「当前已加载」的懒加载插件翻转为懒加载模式：持久化禁用 + 会话内保持运行。
-	 *
-	 *  时序关键点（逆向 app.js 得出）：
-	 *    - disablePlugin 内部 unloadPlugin 同步 delete plugins[id]，但 unload()
-	 *      的实际清理异步展开；必须 await 完成后再计时重载，否则 trackLoad
-	 *      的「实例已存在则忽略」守卫会静默跳过测量；
-	 *    - 启动早期调用会被 Obsidian 的启动序列（initialize 按序 enablePlugin
-	 *      每个 enabledPlugin）与 requestSaveConfig 节流写盘交错，loadingPluginId
-	 *      窗口不按预期开启 —— 因此 start() 在 layout-ready 延迟一拍后再 flip，
-	 *      避开启动序列；
-	 *    - enablePlugin 可能静默短路（manifest 缺失 / deprecated / 已加载），
-	 *      此时 loadingPluginId 不会置位，需由 trackLoad 的兜底分支结算。 */
+	 *  经全局串行队列执行；卸载完成后再计时重载，等待窗口关闭后放行下一项。 */
 	const flipToLazy = (pluginId: string): void => {
 		if (!isPluginLoaded(pluginId)) return;
-		const pm = pluginsAPI();
-		void (async () => {
+		enqueueLoad(async () => {
+			const pm = pluginsAPI();
+			if (!isPluginLoaded(pluginId)) return; // 队列等待期间已被处理
+			await waitSlotIdle();
+			if (!isPluginLoaded(pluginId)) return;
 			await pm.disablePluginAndSave(pluginId);
 			// 异常防御：卸载未完成（实例仍在）时放弃重载，避免状态混乱
 			if (isPluginLoaded(pluginId)) return;
-			onEnable?.(pluginId);
+			const cfg = plugin.settings.lazyLoadPlugins[pluginId];
+			const measurement =
+				cfg && cfg.delay > 0 ? onEnable?.(pluginId) : undefined;
 			pm.enablePlugin(pluginId).catch(() => {});
-		})();
+			await measurement;
+		});
 	};
 
 	/** start 用的 flip 延迟（毫秒）：避开 Obsidian 启动序列（initialize 逐个
@@ -231,9 +276,12 @@ export function registerLazyLoad(
 			if (!isLazyCandidate(pluginId, cfg)) continue;
 			if (isPluginLoaded(pluginId)) {
 				// 已被 Obsidian 自然加载（含休眠恢复路径：重新启用时持久化了启用
-				// 状态）→ flip 延迟一拍避开启动序列；先建立计时，flip 的重载窗口
-				// 结束后由 trackLoad 结算真实 onload 耗时（自然加载的这次不计）
-				onEnable?.(pluginId);
+				// 状态）→ 延迟一拍再 flip：先建立计时（trackLoad 幂等），flip 在
+				// 全局队列中重载并结算真实 onload 耗时（自然加载的这次不计）。
+				// 队列串行 + waitSlotIdle 保证多插件 flip 不再互相踩踏窗口。
+				// 测量 Promise 由 flip 作业内的 await 消费，此处不等待（start 非异步），
+				// void 标记丢弃；未测量兜底由作业内 trackLoad 幂等返回同一 Promise。
+				void onEnable?.(pluginId);
 				window.setTimeout(() => flipToLazy(pluginId), START_FLIP_DELAY_MS);
 			} else {
 				scheduleEnable(pluginId, cfg.delay);
@@ -248,13 +296,15 @@ export function registerLazyLoad(
 			const pm = pluginsAPI();
 			if (isPluginLoaded(pluginId)) {
 				// 同 flipToLazy：等待异步卸载完成再启用，避免 enable 在旧实例
-				// 尚在卸载时空操作（插件停在本会话未加载态）
-				void (async () => {
+				// 尚在卸载时空操作（插件停在本会话未加载态）；经全局队列串行
+				enqueueLoad(async () => {
 					await pm.disablePlugin(pluginId);
-					enableNow(pluginId, true);
-				})();
+					await pm.enablePluginAndSave(pluginId).catch(() => {});
+				});
 			} else {
-				enableNow(pluginId, true);
+				enqueueLoad(async () => {
+					await pm.enablePluginAndSave(pluginId).catch(() => {});
+				});
 			}
 		}
 	};
