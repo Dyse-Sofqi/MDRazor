@@ -22,7 +22,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 ### 关键词
 
 - 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片
-- 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 懒加载 · 中英文 i18n
+- 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
 
 
 ### 功能
@@ -154,9 +154,9 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **启用懒加载** — 总开关。开启后按下方的插件延迟列表逐个控制社区插件的启动；关闭则所有插件恢复 Obsidian 自然加载。总线前提供「立即检查」按钮。
 - **立即检查** — 「启用懒加载」开关前的计时器按钮（tooltip「立即检查」）。点击弹出启动耗时检查弹窗：以「延迟 x s，启动耗时 x ms」单列合并展示所有已启用且延迟启动插件的实测加载耗时（含 onload）与配置延迟及加载状态（未开始/加载中/已完成/未测量），环境栏展示仓库文件数与社区插件数，弹窗底部可一键复制全文。因 Obsidian 原生「立即检查」弹窗不对外暴露，故复刻其按钮外观并自实现等效统计。
-- **插件延迟列表** — 对范围内每个社区插件设置「延迟（秒）」输入框：延迟 > 0 即懒加载，0 即恢复即时加载；各插件延迟相对大小即构成启动顺序。插件启停由「设置 → 第三方插件」管理（本列表不再提供逐插件启用开关）：在第三方插件设置中关闭某插件时，其懒加载配置自动取消，重启后不会再次被拉起；插件卸载时自动移除其配置。
+- **插件延迟列表** — 对范围内每个社区插件设置「延迟（秒）」输入框：延迟 > 0 即懒加载，0 即恢复即时加载；各插件延迟相对大小即构成启动顺序。插件启停由「设置 → 第三方插件」管理：**停用某插件时其延迟配置休眠保留**（条目变暗显示，延迟值不丢），重新启用后自动恢复接管，下次启动懒加载照常生效，无需重新设置；插件卸载时自动移除其配置。
 
-> 说明：懒加载作用范围仅限社区插件；关闭总开关或插件卸载时自动恢复自然加载。
+> 说明：懒加载作用范围仅限社区插件；关闭总开关或插件卸载时自动恢复自然加载（已休眠的插件保持停用，不会被擅自启动）。
 
 ### 设置
 
@@ -168,7 +168,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
 - **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
-- **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理）
+- **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理，停用插件延迟配置休眠保留，重新启用自动恢复）
 - **标签页切换** — 上述七大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
@@ -180,7 +180,9 @@ MDRazor 的两份数据文件保存在 Obsidian 配置目录（默认 `.obsidian
 - `.obsidian/md-razor-settings.json` — 全部设置：开关状态、自定义命令、隐藏命令、排序、懒加载延迟等
 - `.obsidian/md-razor-position-cache.json` — 各文档的光标与滚轴位置记录
 
-旧版本的数据文件（插件目录 `data.json` / `position-cache.json`）在新版本首次加载时自动迁移，迁移后不再读写。卸载前如不再需要数据，可在 **设置 → 标签页 → 清理本地数据** 中清除（两个数据项默认不勾选 = 保留；勾选确认后即时生效）。
+每次落盘时会在插件目录同步维护一份只读镜像（`data.json` / `position-cache.json` 命名）：配置目录下的主文件丢失或损坏时，从镜像自动恢复；主文件完好时镜像不参与读取。适用于同步盘 / 清理工具误删 `.obsidian` 下非标准文件的场景。
+
+旧版本的数据文件（插件目录 `data.json` / `position-cache.json` 作为主文件的格式）在新版本首次加载时自动迁移，迁移后不再读写。卸载前如不再需要数据，可在 **设置 → 标签页 → 清理本地数据** 中清除（两个数据项默认不勾选 = 保留；勾选确认后即时生效）。
 
 ### 安装
 
@@ -232,7 +234,7 @@ Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusba
 ### Keywords
 
 - Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner
-- Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Lazy Load · i18n (Chinese/English)
+- Lazy Load · Config dormancy (delays survive disabling) · Startup time stats · Serialized load queue · Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Mirror data fallback · i18n (Chinese/English)
 
 
 ### Features
@@ -362,9 +364,9 @@ Control when community plugins start up to optimize Obsidian cold-start, with th
 
 - **Enable Lazy Load** — Master switch. When on, each community plugin is launched according to the plugin delay list below; when off, all plugins restore Obsidian's natural loading. A "Check Now" button sits in front of the master switch.
 - **Check Now** — The timer button before the "Enable Lazy Load" switch (tooltip "Check Now"). Opens a startup-time inspection modal that lists, as a single column formatted like "delay x s, startup x ms", the measured load time (including onload) of every enabled and delayed plugin together with its configured delay and load state (not started / loading / done / not measured). The environment bar shows the vault's file count and community plugin count, and a "copy" button at the bottom copies the full text. Because Obsidian's native "Check Now" modal is not exposed to plugins, its button appearance is reproduced and an equivalent measurement is implemented internally.
-- **Plugin Delay List** — For each in-scope community plugin, sets a "Delay (seconds)" input: a delay > 0 defers its startup, 0 restores immediate loading (relative delays define the startup order). Plugin enable/disable is managed by Obsidian's Settings → Community Plugins (the per-plugin enable switch was removed): closing a plugin there cancels its lazy-load configuration so it is never relaunched on the next restart; uninstalling a plugin automatically removes its configuration.
+- **Plugin Delay List** — For each in-scope community plugin, sets a "Delay (seconds)" input: a delay > 0 defers its startup, 0 restores immediate loading (relative delays define the startup order). Plugin enable/disable is managed by Obsidian's Settings → Community Plugins: **disabling a plugin puts its delay config to dormant** (the entry dims, the delay value is kept); re-enabling restores managed state automatically and lazy loading applies again on the next start — no need to re-enter the delay. Uninstalling a plugin removes its configuration.
 
-> Note: Lazy Load applies to community plugins only; turning off the master switch or uninstalling a plugin restores natural loading.
+> Note: Lazy Load applies to community plugins only; turning off the master switch or uninstalling MDRazor restores natural loading (dormant plugins stay disabled and are never started on their own).
 
 ### Settings
 
@@ -376,7 +378,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
 - **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
-- **Lazy Load** — 1 master toggle + per-plugin delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin delay in seconds; plugin enable/disable is handled by the community plugins settings)
+- **Lazy Load** — 1 master toggle + per-plugin delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin delay in seconds; plugin enable/disable is handled by the community plugins settings; disabling a plugin keeps its delay config dormant and re-enabling restores it automatically)
 - **Tabbed sections** — the seven modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
@@ -388,7 +390,9 @@ MDRazor keeps two data files inside the Obsidian config folder (default `.obsidi
 - `.obsidian/md-razor-settings.json` — all settings: toggles, custom commands, hidden commands, ordering, lazy-load delays, etc.
 - `.obsidian/md-razor-position-cache.json` — cursor & scroll position records per document
 
-Legacy data files (the plugin-dir `data.json` / `position-cache.json`) are migrated automatically on the first load of a new version and are no longer read or written afterwards. To wipe the data before fully dropping the plugin, use **Settings → Tabs → Clear Local Data** (both items default to unchecked = keep; clearing takes effect immediately).
+Every disk write also maintains a read-only mirror inside the plugin folder (named `data.json` / `position-cache.json`): if the main file under the config dir is lost or corrupted, it is restored from the mirror; a healthy main file always wins. This covers cases where sync clients / cleanup tools mistakenly remove non-standard files under `.obsidian`.
+
+Legacy data files (the plugin-dir `data.json` / `position-cache.json` as the primary format) are migrated automatically on the first load of a new version and are no longer read or written afterwards. To wipe the data before fully dropping the plugin, use **Settings → Tabs → Clear Local Data** (both items default to unchecked = keep; clearing takes effect immediately).
 
 ### Installation
 

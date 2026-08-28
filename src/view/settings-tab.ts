@@ -139,9 +139,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
-
-		const contextCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
-		renderCommandSurfaceSettings(contextCmdEl, this.plugin, 'contextMenu');
+			
+			const contextCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
+			renderCommandSurfaceSettings(contextCmdEl, this.plugin, 'contextMenu');
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -149,6 +149,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/* ------------------------------------------------------------------ */
 
 	private buildHideSection(panel: HTMLElement): void {
+		new Setting(panel)
+			.setName(tr('符号边界提示', 'Symbol Boundary Hint'))
+			.setDesc(
+				tr(
+					'光标处于格式标识符边界时，在光标下方弹出提示，展示光标与隐藏标识符的位置关系',
+					'When the cursor is at the edge of a formatting identifier, a hint pops up below the cursor describing its position relative to the hidden identifier.',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.symbolBoundaryHint)
+					.onChange(async (value) => {
+						this.plugin.settings.symbolBoundaryHint = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+		
 		this.addHideToggle(
 			panel,
 			tr('隐藏加粗符号', 'Hide Bold Symbols'),
@@ -240,23 +257,6 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.showWhitespace)
 					.onChange(async (value) => {
 						this.plugin.settings.showWhitespace = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(panel)
-			.setName(tr('符号边界提示', 'Symbol Boundary Hint'))
-			.setDesc(
-				tr(
-					'光标处于格式标识符边界时，在光标下方弹出提示，展示光标与隐藏标识符的位置关系',
-					'When the cursor is at the edge of a formatting identifier, a hint pops up below the cursor describing its position relative to the hidden identifier.',
-				),
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.symbolBoundaryHint)
-					.onChange(async (value) => {
-						this.plugin.settings.symbolBoundaryHint = value;
 						await this.plugin.saveSettings();
 					}),
 			);
