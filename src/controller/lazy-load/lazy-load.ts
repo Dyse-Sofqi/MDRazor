@@ -40,6 +40,8 @@
  *       本轮不判定，避免把整批关闭误判为逐插件关闭。
  *   恢复接管同样走 streak 计数（恢复比误停用后果轻，但连续两轮确认
  *   可避免在 Obsidian 自身的加载窗口内反复翻转标记）。
+ *   标记翻转（休眠/恢复）时回调 onConfigChange，供设置界面即时同步
+ *   条目的休眠视觉状态（降透明度/恢复可编辑）。
  *   enabledPlugins 在本模块仅用于批量哨兵的只读判断：被管理插件的
  *   持久化开关恒为停用（本模块 disablePluginAndSave 的结果），该集合
  *   无法区分「懒加载常态」与「用户停用」，不可作为接管/休眠判据。
@@ -52,8 +54,10 @@ import type { LazyLoadPluginConfig } from '../../model/settings';
 /** MDRazor 自身 id：不可参与懒加载，避免自我管理 */
 export const SELF_PLUGIN_ID = 'md-razor';
 
-/** 外部停用同步的轮询间隔（毫秒） */
-const WATCH_INTERVAL_MS = 2000;
+/** 外部停用/重新启用的轮询间隔（毫秒）：配合 streak=2，最坏 ~1s 内完成
+ *  休眠/恢复判定，设置界面即时跟进。轮询本身仅做 O(条目数) 查表，
+ *  微秒级，无性能负担；磁盘写入只在标记翻转时发生，不随频率增加 */
+const WATCH_INTERVAL_MS = 500;
 /** 判定「外部关闭/重新启用」所需的连续缺席/出现轮询次数 */
 const WATCH_REQUIRED_STREAK = 2;
 
@@ -95,11 +99,14 @@ export interface LazyLoadControl {
  * 不产生任何副作用，直到 start() 被调用（onload 里根据「启用懒加载」开关决定）。
  *
  * @param onEnable 可选：当本控制器把「未加载」的插件触发加载（enablePlugin /
- *                 enablePluginAndSave）前回调，供启动耗时记录器对被触发的插件计时。
+ *                 enablePluginAndSave / flip 重载）前回调，供启动耗时记录器计时。
+ * @param onConfigChange 可选：某条目的休眠/接管标记翻转时回调
+ *                 (pluginId, active)，供设置界面刷新条目视觉状态。
  */
 export function registerLazyLoad(
 	plugin: MDRazorPlugin,
 	onEnable?: (pluginId: string) => void,
+	onConfigChange?: (pluginId: string, active: boolean) => void,
 ): LazyLoadControl {
 	// 浏览器 setTimeout 的句柄类型为 number（@types/node 的全局类型会返回 Timeout，
 	// 这里按 DOM 运行环境的实际值显式声明）
@@ -184,11 +191,16 @@ export function registerLazyLoad(
 		return cfg;
 	};
 
-	/** 把「当前已加载」的懒加载插件翻转为懒加载模式：持久化禁用 + 会话内保持运行 */
+	/** 把「当前已加载」的懒加载插件翻转为懒加载模式：持久化禁用 + 会话内保持运行。
+	 *  重载前通知记录器计时：恢复接管的插件在下次启动会被 Obsidian 先行自动加载
+	 * （其启停已被用户重新启用时持久化为启用），走此路径重载 —— 若不计时，
+	 *  「立即检查」将永远显示未测量。顺序：先禁用卸载实例 → trackLoad 建立监听
+	 *  → enablePlugin 重载，20ms 轮询即可捕捉完整 onload 窗口。 */
 	const flipToLazy = (pluginId: string): void => {
 		if (!isPluginLoaded(pluginId)) return;
 		const pm = pluginsAPI();
 		pm.disablePluginAndSave(pluginId);
+		onEnable?.(pluginId);
 		pm.enablePlugin(pluginId);
 	};
 
@@ -309,6 +321,7 @@ export function registerLazyLoad(
 				cancelTimer(pluginId);
 				absentStreak.delete(pluginId);
 				void plugin.saveSettings();
+				onConfigChange?.(pluginId, false);
 			} else {
 				// 休眠中：插件重新出现实例（用户在第三方插件设置中重新启用）
 				if (!loaded) {
@@ -327,6 +340,7 @@ export function registerLazyLoad(
 				presentStreak.delete(pluginId);
 				absentStreak.delete(pluginId);
 				void plugin.saveSettings();
+				onConfigChange?.(pluginId, true);
 			}
 		}
 	};
