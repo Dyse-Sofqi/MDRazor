@@ -174,12 +174,17 @@ async function loadCache(plugin: Plugin): Promise<void> {
 			readFromPlugin = true;
 			raw = JSON.parse(await adapterRef.read(pluginFile)) as unknown;
 		}
+		// 标量 JSON（null / 数字 / 字符串）此前会以 raw 原样逃过 catch，把 null
+		// 写入模块级缓存，后续 Object.keys(cache) 抛 TypeError 使 onload 失败
+		//（用户报告的「重启后插件加载失败」）。此处统一按空缓存处理。
+		if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+			diskCache = {};
+		} else if ('positions' in raw) {
 			// 兼容两种落盘格式：早期 {positions:{}} 包裹，以及当前平铺 {path: record}
-			if (raw !== null && typeof raw === 'object' && 'positions' in raw) {
-				diskCache = (raw as { positions?: PositionCache }).positions ?? {};
-			} else {
-				diskCache = raw as PositionCache;
-			}
+			diskCache = (raw as { positions?: PositionCache }).positions ?? {};
+		} else {
+			diskCache = raw as PositionCache;
+		}
 	} catch {
 		diskCache = {};
 	}
@@ -198,15 +203,19 @@ async function loadCache(plugin: Plugin): Promise<void> {
 	// getAbstractFileByPath 会全部返回 null，此时清理会把全部记录误删、再落盘成
 	// 空文件（这是「重启后缓存被清空」的另一潜在根因）。索引未就绪时跳过清理，
 	// 保留旧记录，待下一次正常落盘（用户编辑触发 flush）时再一并净化。
-	const vaultReady = plugin.app.vault.getFiles().length > 0;
 	let pruned = false;
-	if (vaultReady) {
-		for (const path of Object.keys(cache)) {
-			if (!(plugin.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
-				delete cache[path];
-				pruned = true;
+	try {
+		const vaultReady = plugin.app.vault.getFiles().length > 0;
+		if (vaultReady) {
+			for (const path of Object.keys(cache)) {
+				if (!(plugin.app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+					delete cache[path];
+					pruned = true;
+				}
 			}
 		}
+	} catch (err) {
+		console.error('[MDRazor] 位置缓存清理失败，跳过本次清理', err);
 	}
 
 	// 迁移旧缓存到 .obsidian：写入新文件成功即切换（单真相源由「新位置存在时
