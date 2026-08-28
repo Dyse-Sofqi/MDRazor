@@ -46,10 +46,14 @@ const isCommunityManifest = (m: PluginManifest): boolean =>
 const hasOwn = (obj: object, key: string): boolean =>
 	Object.prototype.hasOwnProperty.call(obj, key);
 
+/** 计时轮询间隔（毫秒）：捕捉 loadingPluginId 窗口的开启/结束。轮询存在
+ *  固有的基准偏差——起点晚记、终点晚记各半个周期，系统性虚高约一个周期；
+ *  5ms 时偏差 ≤5ms，对几十至几百 ms 的加载耗时足够精确，且每插件至多
+ *  运行到窗口结束即停，无持续开销 */
+const LOAD_POLL_INTERVAL_MS = 5;
+
 /** 单次加载测量的超时上限（毫秒）：超过仍未完成则放弃 */
 const LOAD_WATCH_TIMEOUT = 60000;
-
-/** 一次进行中的加载测量 */
 interface LoadWatch {
 	id: string;
 	/** 我们触发 enable 的时刻（兜底基准：快速加载可能错过 loadingPluginId 窗口） */
@@ -94,7 +98,7 @@ export class StartupTimingRecorder {
 			loading: false,
 			interval: 0,
 		};
-		const interval = window.setInterval(() => this.pollLoad(watch), 20);
+		const interval = window.setInterval(() => this.pollLoad(watch), LOAD_POLL_INTERVAL_MS);
 		watch.interval = interval;
 		this.watches.set(pluginId, watch);
 		this.plugin.registerInterval(interval);
@@ -138,9 +142,12 @@ export class StartupTimingRecorder {
 			return;
 		}
 
-		// 未捕捉到窗口（加载极快）但实例已出现 → 用「触发时刻 → 实例出现」近似
+		// 未捕捉到窗口：加载极快（窗口短于轮询周期）或 enablePlugin 被去重短路。
+		// 不用「触发→实例出现」近似——那会把 main.js 读取+eval 全算进去，
+		// 系统性虚高；宁可放弃本次测量（显示未测量），避免展示失真数值。
+		// 实例长期不出现（加载失败/被去重）由超时兑底结算为 0（视作未测）。
 		if (!watch.loading && hasOwn(pm.plugins, watch.id)) {
-			this.finish(watch, now - watch.baseStart);
+			this.finish(watch, 0);
 			return;
 		}
 

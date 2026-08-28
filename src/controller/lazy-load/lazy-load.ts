@@ -149,13 +149,18 @@ export function registerLazyLoad(
 	};
 
 	/** 触发加载：如该插件当前未加载且属「延迟启动」的懒加载插件，
-	 *  先通知记录器计时，再执行 enable */
+	 *  先通知记录器计时，再执行 enable。
+	 *
+	 *  竞态防御（未测量根因）：定时器等待期间插件可能被 Obsidian 启动序列
+	 *  自然加载（休眠恢复路径：重新启用时持久化了启用状态）——此时实例
+	 *  已存在，enablePlugin 会静默去重返回，不产生 loadingPluginId 窗口。
+	 *  实例已存在时直接让位：不重复计时、不强行重载，持久化状态由后续
+	 *  flip 路径统一处理。 */
 	const enableNow = (pluginId: string, persist: boolean): void => {
-		if (!isPluginLoaded(pluginId)) {
-			const cfg = plugin.settings.lazyLoadPlugins[pluginId];
-			if (cfg && cfg.delay > 0) {
-				onEnable?.(pluginId);
-			}
+		if (isPluginLoaded(pluginId)) return;
+		const cfg = plugin.settings.lazyLoadPlugins[pluginId];
+		if (cfg && cfg.delay > 0) {
+			onEnable?.(pluginId);
 		}
 		const pm = pluginsAPI();
 		if (persist) {
@@ -193,12 +198,16 @@ export function registerLazyLoad(
 
 	/** 把「当前已加载」的懒加载插件翻转为懒加载模式：持久化禁用 + 会话内保持运行。
 	 *
-	 *  必须等待卸载完成再计时重载：Obsidian 的 disablePlugin 异步卸载，
-	 *  await 完成后才从 plugins 表删除实例；若不等待就通知计时，
-	 *  trackLoad 的「实例已存在则忽略」守卫会静默跳过测量（恢复接管
-	 *  路径「立即检查永远未测量」的根因：该路径重启时插件被 Obsidian
-	 *  先行自动加载，只能走 flip 重载）。顺序：await 卸载 → 通知计时 →
-	 *  enablePlugin 重载，20ms 轮询即可捕捉完整 onload 窗口。 */
+	 *  时序关键点（逆向 app.js 得出）：
+	 *    - disablePlugin 内部 unloadPlugin 同步 delete plugins[id]，但 unload()
+	 *      的实际清理异步展开；必须 await 完成后再计时重载，否则 trackLoad
+	 *      的「实例已存在则忽略」守卫会静默跳过测量；
+	 *    - 启动早期调用会被 Obsidian 的启动序列（initialize 按序 enablePlugin
+	 *      每个 enabledPlugin）与 requestSaveConfig 节流写盘交错，loadingPluginId
+	 *      窗口不按预期开启 —— 因此 start() 在 layout-ready 延迟一拍后再 flip，
+	 *      避开启动序列；
+	 *    - enablePlugin 可能静默短路（manifest 缺失 / deprecated / 已加载），
+	 *      此时 loadingPluginId 不会置位，需由 trackLoad 的兜底分支结算。 */
 	const flipToLazy = (pluginId: string): void => {
 		if (!isPluginLoaded(pluginId)) return;
 		const pm = pluginsAPI();
@@ -211,12 +220,21 @@ export function registerLazyLoad(
 		})();
 	};
 
+	/** start 用的 flip 延迟（毫秒）：避开 Obsidian 启动序列（initialize 逐个
+	 *  enablePlugin + saveConfig 节流写盘），在其结束后的下一拍再翻转，
+	 *  保证卸载/重载窗口不被启动序列的同步段插队干扰 */
+	const START_FLIP_DELAY_MS = 3000;
+
 	const start = (): void => {
 		if (!plugin.settings.lazyLoadEnabled) return;
 		for (const [pluginId, cfg] of Object.entries(plugin.settings.lazyLoadPlugins)) {
 			if (!isLazyCandidate(pluginId, cfg)) continue;
 			if (isPluginLoaded(pluginId)) {
-				flipToLazy(pluginId);
+				// 已被 Obsidian 自然加载（含休眠恢复路径：重新启用时持久化了启用
+				// 状态）→ flip 延迟一拍避开启动序列；先建立计时，flip 的重载窗口
+				// 结束后由 trackLoad 结算真实 onload 耗时（自然加载的这次不计）
+				onEnable?.(pluginId);
+				window.setTimeout(() => flipToLazy(pluginId), START_FLIP_DELAY_MS);
 			} else {
 				scheduleEnable(pluginId, cfg.delay);
 			}
