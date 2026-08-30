@@ -52,7 +52,7 @@ function buildBoundaryTooltip(
 	right: string,
 	pos: number,
 ): Tooltip {
-	const dom = document.createElement('div');
+	const dom = activeDocument.createElement('div');
 	dom.className = 'mdrazor-boundary-hint';
 
 	// 弹框展示被隐藏的标记原文。仅当空格可视化开启时才用 `·` 替代空格，
@@ -60,15 +60,15 @@ function buildBoundaryTooltip(
 	const display = (text: string): string =>
 		spaceConfig.showWhitespace ? text.replace(/ /g, '·') : text;
 
-	const leftSpan = document.createElement('span');
+	const leftSpan = activeDocument.createElement('span');
 	leftSpan.className = 'mdrazor-hint-left';
 	leftSpan.textContent = display(left);
 
-	const cursorSpan = document.createElement('span');
+	const cursorSpan = activeDocument.createElement('span');
 	cursorSpan.className = 'mdrazor-hint-cursor';
 	cursorSpan.textContent = '|';
 
-	const rightSpan = document.createElement('span');
+	const rightSpan = activeDocument.createElement('span');
 	rightSpan.className = 'mdrazor-hint-right';
 	rightSpan.textContent = display(right);
 

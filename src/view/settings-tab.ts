@@ -127,13 +127,10 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						// isEnabledRef 模块状态，也不依赖 saveSettings 异步链
 						// （saveData → 镜像 → syncConfig——任一环被旧运行实例
 						// 绕过都会出现「设置开着但类未挂」）；saveSettings 内部
-						// syncConfig 会幂等再同步一次。
-						// 用 document.body 而非 activeDocument.body：后者在
-						// 悬浮/弹出窗口（hover-editor、popout 视图）聚焦时会指向
-						// 该浮动窗口的文档，类会被挂到错误的 body 上（主编辑器
-						// 无效果）；document 恒为插件主窗口文档。
-						// eslint-disable-next-line obsidianmd/prefer-active-doc -- 必须挂主窗口 body
-						document.body.classList.toggle(CURRENT_LINE_HIGHLIGHT_CLASS, value);
+						// syncConfig 会幂等再同步一次。activeDocument 为 Obsidian
+						// 推荐 API：跟随当前活动窗口，popout / 悬浮编辑器窗口
+						// 同样生效。
+						activeDocument.body.classList.toggle(CURRENT_LINE_HIGHLIGHT_CLASS, value);
 						await this.plugin.saveSettings();
 					}),
 			);

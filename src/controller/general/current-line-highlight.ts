@@ -8,8 +8,9 @@
  *
  * 实现：纯 CSS body 开关类，无需事件监听与空闲计时器——「高亮哪一行」
  * 由 CodeMirror 的 .cm-active 类维护，插件只负责「是否开启」：
- *   - onload / 设置同步（syncConfig）时在 body 上挂/摘
- *     `mdrazor-current-line-highlight` 常驻类；
+ *   - onload / 设置同步（syncConfig）时在活动窗口 body 上挂/摘
+ *     `mdrazor-current-line-highlight` 常驻类（activeDocument：跟随当前
+ *     活动窗口，popout / 悬浮编辑器窗口同样生效）；
  *   - styles.css 以 `body.mdrazor-current-line-highlight` 为前缀限定规则
  *     （镜像 Custom.css 99-107 行，三个选择器含 CM6 主路径与 CM5 变体）；
  *   - 卸载时摘除 JS 添加的类。
@@ -18,12 +19,6 @@
  */
 
 import { Plugin } from 'obsidian';
-
-/* eslint-disable obsidianmd/prefer-active-doc -- 刻意使用 document（主窗口文档）：
- * 开关类必须挂在主窗口 body 上，styles.css 的规则只在主编辑器生效；
- * activeDocument 在悬浮/弹出窗口（hover-editor、popout 视图）聚焦时会指向
- * 浮动窗口的文档，类会挂错 body（已在本插件的「当前行高亮开关不即时」调修中
- * 被用户探针证实）。document 在插件渲染进程中恒为主窗口文档。 */
 
 /** body 上的「当前行高亮」开关类：随设置常驻（styles.css 以此限定高亮规则生效） */
 export const CURRENT_LINE_HIGHLIGHT_CLASS = 'mdrazor-current-line-highlight';
@@ -41,8 +36,8 @@ let isEnabledRef: (() => boolean) | null = null;
  */
 export function registerCurrentLineHighlight(_plugin: Plugin, isEnabled: () => boolean): void {
 	isEnabledRef = isEnabled;
-	if (isEnabled()) document.body.classList.add(CURRENT_LINE_HIGHLIGHT_CLASS);
-	else document.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
+	if (isEnabled()) activeDocument.body.classList.add(CURRENT_LINE_HIGHLIGHT_CLASS);
+	else activeDocument.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
 }
 
 /**
@@ -50,11 +45,11 @@ export function registerCurrentLineHighlight(_plugin: Plugin, isEnabled: () => b
  * 开启挂类、关闭摘类。纯 classList 切换，即时生效，无需重绘编辑器。
  */
 export function applyCurrentLineHighlightClass(): void {
-	if (isEnabledRef?.()) document.body.classList.add(CURRENT_LINE_HIGHLIGHT_CLASS);
-	else document.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
+	if (isEnabledRef?.()) activeDocument.body.classList.add(CURRENT_LINE_HIGHLIGHT_CLASS);
+	else activeDocument.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
 }
 
 /** 插件卸载时清理（body 类由 JS 添加，需手动摘除） */
 export function removeCurrentLineHighlightClass(): void {
-	document.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
+	activeDocument.body.classList.remove(CURRENT_LINE_HIGHLIGHT_CLASS);
 }
