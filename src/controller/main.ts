@@ -28,6 +28,10 @@ import { listEnhancerConfig, createListEnhancerExtension, applyListFoldOnActiveL
 import { registerDirFocus } from './list-enhancer/dir-focus';
 import { registerDirFileCount } from './list-enhancer/dir-file-count';
 import { registerSiblingFold, registerSiblingFoldContextMenu } from './list-enhancer/sibling-fold';
+import {
+	registerDeleteEmptyLinesCommand,
+	registerDeleteEmptyLinesContextMenu,
+} from './list-enhancer/delete-empty-lines';
 import { typewriterConfig, createTypewriterExtension, registerTypewriterCommand } from './typewriter/typewriter';
 import { registerTabEnhancer } from './tab-enhancer/tab-enhancer';
 import { registerLinkOpener } from './tab-enhancer/link-opener';
@@ -167,6 +171,12 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册展开/折叠同级列表或标题右键菜单项（右键菜单模块开关控制）
 		registerSiblingFoldContextMenu(this, () => this.settings.contextMenuSiblingFold);
+
+		// 注册批量删除空行命令（随插件注册，右键菜单模块开关只控制菜单项显示）
+		registerDeleteEmptyLinesCommand(this);
+
+		// 注册批量删除空行右键菜单项（右键菜单模块开关控制）
+		registerDeleteEmptyLinesContextMenu(this, () => this.settings.contextMenuDeleteEmptyLines);
 
 		// 注册开启/关闭打字机模式命令（可绑定快捷键，与设置开关双向同步）
 		registerTypewriterCommand(this, this.settings, async () => {

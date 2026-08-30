@@ -224,6 +224,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(panel)
+			.setName(tr('批量删除空行', 'Delete Empty Lines'))
+			.setDesc(
+				tr(
+					'开启后在编辑器右键菜单中添加「批量删除空行」菜单项：有选中文本时删除选中范围内的所有空行，无选中时删除当前文档的所有空行。Markdown 感知：标题、分割线、表格、列表、引用块、代码块前后的空行，以及代码块内部、两个独立表格之间的空行会被保留；仅删除段落之间、文档首尾、列表项与列表项之间、表格行与行之间的空行。该命令随插件注册，不受此开关影响，关闭后仍可通过命令面板或快捷键触发',
+					'Adds a "Delete Empty Lines" item to the editor context menu when enabled: with a selection it removes empty lines within the selection, otherwise it removes empty lines across the whole document. Markdown-aware: blank lines before/after headings, horizontal rules, tables, lists, blockquotes and code blocks (plus blank lines inside code blocks and between two separate tables) are preserved; only blank lines between paragraphs, at document edges, between list items and between table rows are removed. The command is always registered and stays available from the command palette or a hotkey when the toggle is off.',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.contextMenuDeleteEmptyLines)
+					.onChange(async (value) => {
+						this.plugin.settings.contextMenuDeleteEmptyLines = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 			
 			const contextCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
 			renderCommandSurfaceSettings(contextCmdEl, this.plugin, 'contextMenu');

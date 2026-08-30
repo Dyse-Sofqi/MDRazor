@@ -21,7 +21,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 关键词
 
-- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮
+- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 批量删除空行（Markdown 感知）
 - 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
 
 
@@ -155,6 +155,8 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **展开/折叠同级列表或标题** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。点击执行与命令面板命令完全相同的逻辑：以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档所有同层级的列表项或标题（同为某级标题、或同为某缩进层级的列表项），完成后弹出提示告知实际折叠/展开了多少个同级标题或列表。关闭后右键菜单不再显示该项，命令面板命令与快捷键不受影响。
 
+- **批量删除空行** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。有选中文本时删除选中范围内的所有空行，无选中时删除当前文档的所有空行；经编辑器替换执行，可 Ctrl/Cmd+Z 撤销。**Markdown 感知**：标题、分割线、表格、列表、引用块、代码块前后的空行，以及代码块内部、两个独立表格之间的空行会被保留（连续空行折叠为一个），仅删除段落之间、文档首尾、列表项与列表项之间、表格行与行之间的空行——避免破坏 表格/列表 等结构（粘贴复制的网页内容常带表格行间空行，删除后可正常渲染）。命令「批量删除空行」随插件注册、不受此开关影响，关闭菜单项后仍可通过命令面板或绑定快捷键触发。
+
 - **自定义命令** — 将任意命令添加为编辑器右键菜单项（图标 + 名称），点击执行；支持删除与拖拽排序。
 - **隐藏命令** — 捕获 Obsidian 原生 / 插件注册的自定义右键菜单项，用 eye / eye-off 切换显示隐藏，支持拖拽排序；菜单项按 section 以可折叠小标题分组展示。
 
@@ -181,7 +183,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 - **标签页** — 9 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
-- **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
+- **右键菜单** — 2 个开关：展开/折叠同级列表或标题、批量删除空行（在编辑器右键菜单中添加同名菜单项；命令始终注册不受开关影响）
 - **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理，停用插件延迟配置休眠保留，重新启用自动恢复）
 - **标签页切换** — 上述八大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
@@ -247,7 +249,7 @@ Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs*
 
 ### Keywords
 
-- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight
+- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight · Delete empty lines (Markdown-aware)
 - Lazy Load · Config dormancy (delays survive disabling) · Startup time stats · Serialized load queue · Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Mirror data fallback · i18n (Chinese/English)
 
 
@@ -375,9 +377,11 @@ Status bar enhancements with the following independent toggles:
 
 #### 🖱️ Context Menu
 
-Editor right-click menu enhancements with the following independent toggle:
+Editor right-click menu enhancements with the following independent toggles:
 
 - **Expand/Collapse Sibling Lists or Headings** — When enabled (default), a same-named item appears in the Markdown editor's right-click menu. Clicking it runs exactly the same logic as the command-palette command: based on the folded state of the list item / heading at the cursor, it uniformly collapses or expands the current line plus every list item or heading at the same level across the whole document (the same heading level, or the same indentation level of list items), then notifies how many sibling headings/lists were collapsed or expanded. Disabling removes the item from the right-click menu; the command-palette command and hotkey binding are unaffected.
+
+- **Delete Empty Lines** — When enabled (default), a same-named item appears in the Markdown editor's right-click menu. With a selection it removes all empty lines within the selection; without a selection it removes all empty lines in the document. The replacement goes through the editor, so Ctrl/Cmd+Z undoes it. **Markdown-aware**: blank lines before/after headings, horizontal rules, tables, lists, blockquotes and code blocks, plus blank lines inside code blocks and between two separate tables, are preserved (consecutive blanks collapse to one); only blank lines between paragraphs, at document edges, between list items and between table rows are removed — keeping table/list structures intact (pasted web content often carries blank lines between table rows that break rendering; removing them restores it). The "Delete Empty Lines" command is always registered regardless of this toggle, so it stays available from the command palette or a hotkey.
 
 - **Custom Commands** — Add any command to the editor context menu (icon + name); click to execute. Supports delete and drag reorder.
 - **Hidden Commands** — Captures Obsidian native / plugin-registered context menu items, toggles visibility with eye / eye-off, supports drag reorder, and groups items into collapsible section headings.
@@ -405,7 +409,7 @@ Configure in Obsidian Settings → Community Plugins → MDRazor:
 - **Tabs** — 9 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Show/Hide the Toggle Tab View Button, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top, Dead-Zone Bottom Edge Jump to Top Edge)
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
-- **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
+- **Context Menu** — 2 toggles: Expand/Collapse Sibling Lists or Headings, Delete Empty Lines (adds same-named items to the editor right-click menu; the Delete Empty Lines command is always registered regardless of the toggle)
 - **Lazy Load** — 1 master toggle + per-plugin delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin delay in seconds; plugin enable/disable is handled by the community plugins settings; disabling a plugin keeps its delay config dormant and re-enabling restores it automatically)
 - **Tabbed sections** — the eight modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 

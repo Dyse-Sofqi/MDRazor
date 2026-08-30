@@ -92,9 +92,11 @@ export interface MDRazorSettings {
 	sidebarToggleEnabled: boolean;
 	formatToggleEnabled: boolean;
 
-	// ── 右键菜单 (controller/list-enhancer/sibling-fold.ts) ──
+	// ── 右键菜单 (controller/list-enhancer/) ──
 	/** 在编辑器右键菜单中显示「展开/折叠同级列表或标题」菜单项 */
 	contextMenuSiblingFold: boolean;
+	/** 在编辑器右键菜单中显示「批量删除空行」菜单项（命令始终注册，不受此开关影响） */
+	contextMenuDeleteEmptyLines: boolean;
 
 	// ── 打字机模式 (controller/typewriter/) ──
 	/** 打字机模式：编辑时光标行保持在页面中部区域（范围居中），死区外行淡化 */
@@ -214,6 +216,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	formatToggleEnabled: false,
 
 	contextMenuSiblingFold: true,
+	contextMenuDeleteEmptyLines: true,
 
 	typewriterMode: false,
 	typewriterOpacity: 50,
