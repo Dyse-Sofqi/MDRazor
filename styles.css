@@ -13,7 +13,6 @@
 	border: 1px solid transparent;
 	border-bottom: none;
 	border-radius: 6px 6px 0 0;
-	cursor: pointer;
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 	-webkit-user-select: none;
@@ -131,7 +130,7 @@ body.mdrazor-fold-active-line .markdown-source-view.mod-cm6.is-live-preview
 /* ── 目录文件计数 ── */
 .mdr-dir-file-count {
 	margin-left: auto;
-	margin-right: 4px;
+	margin-right: 7px;
 	font-size: inherit;
 	color: var(--text-muted);
 	opacity: 0.8;
@@ -241,7 +240,6 @@ div.nav-folder-title {
 }
 .mdrazor-workspace-menu-item {
 	padding: 6px 16px;
-	cursor: pointer;
 	white-space: nowrap;
 }
 .mdrazor-workspace-menu-item.is-active {
@@ -404,7 +402,6 @@ div.nav-folder-title {
 	justify-content: space-between;
 	gap: 8px;
 	padding: 8px 12px;
-	cursor: pointer;
 	background: var(--background-secondary);
 	user-select: none;
 }
@@ -512,7 +509,6 @@ div.nav-folder-title {
 	align-items: center;
 	gap: 8px;
 	padding: 6px 10px;
-	cursor: pointer;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -578,7 +574,6 @@ div.nav-folder-title {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	cursor: pointer;
 }
 .mdrazor-statusbar-command:hover {
 	background: var(--background-modifier-hover);
@@ -603,7 +598,6 @@ div.nav-folder-title {
 	align-items: center;
 	gap: 6px;
 	padding: 6px 10px;
-	cursor: pointer;
 	background: var(--background-secondary);
 	font-size: var(--font-ui-small);
 	font-weight: 600;
@@ -622,4 +616,64 @@ div.nav-folder-title {
 }
 .mdrazor-command-group-body {
 	padding: 6px 8px;
+}
+
+/* ── 鼠标/滚轮活动时行高亮 ──
+   body.mdrazor-mouse-moving 类由插件 JS 维护：鼠标移动或滚轮滚动时挂上
+   （高亮生效），最后一次活动后 300ms 无新事件即摘除（高亮消失）。
+   两个高亮入口并列生效、样式相同：
+   - :hover（前三个选择器）：鼠标物理移动时浏览器原生 hit-test，零开销；
+   - .mdrazor-line-highlight（末位）：滚动帧由 JS 用 elementFromPoint 给
+     鼠标正下方的 .cm-line 挂显式标记类——合成器平滑滚动期间 :hover 不
+     逐帧重算、高亮会滞后，显式标记让高亮逐帧跟随内容。
+   样式参考 Custom.css「行高亮跟随鼠标」：半透明主题色背景 + 圆角 +
+   20px 外扩阴影 + clip-path 回收遮罩。变量名沿用 Custom.css 的
+   --activeline-background（未定义时回退为等价色 hsla(accent,0.05)）。 */
+body.mdrazor-mouse-moving .cm-fat-cursor .CodeMirror-linebackground:hover,
+body.mdrazor-mouse-moving .CodeMirror-linebackground:hover,
+body.mdrazor-mouse-moving .cm-line:hover,
+body.mdrazor-mouse-moving .mdrazor-line-highlight {
+	background-color: var(--activeline-background, hsla(var(--color-accent-hsl), 0.05)) !important;
+	border-radius: 8px;
+	box-shadow: 0 0 0 20px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
+	clip-path: inset(0px -20px 0px -20px round 8px);
+}
+
+/* 光标兜底：功能开启即常驻（body.mdrazor-mouse-line-highlight-enabled 由插件
+   维护，只随设置开关、不随移动态），且仅对 :hover 生效——悬停在行上（含
+   .cm-line 子层 span 与两行间缝隙像素，其命中元素即 .cm-line）时箭头保持
+   default；离开行区（如 gutter、空白区）仍用原生光标。
+   原因：.cm-content 是 contenteditable，UA 对 cursor:auto 在可编辑文本上
+   解析为 I-beam(text)；若把 cursor:default 只挂在移动态类上，鼠标在行上
+   静止 300ms（空闲超时摘除移动类）后光标就会回到 text——这在行间缝隙处
+   最显眼。用「功能开启」类解耦后静止悬停也保持 default。 */
+body.mdrazor-mouse-line-highlight-enabled .cm-fat-cursor .CodeMirror-linebackground:hover,
+body.mdrazor-mouse-line-highlight-enabled .CodeMirror-linebackground:hover,
+body.mdrazor-mouse-line-highlight-enabled .cm-line:hover {
+	cursor: default;
+}
+
+/* 移动期间对整个编辑器加固（含 .cm-editor/.cm-scroller/.cm-sizer/.
+   .cm-contentContainer/.cm-content 及全部后代）：滚动窗口期内容逐帧移动、
+   行 DOM 重建时鼠标可能瞬时命中 .cm-line 之外的任何层（含 .cm-content
+   祖先链），若不全面覆盖，UA 对 contenteditable 的 cursor:auto 解析会在
+   这些瞬帧把光标闪回 I-beam。 */
+body.mdrazor-mouse-moving .markdown-source-view.mod-cm6,
+body.mdrazor-mouse-moving .markdown-source-view.mod-cm6 * {
+	cursor: default !important;
+}
+
+/* ── 当前行高亮 ──
+   body.mdrazor-current-line-highlight 由插件 JS 维护：随设置常驻（不是
+   活动态瞬时效果），高亮编辑光标所在的行（CM6 的 .cm-active，随光标
+   移动自动更新）。样式镜像 Custom.css 99-107 行 activeline-highlight，
+   三个选择器含义：CM6 光标行 .cm-active.cm-line（主路径）+ CM5/胖光标
+   兼容变体；背景沿用 --activeline-background（未定义时回退等价色）。 */
+body.mdrazor-current-line-highlight .cm-fat-cursor .CodeMirror-activeline .CodeMirror-linebackground,
+body.mdrazor-current-line-highlight .CodeMirror-activeline-background.CodeMirror-linebackground,
+body.mdrazor-current-line-highlight .cm-active.cm-line {
+	background-color: var(--activeline-background, hsla(var(--color-accent-hsl), 0.05)) !important;
+	border-radius: 8px;
+	box-shadow: 0 0 0 20px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
+	clip-path: inset(0px -20px 0px -20px round 8px);
 }

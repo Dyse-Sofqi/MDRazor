@@ -46,6 +46,8 @@ import { registerLazyLoad, SELF_PLUGIN_ID } from './lazy-load/lazy-load';
 import type { LazyLoadControl } from './lazy-load/lazy-load';
 import { createStartupTimingRecorder } from './lazy-load/startup-check';
 import type { StartupTimingRecorder } from './lazy-load/startup-check';
+import { registerMouseLineHighlight, applyMouseLineHighlightClass, removeMouseLineHighlightClass } from './general/mouse-line-highlight';
+import { registerCurrentLineHighlight, applyCurrentLineHighlightClass, removeCurrentLineHighlightClass } from './general/current-line-highlight';
 
 /**
  * 主插件类。
@@ -142,6 +144,12 @@ export default class MDRazorPlugin extends Plugin {
 			// 按钮/命令一键切换后，同步设置面板中隐藏样式开关的显示状态
 			this.settingTab?.syncHideTogglesFromSettings();
 		});
+
+		// 注册通用功能：鼠标移动时行高亮（body 开关类驱动，设置读取器即时探测）
+		registerMouseLineHighlight(this, () => this.settings.mouseMoveLineHighlight);
+
+		// 注册通用功能：当前行高亮（.cm-active 光标行，body 常驻开关类驱动）
+		registerCurrentLineHighlight(this, () => this.settings.currentLineHighlight);
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染
@@ -249,6 +257,10 @@ export default class MDRazorPlugin extends Plugin {
 		this.orphanImageRibbon?.removeRibbon();
 		// 移除「光标所在列表行也可折叠」的 body 开关类（JS 添加，需手动清理）
 		removeListFoldOnActiveLineClass();
+		// 移除「鼠标移动时行高亮」的 body 开关类并取消空闲计时器（JS 添加，需手动清理）
+		removeMouseLineHighlightClass();
+		// 移除「当前行高亮」的 body 开关类（JS 添加，需手动清理）
+		removeCurrentLineHighlightClass();
 	}
 
 	/**
@@ -264,7 +276,7 @@ export default class MDRazorPlugin extends Plugin {
 	 * 将当前设置持久化到磁盘（.obsidian/md-razor-settings.json，延迟同步插件目录镜像），
 	 * 然后同步到功能模块，使 CM6 扩展立即生效（无需重新加载插件）。
 	 *
-	 * options.forceMirror：跳过镜像节流立即写镜像。「清理本地数据」等
+	 * options.forceMirror：跳过镜像节流立即写镜像。「清理本地持久化数据」等
 	 * 重置场景必须使用，防止旧设置残留在镜像中被下次加载补洞复活。
 	 */
 	async saveSettings(options?: { forceMirror?: boolean }) {
@@ -328,6 +340,10 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(listEnhancerConfig, this.settings);
 		// 「光标所在列表行也可折叠」为 CSS 类驱动，需在设置同步后刷新 body 类
 		applyListFoldOnActiveLineClass();
+		// 「鼠标移动时行高亮」为 body 开关类驱动：设置变化后同步（关闭时立即摘除）
+		applyMouseLineHighlightClass();
+		// 「当前行高亮」为 body 常驻开关类驱动：设置变化后同步（即时生效）
+		applyCurrentLineHighlightClass();
 		Object.assign(typewriterConfig, {
 			mode: this.settings.typewriterMode,
 			opacity: this.settings.typewriterOpacity,

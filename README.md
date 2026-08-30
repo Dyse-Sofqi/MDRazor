@@ -17,17 +17,30 @@
 ### 简介
 
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
-目前提供**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**七大功能模块，更多功能正在开发中。
+目前提供**通用**、**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**八大功能模块，更多功能正在开发中。
 
 ### 关键词
 
-- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片
+- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮
 - 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
 
 
 ### 功能
 
-功能按设置面板的七大区域组织，每项均可在设置面板中独立开关。
+功能按设置面板的八大区域组织，每项均可在设置面板中独立开关。
+
+---
+
+#### 🧰 通用
+
+通用编辑体验设置，提供以下独立开关：
+
+- **鼠标/滚轮移动时行高亮**（默认开启） — 鼠标移动或滚轮滚动时，鼠标所在行显示跟随高亮；鼠标/滚轮静止 300ms 后高亮自动熄灭。样式与「行高亮跟随鼠标」一致：半透明主题色背景（`--activeline-background`）+ 8px 圆角 + 20px 外扩光晕（box-shadow 外扩 + clip-path 圆角回收），滚动期间指针保持箭头样式不闪烁。滚动期间高亮与内容同步跟随（滚动捕获监听 + `elementFromPoint` 逐帧标记鼠标下方行），平滑滚动也不滞后。
+
+- **当前行高亮**（默认关闭） — 编辑光标所在行常驻高亮（跟随编辑光标、与鼠标无关），不启用 Custom.css 时也能独立保持当前行高亮。默认关闭：与 Custom.css 的 `activeline-highlight` 效果一致，避免重复叠加。
+
+- **MD文档光标和滚轴位置持久化** — 设置入口在本模块（功能详见「标签页」节）。
+- **清理本地持久化数据** — 设置入口在本模块（功能详见「数据存储」节；由原「清理本地数据」改名而来）。
 
 ---
 
@@ -115,7 +128,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **目录展开关联标签页** — 开启后，从垂直标签页视图切换回文件列表时，仅展开包含已打开标签页的文件夹；关闭后，切换时恢复文件列表原来的展开结构。
 
-- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。位置记录保存在 Obsidian 配置目录（默认 `.obsidian/`）的 `md-razor-position-cache.json`，卸载重装插件后仍保留；旧版插件目录缓存（`position-cache.json`）首次加载时自动迁移。
+- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。位置记录保存在 Obsidian 配置目录（默认 `.obsidian/`）的 `md-razor-position-cache.json`，卸载重装插件后仍保留；旧版插件目录缓存（`position-cache.json`）首次加载时自动迁移。设置入口已移至「通用」模块。
 
 - **打字机模式** — 开启后聚焦中部阅读带：视口高度分为顶部 1/8、中部 3/4、底部 1/8，死区（12.5%~87.5%）之外（顶部/底部 1/8）的行按「死区外的不透明度」淡化显示，死区内与当前行保持明亮。光标跨行时维持视觉位置：落入顶部 1/8 → 滚回死区上沿（12.5%）；落入底部 1/8 → 默认滚回死区下沿（87.5%）。子设置项「死区外的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留视口高度 1/8 的空白，使光标位于文档第一行时也能滚入中部区域；子开关「死区下沿跳转上沿」（默认关闭）开启后，光标跨过死区下沿时跳到上沿（12.5%）而非滚回下沿。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
 
@@ -162,14 +175,15 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 在 Obsidian 设置 → 第三方插件 → MDRazor 中配置：
 
+- **通用** — 2 个开关：鼠标/滚轮移动时行高亮、当前行高亮（「MD文档光标和滚轴位置持久化」与「清理本地持久化数据」的设置入口亦在本模块）
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
 - **列表增强** — 11 个开关 + 1 个滑块：列一体化、勾选框一体化、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
-- **标签页** — 10 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、MD文档光标和滚轴位置持久化、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
+- **标签页** — 9 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
 - **右键菜单** — 1 个开关：展开/折叠同级列表或标题（在编辑器右键菜单中添加同名菜单项）
 - **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理，停用插件延迟配置休眠保留，重新启用自动恢复）
-- **标签页切换** — 上述七大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
+- **标签页切换** — 上述八大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
 ---
 
@@ -182,7 +196,7 @@ MDRazor 的两份数据文件保存在 Obsidian 配置目录（默认 `.obsidian
 
 每次落盘时会在插件目录同步维护一份只读镜像（`data.json` / `position-cache.json` 命名）：配置目录下的主文件丢失或损坏时，从镜像自动恢复；主文件完好时镜像不参与读取。适用于同步盘 / 清理工具误删 `.obsidian` 下非标准文件的场景。
 
-旧版本的数据文件（插件目录 `data.json` / `position-cache.json` 作为主文件的格式）在新版本首次加载时自动迁移，迁移后不再读写。卸载前如不再需要数据，可在 **设置 → 标签页 → 清理本地数据** 中清除（两个数据项默认不勾选 = 保留；勾选确认后即时生效）。
+旧版本的数据文件（插件目录 `data.json` / `position-cache.json` 作为主文件的格式）在新版本首次加载时自动迁移，迁移后不再读写。卸载前如不再需要数据，可在 **设置 → 通用 → 清理本地持久化数据** 中清除（两个数据项默认不勾选 = 保留；勾选确认后即时生效）。
 
 ### 安装
 
@@ -229,17 +243,30 @@ Designed to refine your writing experience with precision like a razor.
 ### Introduction
 
 MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, **Context Menu**, and **Lazy Load** — seven feature modules, with more in development.
+Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, **Context Menu**, and **Lazy Load** — eight feature modules, with more in development.
 
 ### Keywords
 
-- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner
+- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight
 - Lazy Load · Config dormancy (delays survive disabling) · Startup time stats · Serialized load queue · Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Mirror data fallback · i18n (Chinese/English)
 
 
 ### Features
 
-Features are organized by the seven settings-panel sections. Each toggle is independently switchable in settings.
+Features are organized by the eight settings-panel sections. Each toggle is independently switchable in settings.
+
+---
+
+#### 🧰 General
+
+General editing-experience settings, each independently toggleable:
+
+- **Highlight Line on Mouse Move / Scroll** (default on) — while the mouse moves or the wheel scrolls, the line under the pointer is highlighted; the highlight fades out 300ms after input settles. Styling mirrors the "cursor line highlight follows mouse" snippet: translucent theme-color background (`--activeline-background`) + 8px rounding + 20px outward glow (box-shadow spread + clip-path rounded inset); the pointer stays an arrow without flicker during scrolling. The highlight tracks the content while scrolling (scroll capture + per-frame `elementFromPoint` line marking), so it never lags during smooth scrolling.
+
+- **Highlight Current Line** (default off) — the line holding the editing cursor is persistently highlighted (follows the cursor, independent of the mouse), so the activeline highlight works standalone without enabling the Custom.css snippet. Default off: identical effect to Custom.css `activeline-highlight`, avoiding double-highlighting.
+
+- **MD Document Cursor & Scroll Position Persistence** — settings entry lives here (feature described under Tabs).
+- **Clear Local Persisted Data** — settings entry lives here (feature described under Data Storage; renamed from "Clear Local Data").
 
 ---
 
@@ -325,7 +352,7 @@ File tab management with the following independent toggles:
 
 - **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
 
-- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Records are stored in `md-razor-position-cache.json` inside the Obsidian config folder (default `.obsidian/`) and survive plugin uninstall/reinstall; the legacy plugin-dir cache (`position-cache.json`) is migrated automatically on first load.
+- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Records are stored in `md-razor-position-cache.json` inside the Obsidian config folder (default `.obsidian/`) and survive plugin uninstall/reinstall; the legacy plugin-dir cache (`position-cache.json`) is migrated automatically on first load. The settings entry has moved to the General section.
 
 - **Typewriter Mode** — When enabled, focuses the middle reading band: the viewport is split into a top eighth, a middle 3/4, and a bottom eighth; lines outside the dead zone (12.5%–87.5%, i.e. the top/bottom eighth) are dimmed per the "Outside Dead-Zone Opacity" sub-setting, while lines inside the dead zone and the current line stay bright. The cursor's visual position is maintained across lines: entering the top eighth scrolls it back to the dead zone's top edge (12.5%); entering the bottom eighth scrolls it back to the bottom edge (87.5%) by default. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space of 1/8 viewport height above the document so the cursor can reach the middle band even on the very first line. The "Dead-Zone Bottom Edge Jump to Top Edge" sub-toggle (default off) makes the cursor jump to the top edge (12.5%) when it crosses the bottom edge, instead of scrolling back to the bottom edge. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
 
@@ -372,14 +399,15 @@ Control when community plugins start up to optimize Obsidian cold-start, with th
 
 Configure in Obsidian Settings → Community Plugins → MDRazor:
 
+- **General** — 2 toggles: Highlight Line on Mouse Move / Scroll, Highlight Current Line (settings entries for MD Document Cursor & Scroll Position Persistence and Clear Local Persisted Data also live here)
 - **Style Hiding** — 13 toggles: Bold, Italic, Highlight, Strikethrough, Inline Code, Escape, Heading, Wiki Link Brackets, HTML Color Tags, HTML Underline Tags, HTML Inline Tags, Space Visualization, Symbol Boundary Hint
 - **List Enhancements** — 11 toggles + 1 slider: List Integration, Checkbox Integration, List Fold on Active Line, Enter Soft Break, List Focus Option (with Second-level Max Expand Count, Scroll Sync), Up/Down Do Not Skip Folded List/Heading Items, Directory Focus, Directory File Count (with Direct Children Count)
-- **Tabs** — 10 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Show/Hide the Toggle Tab View Button, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, MD Document Cursor & Scroll Position Persistence, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top, Dead-Zone Bottom Edge Jump to Top Edge)
+- **Tabs** — 9 toggles + 1 slider: Default New Tab Open, Vertical Tabs, Show/Hide the Toggle Tab View Button, Open Wiki Link in New Tab, Open Bookmark in New Tab, Tab Expansion Associated Folders, Typewriter Mode (with Outside Dead-Zone Opacity, Allow Blank Area at Document Top, Dead-Zone Bottom Edge Jump to Top Edge)
 - **Statusbar** — 4 toggles: Workspace Switch, Auto-save Workspace Layout, Sidebar Toggle Button, Format Toggle Button
 - **Left Ribbon** — 1 toggle: Orphan Image Cleaner (trash-2 ribbon icon, scans unreferenced images)
 - **Context Menu** — 1 toggle: Expand/Collapse Sibling Lists or Headings (adds a same-named item to the editor right-click menu)
 - **Lazy Load** — 1 master toggle + per-plugin delay settings: Enable Lazy Load, Check Now modal, Community Plugin Delay List (per-plugin delay in seconds; plugin enable/disable is handled by the community plugins settings; disabling a plugin keeps its delay config dormant and re-enabling restores it automatically)
-- **Tabbed sections** — the seven modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
+- **Tabbed sections** — the eight modules above are shown as tabs to keep the settings list short; the active tab is remembered for the plugin's lifetime
 
 ---
 
@@ -392,7 +420,7 @@ MDRazor keeps two data files inside the Obsidian config folder (default `.obsidi
 
 Every disk write also maintains a read-only mirror inside the plugin folder (named `data.json` / `position-cache.json`): if the main file under the config dir is lost or corrupted, it is restored from the mirror; a healthy main file always wins. This covers cases where sync clients / cleanup tools mistakenly remove non-standard files under `.obsidian`.
 
-Legacy data files (the plugin-dir `data.json` / `position-cache.json` as the primary format) are migrated automatically on the first load of a new version and are no longer read or written afterwards. To wipe the data before fully dropping the plugin, use **Settings → Tabs → Clear Local Data** (both items default to unchecked = keep; clearing takes effect immediately).
+Legacy data files (the plugin-dir `data.json` / `position-cache.json` as the primary format) are migrated automatically on the first load of a new version and are no longer read or written afterwards. To wipe the data before fully dropping the plugin, use **Settings → General → Clear Local Persisted Data** (both items default to unchecked = keep; clearing takes effect immediately).
 
 ### Installation
 

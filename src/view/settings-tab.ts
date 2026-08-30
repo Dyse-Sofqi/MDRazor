@@ -4,7 +4,7 @@
  * 在 Obsidian 设置中渲染 MDRazor 配置 UI。
  * 純 UI 層，不包含資料定義或業務邏輯。
  *
- * 七大功能模块以标签页形式展示：隐藏样式 / 列表增强 / 标签页 /
+ * 八大功能模块以标签页形式展示：通用 / 隐藏样式 / 列表增强 / 标签页 /
  * 左功能区 / 状态栏 / 右键菜单 / 懒加载。当前激活标签页在插件生命周期内记忆。
  */
 
@@ -18,6 +18,7 @@ import { StartupCheckModal } from '../controller/lazy-load/startup-check';
 import { renderRibbonCustomization } from './ribbon-customization';
 import { renderCommandSurfaceSettings } from './command-surface-view';
 import { DataCleanupModal } from './data-cleanup-modal';
+import { CURRENT_LINE_HIGHLIGHT_CLASS } from '../controller/general/current-line-highlight';
 
 /**
  * 在 Obsidian 设置中显示的设置面板：设置 → 第三方插件 → MDRazor。
@@ -65,6 +66,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		this.createTabbedSection(
 			containerEl,
 			[
+				tr('通用', 'General'),
 				tr('隐藏样式', 'Hide Formatting'),
 				tr('列表增强', 'List Enhancement'),
 				tr('标签页', 'Tabs'),
@@ -74,15 +76,101 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				tr('懒加载', 'Lazy Load'),
 			],
 			(panel, index) => {
-				if (index === 0) this.buildHideSection(panel);
-				else if (index === 1) this.buildListSection(panel);
-				else if (index === 2) this.buildTabSection(panel);
-				else if (index === 3) this.buildRibbonSection(panel);
-				else if (index === 4) this.buildStatusSection(panel);
-				else if (index === 5) this.buildContextMenuSection(panel);
+				if (index === 0) this.buildGeneralSection(panel);
+				else if (index === 1) this.buildHideSection(panel);
+				else if (index === 2) this.buildListSection(panel);
+				else if (index === 3) this.buildTabSection(panel);
+				else if (index === 4) this.buildRibbonSection(panel);
+				else if (index === 5) this.buildStatusSection(panel);
+				else if (index === 6) this.buildContextMenuSection(panel);
 				else this.buildLazyLoadSection(panel);
 			},
 		);
+	}
+
+	/* ------------------------------------------------------------------ */
+	/*  通用                                                               */
+	/* ------------------------------------------------------------------ */
+
+	private buildGeneralSection(panel: HTMLElement): void {
+		new Setting(panel)
+			.setName(tr('鼠标/滚轮移动时行高亮', 'Highlight Line on Mouse Move / Scroll'))
+			.setDesc(
+				tr(
+					'鼠标移动或滚轮滚动时高亮光标所在行，停止活动后高亮自动取消。纯 CSS 的 :hover 只能感知鼠标停留在元素上，无法区分「活动中」与「静止」，故由插件监听鼠标移动与滚轮滚动实现：活动时挂上高亮，停止活动 300ms 后自动消除。滚动时鼠标位置不变、光标默认箭头，画面移动后落入的行自动高亮',
+					'Highlights the line under the cursor while the mouse is moving or the scroll wheel is being used; the highlight clears automatically afterwards. Pure CSS :hover cannot distinguish movement from stillness, so the plugin listens to mouse movement and wheel scrolling: it applies the highlight while active and removes it 300ms after activity stops. During scrolling the pointer stays a default arrow and the line under it highlights as the content moves.',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.mouseMoveLineHighlight)
+					.onChange(async (value) => {
+						this.plugin.settings.mouseMoveLineHighlight = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
+			.setName(tr('当前行高亮', 'Highlight Current Line'))
+			.setDesc(
+				tr(
+					'高亮编辑光标所在的行（跟随光标，与鼠标位置无关），不启用 Custom.css 中的当前行高亮也能独立生效。半透明主题色背景 + 圆角 + 20px 外扩。默认关闭，避免与 Custom.css 同款样式叠加',
+					'Highlights the line where the editing cursor is (follows the caret, independent of the mouse). Works without the equivalent Custom.css snippet. Translucent theme-color background with rounded corners and a 20px outward shadow. Off by default so it does not stack with the Custom.css version.',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.currentLineHighlight)
+					.onChange(async (value) => {
+						this.plugin.settings.currentLineHighlight = value;
+						// 直接以本回调的 value 同步切换 body 开关类：不依赖
+						// isEnabledRef 模块状态，也不依赖 saveSettings 异步链
+						// （saveData → 镜像 → syncConfig——任一环被旧运行实例
+						// 绕过都会出现「设置开着但类未挂」）；saveSettings 内部
+						// syncConfig 会幂等再同步一次。
+						// 用 document.body 而非 activeDocument.body：后者在
+						// 悬浮/弹出窗口（hover-editor、popout 视图）聚焦时会指向
+						// 该浮动窗口的文档，类会被挂到错误的 body 上（主编辑器
+						// 无效果）；document 恒为插件主窗口文档。
+						// eslint-disable-next-line obsidianmd/prefer-active-doc -- 必须挂主窗口 body
+						document.body.classList.toggle(CURRENT_LINE_HIGHLIGHT_CLASS, value);
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
+			.setName(tr('MD文档光标和滚轴位置持久化', 'Remember Cursor & Scroll Position'))
+			.setDesc(
+				tr(
+					`开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置。位置记录保存在 ${this.plugin.app.vault.configDir}/md-razor-position-cache.json，卸载重装插件后仍保留`,
+					`When enabled, the cursor and scroll position of each Markdown document are recorded automatically (the final position is saved 250 ms after changes stop) and restored when the document is reopened. Position records are stored in ${this.plugin.app.vault.configDir}/md-razor-position-cache.json and survive plugin reinstall.`,
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.positionPersistenceEnabled)
+					.onChange(async (value) => {
+						this.plugin.settings.positionPersistenceEnabled = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
+			.setName(tr('清理本地持久化数据', 'Clear Local Persisted Data'))
+			.setDesc(
+				tr(
+					`设置与位置记录保存在 ${this.plugin.app.vault.configDir} 目录（md-razor-settings.json / md-razor-position-cache.json），卸载重装插件后仍保留；此按钮可在彻底停用插件前手动清除（复选框默认不勾选 = 保留）`,
+					`Settings and position records are stored in the ${this.plugin.app.vault.configDir} folder (md-razor-settings.json / md-razor-position-cache.json) and survive uninstall/reinstall; use this to clear them before fully dropping the plugin (unchecked by default = keep).`,
+				),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(tr('清理…', 'Clear…'))
+					.setWarning()
+					.onClick(() => {
+						new DataCleanupModal(this.plugin).open();
+					}),
+			);
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -430,19 +518,6 @@ export class MDRazorSettingTab extends PluginSettingTab {
 				(directOnlyToggle.toggleEl as HTMLInputElement).disabled =
 					!this.plugin.settings.showDirFileCount;
 			});
-
-		new Setting(panel)
-			.setName(tr('展开/折叠同级列表或标题（命令）', 'Expand/Collapse Sibling Lists or Headings (Command)'))
-			.setDesc(
-				tr(
-					'在命令面板中可触发并绑定快捷键。以光标所在列表项/标题的折叠状态为基准，统一折叠或展开光标所在行自身及全文档同层级的列表项或标题（如所有一级标题、所有一级列表项），完成后提示实际折叠/展开的数量。如需在右键菜单中使用，请在「右键菜单」标签页开启对应开关',
-					'Triggerable from the command palette and bindable to hotkeys. Based on the fold state of the list item/heading under the cursor, fold or unfold the current line and all same-level list items or headings across the document (e.g., all H1 headings, all top-level list items), then reports the actual count. To use it from the context menu, enable the matching toggle in the "Context Menu" tab.',
-				),
-			)
-			.addExtraButton((button) => {
-				button.setIcon('info').onClick(() => undefined);
-				button.extraSettingsEl.title = tr('无需开关，命令常驻可用', 'Always available; no toggle needed');
-			});
 	}
 
 	/* ------------------------------------------------------------------ */
@@ -525,40 +600,6 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.tabExpansionAssociatedFolders = value;
 						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(panel)
-			.setName(tr('MD文档光标和滚轴位置持久化', 'Remember Cursor & Scroll Position'))
-			.setDesc(
-				tr(
-					`开启后，自动记录 Markdown 文档的光标与滚动位置（位置变更停止 250ms 后记录最终位置），重新打开文档时还原上次的位置。位置记录保存在 ${this.plugin.app.vault.configDir}/md-razor-position-cache.json，卸载重装插件后仍保留`,
-					`When enabled, the cursor and scroll position of each Markdown document are recorded automatically (the final position is saved 250 ms after changes stop) and restored when the document is reopened. Position records are stored in ${this.plugin.app.vault.configDir}/md-razor-position-cache.json and survive plugin reinstall.`,
-				),
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.positionPersistenceEnabled)
-					.onChange(async (value) => {
-						this.plugin.settings.positionPersistenceEnabled = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(panel)
-			.setName(tr('清理本地数据', 'Clear Local Data'))
-			.setDesc(
-				tr(
-					`设置与位置记录保存在 ${this.plugin.app.vault.configDir} 目录（md-razor-settings.json / md-razor-position-cache.json），卸载重装插件后仍保留；此按钮可在彻底停用插件前手动清除（复选框默认不勾选 = 保留）`,
-					`Settings and position records are stored in the ${this.plugin.app.vault.configDir} folder (md-razor-settings.json / md-razor-position-cache.json) and survive uninstall/reinstall; use this to clear them before fully dropping the plugin (unchecked by default = keep).`,
-				),
-			)
-			.addButton((button) =>
-				button
-					.setButtonText(tr('清理…', 'Clear…'))
-					.setWarning()
-					.onClick(() => {
-						new DataCleanupModal(this.plugin).open();
 					}),
 			);
 

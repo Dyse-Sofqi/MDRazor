@@ -1,5 +1,5 @@
 /**
- * MDRazor — 清理本地数据确认弹窗
+ * MDRazor — 清理本地持久化数据确认弹窗
  *
  * MDRazor 的设置与位置记录已持久化到 .obsidian 配置目录
  * （md-razor-settings.json / md-razor-position-cache.json），

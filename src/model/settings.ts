@@ -13,6 +13,14 @@
  * 后续新增功能开关也应默认 true，保持一致的首次体验。
  */
 export interface MDRazorSettings {
+	// ── 通用 (controller/general/) ──
+	/** 鼠标移动时行高亮：鼠标移动时高亮所在行，停止移动后高亮自动取消 */
+	mouseMoveLineHighlight: boolean;
+	/** 当前行高亮：高亮编辑光标所在行（.cm-active，跟随光标与鼠标无关）。
+	 *  默认关闭——与 Custom.css 的 activeline-highlight 效果相同，避免
+	 *  两边同时开启叠加；不启用该 snippet 时也能独立保持 */
+	currentLineHighlight: boolean;
+
 	// ── 懒加载 (controller/lazy-load/) ──
 	/** 懒加载总开关：关闭时全部插件按 Obsidian 默认方式（自然顺序）加载 */
 	lazyLoadEnabled: boolean;
@@ -157,6 +165,10 @@ export interface LazyLoadPluginConfig {
 }
 
 export const DEFAULT_SETTINGS: MDRazorSettings = {
+	mouseMoveLineHighlight: true,
+	// 默认关闭（显式例外）：与 Custom.css「当前行高亮」为同一效果，避免叠加
+	currentLineHighlight: false,
+
 	lazyLoadEnabled: false,
 	lazyLoadPlugins: {},
 
