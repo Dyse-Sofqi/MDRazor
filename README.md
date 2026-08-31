@@ -21,7 +21,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 ### 关键词
 
-- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 批量删除空行（Markdown 感知）
+- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 编辑器测量守护（行高表陈旧点击偏移根治）· 批量删除空行（Markdown 感知）
 - 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
 
 
@@ -35,9 +35,9 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 通用编辑体验设置，提供以下独立开关：
 
-- **鼠标/滚轮移动时行高亮**（默认开启） — 鼠标移动或滚轮滚动时，鼠标所在行显示跟随高亮；鼠标/滚轮静止 300ms 后高亮自动熄灭。样式与「行高亮跟随鼠标」一致：半透明主题色背景（`--activeline-background`）+ 8px 圆角 + 20px 外扩光晕（box-shadow 外扩 + clip-path 圆角回收），滚动期间指针保持箭头样式不闪烁。滚动期间高亮与内容同步跟随（滚动捕获监听 + `elementFromPoint` 逐帧标记鼠标下方行），平滑滚动也不滞后。
+- **鼠标/滚轮移动时行高亮**（默认开启） — 鼠标移动或滚轮滚动时，鼠标所在行显示跟随高亮；鼠标/滚轮静止 300ms 后高亮自动熄灭。样式与「行高亮跟随鼠标」一致：半透明主题色背景（`--activeline-background`）+ 8px 圆角 + 22px 外扩光晕（box-shadow 外扩 + clip-path 圆角回收），滚动期间指针保持箭头样式不闪烁。滚动期间高亮与内容同步跟随（滚动捕获监听 + `elementFromPoint` 逐帧标记鼠标下方行），平滑滚动也不滞后。
 
-- **当前行高亮**（默认关闭） — 编辑光标所在行常驻高亮（跟随编辑光标、与鼠标无关），不启用 Custom.css 时也能独立保持当前行高亮。默认关闭：与 Custom.css 的 `activeline-highlight` 效果一致，避免重复叠加。
+- **当前行高亮**（默认关闭） — 编辑光标所在行常驻高亮（跟随编辑光标、与鼠标无关），仅编辑器聚焦时显示，失焦（如点击侧边栏）自动取消。不启用 Custom.css 时也能独立保持当前行高亮。默认关闭：与 Custom.css 的 `activeline-highlight` 效果一致，避免重复叠加。样式为半透明主题色背景 + 8px 圆角 + 22px 外扩光晕。
 
 - **MD文档光标和滚轴位置持久化** — 设置入口在本模块（功能详见「标签页」节）。
 - **清理本地持久化数据** — 设置入口在本模块（功能详见「数据存储」节；由原「清理本地数据」改名而来）。
@@ -249,7 +249,7 @@ Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs*
 
 ### Keywords
 
-- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight · Delete empty lines (Markdown-aware)
+- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight · Measure guard for the stale CM6 height map (click offset) · Delete empty lines (Markdown-aware)
 - Lazy Load · Config dormancy (delays survive disabling) · Startup time stats · Serialized load queue · Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Mirror data fallback · i18n (Chinese/English)
 
 
@@ -263,9 +263,9 @@ Features are organized by the eight settings-panel sections. Each toggle is inde
 
 General editing-experience settings, each independently toggleable:
 
-- **Highlight Line on Mouse Move / Scroll** (default on) — while the mouse moves or the wheel scrolls, the line under the pointer is highlighted; the highlight fades out 300ms after input settles. Styling mirrors the "cursor line highlight follows mouse" snippet: translucent theme-color background (`--activeline-background`) + 8px rounding + 20px outward glow (box-shadow spread + clip-path rounded inset); the pointer stays an arrow without flicker during scrolling. The highlight tracks the content while scrolling (scroll capture + per-frame `elementFromPoint` line marking), so it never lags during smooth scrolling.
+- **Highlight Line on Mouse Move / Scroll** (default on) — while the mouse moves or the wheel scrolls, the line under the pointer is highlighted; the highlight fades out 300ms after input settles. Styling mirrors the "cursor line highlight follows mouse" snippet: translucent theme-color background (`--activeline-background`) + 8px rounding + 22px outward glow (box-shadow spread + clip-path rounded inset); the pointer stays an arrow without flicker during scrolling. The highlight tracks the content while scrolling (scroll capture + per-frame `elementFromPoint` line marking), so it never lags during smooth scrolling.
 
-- **Highlight Current Line** (default off) — the line holding the editing cursor is persistently highlighted (follows the cursor, independent of the mouse), so the activeline highlight works standalone without enabling the Custom.css snippet. Default off: identical effect to Custom.css `activeline-highlight`, avoiding double-highlighting.
+- **Highlight Current Line** (default off) — the line holding the editing cursor is persistently highlighted (follows the cursor, independent of the mouse); shown only while the editor is focused and auto-cleared on blur (e.g. clicking the sidebar), so the activeline highlight works standalone without enabling the Custom.css snippet. Default off: identical effect to Custom.css `activeline-highlight`, avoiding double-highlighting. Styling: translucent theme-color background + 8px rounding + 22px outward glow.
 
 - **MD Document Cursor & Scroll Position Persistence** — settings entry lives here (feature described under Tabs).
 - **Clear Local Persisted Data** — settings entry lives here (feature described under Data Storage; renamed from "Clear Local Data").

@@ -12,7 +12,9 @@
  *     `mdrazor-current-line-highlight` 常驻类（activeDocument：跟随当前
  *     活动窗口，popout / 悬浮编辑器窗口同样生效）；
  *   - styles.css 以 `body.mdrazor-current-line-highlight` 为前缀限定规则
- *     （镜像 Custom.css 99-107 行，三个选择器含 CM6 主路径与 CM5 变体）；
+ *     （与 Custom.css 的 activeline-highlight 同步：仅编辑器聚焦
+ *     .cm-editor.cm-focused 时显示，失焦自动清除；双类名 .cm-active /
+ *     .cm-activeLine 兼容 Obsidian 当前行装饰，含 CM5 旧版变体）；
  *   - 卸载时摘除 JS 添加的类。
  * 与「鼠标移动时行高亮」的区别：后者是活动瞬时效果（活动中挂、静止
  * 300ms 后消失），当前行高亮是跟随光标的常驻效果，只随设置开关变化。

@@ -52,6 +52,7 @@ import { createStartupTimingRecorder } from './lazy-load/startup-check';
 import type { StartupTimingRecorder } from './lazy-load/startup-check';
 import { registerMouseLineHighlight, applyMouseLineHighlightClass, removeMouseLineHighlightClass } from './general/mouse-line-highlight';
 import { registerCurrentLineHighlight, applyCurrentLineHighlightClass, removeCurrentLineHighlightClass } from './general/current-line-highlight';
+import { registerMeasureGuard } from './general/measure-guard';
 
 /**
  * 主插件类。
@@ -154,6 +155,10 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册通用功能：当前行高亮（.cm-active 光标行，body 常驻开关类驱动）
 		registerCurrentLineHighlight(this, () => this.settings.currentLineHighlight);
+
+		// 注册编辑器测量守护（始终开启）：样式注入/晚到字体触发重排时
+		// 强制 requestMeasure 刷新 CM6 行高表，根治「点击行上半部落到上一行」
+		registerMeasureGuard(this);
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染

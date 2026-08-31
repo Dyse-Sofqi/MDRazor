@@ -114,8 +114,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setName(tr('当前行高亮', 'Highlight Current Line'))
 			.setDesc(
 				tr(
-					'高亮编辑光标所在的行（跟随光标，与鼠标位置无关），不启用 Custom.css 中的当前行高亮也能独立生效。半透明主题色背景 + 圆角 + 20px 外扩。默认关闭，避免与 Custom.css 同款样式叠加',
-					'Highlights the line where the editing cursor is (follows the caret, independent of the mouse). Works without the equivalent Custom.css snippet. Translucent theme-color background with rounded corners and a 20px outward shadow. Off by default so it does not stack with the Custom.css version.',
+					'高亮编辑光标所在的行（跟随光标，与鼠标位置无关），不启用 Custom.css 中的当前行高亮也能独立生效。仅编辑器聚焦时显示，失焦（如点击侧边栏）自动取消。半透明主题色背景 + 圆角 + 22px 外扩。默认关闭，避免与 Custom.css 同款样式叠加',
+					'Highlights the line where the editing cursor is (follows the caret, independent of the mouse). Works without the equivalent Custom.css snippet. Only shown while the editor is focused; clears automatically on blur (e.g., clicking the sidebar). Translucent theme-color background with rounded corners and a 22px outward shadow. Off by default so it does not stack with the Custom.css version.',
 				),
 			)
 			.addToggle((toggle) =>

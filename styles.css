@@ -635,8 +635,8 @@ body.mdrazor-mouse-moving .cm-line:hover,
 body.mdrazor-mouse-moving .mdrazor-line-highlight {
 	background-color: var(--activeline-background, hsla(var(--color-accent-hsl), 0.05)) !important;
 	border-radius: 8px;
-	box-shadow: 0 0 0 20px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
-	clip-path: inset(0px -20px 0px -20px round 8px);
+	box-shadow: 0 0 0 22px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
+	clip-path: inset(0px -22px 0px -22px round 8px);
 }
 
 /* 光标兜底：功能开启即常驻（body.mdrazor-mouse-line-highlight-enabled 由插件
@@ -665,15 +665,27 @@ body.mdrazor-mouse-moving .markdown-source-view.mod-cm6 * {
 
 /* ── 当前行高亮 ──
    body.mdrazor-current-line-highlight 由插件 JS 维护：随设置常驻（不是
-   活动态瞬时效果），高亮编辑光标所在的行（CM6 的 .cm-active，随光标
-   移动自动更新）。样式镜像 Custom.css 99-107 行 activeline-highlight，
-   三个选择器含义：CM6 光标行 .cm-active.cm-line（主路径）+ CM5/胖光标
-   兼容变体；背景沿用 --activeline-background（未定义时回退等价色）。 */
+   活动态瞬时效果），高亮编辑光标所在的行（随光标移动自动更新）。样式与
+   Custom.css 的 activeline-highlight 保持同步：
+   - 仅编辑器聚焦时显示（.cm-editor.cm-focused），失焦（如点击侧边栏）
+     时自动取消高亮（.cm-editor:not(.cm-focused) 清除规则）；
+   - 双类名兼容：Obsidian 当前行同时带 .cm-active（Obsidian 自定义行装饰）
+     与 .cm-activeLine（CM6 highlightActiveLine 标准），两者都匹配；
+   - 背景沿用 --activeline-background（未定义时回退等价色
+     hsla(accent,0.05)）+ 圆角 + 22px 外扩阴影 + clip-path 胶囊遮罩。
+   CM5/胖光标变体（.CodeMirror-activeline 等）保留为旧版兼容。 */
 body.mdrazor-current-line-highlight .cm-fat-cursor .CodeMirror-activeline .CodeMirror-linebackground,
 body.mdrazor-current-line-highlight .CodeMirror-activeline-background.CodeMirror-linebackground,
-body.mdrazor-current-line-highlight .cm-active.cm-line {
+body.mdrazor-current-line-highlight .markdown-source-view.mod-cm6 .cm-editor.cm-focused .cm-line:is(.cm-active, .cm-activeLine) {
 	background-color: var(--activeline-background, hsla(var(--color-accent-hsl), 0.05)) !important;
 	border-radius: 8px;
-	box-shadow: 0 0 0 20px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
-	clip-path: inset(0px -20px 0px -20px round 8px);
+	box-shadow: 0 0 0 22px var(--activeline-background, hsla(var(--color-accent-hsl), 0.05));
+	clip-path: inset(0px -22px 0px -22px round 8px);
+}
+
+/* 编辑器失焦时清除当前行高亮（与 Custom.css 失焦清除规则一致） */
+body.mdrazor-current-line-highlight .markdown-source-view.mod-cm6 .cm-editor:not(.cm-focused) .cm-line:is(.cm-active, .cm-activeLine) {
+	background-color: transparent !important;
+	box-shadow: none !important;
+	clip-path: none !important;
 }
