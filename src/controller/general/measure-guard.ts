@@ -7,9 +7,12 @@
  * CM6 的 ResizeObserver / fonts.ready / window.resize 都不会触发，
  * 高度表保持陈旧 —— 光标点击行的上半部分会落到上一行（点击偏移）。
  *
- * 守护机制：监听 <head> 的样式注入/变更（含 <style> 文本变更）与晚到的
- * 字体加载完成事件，防抖后对所有 Markdown 编辑器的 EditorView 调用
- * requestMeasure()，强制 CM6 重新测量行高、刷新高度表，根治点击偏移。
+ * 守护机制：监听 <head> 的样式注入/变更（含 <style> 文本变更、<link>/<style>
+ * 属性就地变更）、<html>/<body> 的 class/style 属性变更（主题类切换、
+ * setCssProps 内联样式写入 —— 不在 <head> 内）、工作区 css-change 事件
+ * （Obsidian 核心与插件发出的语义级样式变更信号）与晚到的字体加载完成事件，
+ * 防抖后对所有 Markdown 编辑器的 EditorView 调用 requestMeasure()，
+ * 强制 CM6 重新测量行高、刷新高度表，根治点击偏移。
  *
  * CM6 已内置且无需重复防护（@codemirror/view dist/index.js 实证）：
  *   - document.fonts.ready → requestMeasure（构造时挂载，line 7617-7619）
@@ -29,6 +32,7 @@ const GUARD_DEBOUNCE_MS = 200;
 
 let debounceTimer: number | undefined;
 let headObserver: MutationObserver | null = null;
+let rootObserver: MutationObserver | null = null;
 
 /**
  * 收集当前所有 Markdown 编辑器的 EditorView 并请求重新测量。
@@ -73,15 +77,37 @@ export function registerMeasureGuard(plugin: Plugin): void {
 	};
 
 	// 1) 样式注入/变更监听：CSS 片段重载、主题切换、插件样式注入、
-	//    <style> 文本内容替换（characterData 覆盖）均在此类
+	//    <style> 文本内容替换（characterData 覆盖）均在此类；
+	//    attributes 覆盖现有 <link href>/<style 属性> 的就地替换
 	headObserver = new MutationObserver(schedule);
 	headObserver.observe(activeDocument.head, {
 		childList: true,
 		subtree: true,
 		characterData: true,
+		attributes: true,
 	});
 
-	// 2) 晚到的 Web 字体加载完成（CM6 只在构造时挂 fonts.ready，
+	// 2) <html>/<body> 的 class/style 属性变更：主题明暗切换（body
+	//    theme-dark/light）、布局类切换、setCssProps 内联样式写入 ——
+	//    均不在 <head> 内，原观察器覆盖不到
+	rootObserver = new MutationObserver(schedule);
+	rootObserver.observe(activeDocument.documentElement, {
+		attributes: true,
+		attributeFilter: ['class', 'style'],
+	});
+	rootObserver.observe(activeDocument.body, {
+		attributes: true,
+		attributeFilter: ['class', 'style'],
+	});
+
+	// 3) 工作区级「样式已变更」语义信号：Obsidian 核心（主题切换、
+	//    片段重载）与插件（如 Style Settings 族：把 CSS 变量写入
+	//    body 内联样式后触发 {source:"style-settings"}）都会触发
+	//    css-change 事件 —— 与突变同一时刻发出，不依赖 DOM 观察的
+	//    时序，覆盖观察器可能错过的注入路径（含观察器挂载前的窗口期）
+	plugin.registerEvent(plugin.app.workspace.on('css-change', schedule));
+
+	// 4) 晚到的 Web 字体加载完成（CM6 只在构造时挂 fonts.ready，
 	//    构造后开始加载的字体换用时无感知）
 	if (activeDocument.fonts?.addEventListener) {
 		activeDocument.fonts.addEventListener('loadingdone', schedule);
@@ -90,6 +116,8 @@ export function registerMeasureGuard(plugin: Plugin): void {
 	plugin.register(() => {
 		headObserver?.disconnect();
 		headObserver = null;
+		rootObserver?.disconnect();
+		rootObserver = null;
 		if (debounceTimer !== undefined) {
 			window.clearTimeout(debounceTimer);
 			debounceTimer = undefined;

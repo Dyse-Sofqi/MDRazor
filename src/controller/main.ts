@@ -53,6 +53,7 @@ import type { StartupTimingRecorder } from './lazy-load/startup-check';
 import { registerMouseLineHighlight, applyMouseLineHighlightClass, removeMouseLineHighlightClass } from './general/mouse-line-highlight';
 import { registerCurrentLineHighlight, applyCurrentLineHighlightClass, removeCurrentLineHighlightClass } from './general/current-line-highlight';
 import { registerMeasureGuard } from './general/measure-guard';
+import { createClickSyncExtension } from './general/click-sync';
 
 /**
  * 主插件类。
@@ -159,6 +160,11 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册编辑器测量守护（始终开启）：样式注入/晚到字体触发重排时
 		// 强制 requestMeasure 刷新 CM6 行高表，根治「点击行上半部落到上一行」
 		registerMeasureGuard(this);
+
+		// 注册点击同步（始终开启，无设置开关）：陈旧行高表导致点击行偏移
+		// （点上一行下半部光标不动）时，用真实 DOM 映射（posAtDOM）对
+		// 点击后的选区做几何无关的兜底纠正；高度表准确时零干预
+		this.registerEditorExtension(createClickSyncExtension());
 
 		// 注册每个功能模块的 CodeMirror 6 扩展
 		// 每个工厂返回一个 Prec.high 扩展，确保我们的装饰优先级高于 Obsidian 内置渲染

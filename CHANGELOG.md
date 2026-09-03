@@ -1,5 +1,41 @@
 ### 版本历史
 
+**2.5.12** (2026-09-04) — 拖拽选错行真因：Chrome caret 吸附 + CM6 检测链被行首元素节点打断（点击同步升级为拖拽全周期 DOM 真值纠正）
+
+**错误修复**
+
+- **「按住当前行下半部向右拖拽，选中下一行」的真根因** — 2.5.11 的「陈旧行高表」假设被证伪（在 Style Tuner 1.0.3 应用后主动重测、2.5.10 css-change 兜底均已生效的环境下仍复现 → 高度表是新鲜的，重测救不了）。真正的机制（与高度表**无关**）：Chrome 的 `caretPositionFromPoint` 在**行盒下半部**（文本行下方的空白区）把位置吸附到**下一行起点**；CM6 用 `isSuspiciousChromeCaretResult`（@codemirror/view 3681-3695）拒绝该错误结果——但检测要求 offset==0 的节点沿「firstChild 链」一路传到 `.cm-line`（`parent.firstChild != cur` 即放弃怀疑），**行首是元素节点时链断**：Obsidian Live Preview 列表的 `.list-bullet`、MDRazor 格式隐藏的 HTML 标签 mark 装饰（`mdrazor-html-tag-hidden` span）都会制造这种行首节点。错误结果被接受 → 点击落下一行；按住拖拽时 `MouseSelection` 每次 mousemove（≥10px）都用同一被骗的 `posAtCoords` 重建选区 → **整个选区落向下一行**（2.5.9 的微任务自愈只救点击，第一个拖拽移动即被原生派发覆盖；2.5.11 的同步重测对新高度表无效）。
+- **修复：点击同步升级为「点击 + 拖拽全周期 DOM 真值纠正」** — mousedown 微任务记录 DOM 真值锚点（`healedPosAt`：浏览器 caret → `posAtDOM` 映射 → 行文本中线重试 → 行首兜底）；拖拽期间 document 级 `mousemove` 在微任务里（同事件任务、渲染前）逐帧比对**选区两端的行 vs DOM 真值行**，不一致即用真值重建选区（`{anchor: min, head: max}`，与 CM6 原生非 extend 拖拽语义一致；`userEvent: 'select.pointer'`）。自门控：原生正确时（行数一致）**零干预**，正常拖拽无任何额外派发；拖拽结束/取消/新点击即停用。保留 2.5.11 的同步重测（覆盖行高表陈旧家族）与点击自愈。
+- 注：Style Tuner（1.0.3 生产者侧重测）与 MDRazor 2.5.10 的 css-change 兜底并非错误 —— 它们防的是「行高表陈旧」家族；本次症状是**不同根因**，重测手段天生无效。
+
+**2.5.11** (2026-09-04) — 陈旧行高表下「按住当前行下半部右拖选中下一行」的同步重测防线
+
+**错误修复**
+
+- **拖拽选错行（点当前行下半部按住右拖，选中文本是下一行的）** — 与 2.5.7/2.5.9/2.5.10 同源的「行高表陈旧」家族，拖拽场景版。机制：CM6 原生点击选择与拖拽扩展（`basicMouseSelection`/`MouseSelection`）在 **mousedown 与每一次 mousemove** 都调用 `queryPos = posAtCoords(precise=false)`，按行高度表选块（`elementAtHeight`）——高度表陈旧时「行下半部」被映射到下一行：点击放错行，**按住拖拽则整个选区（anchor 与 head 都来自同一陈旧映射）落向下一行**。2.5.9 的微任务自愈只纠正点击瞬间的锚点，第一次拖拽移动（≥10px）即被原生 `select.pointer` 派发（以陈旧的 start.pos 重建选区）覆盖。
+- **修复：mousedown 陈旧检测 + 同步重测高度表** — 点击时先用与高度表无关的真实 DOM 行起点（`view.posAtDOM`）对照高度表结果（`posAtCoords(precise=false)`），**不一致即调用 CM6 内部 `view.measure()`**（请求测量回调的同步变体：内部测量循环直接以当前真实 DOM 几何重建高度表，一次调用内完成）。插件 handler 先于原生 mousedown handler 运行（`computeHandlers`：插件在前、全局最后），因此同一事件派发内高度表已刷新——**本次点击与整个拖拽（每次 move 的扩展）全部走新表**，无需逐帧纠正，且原生行为（拖选、双击、扩选、滚动拖拽）完整保留。`measure()` 为 CM6 `@internal` API（自 6.0 起稳定存在、Obsidian 固定版本解析），以 `typeof` 守卫 + try/catch 兜底；失败时退化到既有微任务自愈（点击仍被纠正，拖拽不自愈）。
+- 触发条件严格（与 2.5.9 一致）：仅左键单击（button=0、detail≤1）、无修饰键、跳过折叠指示器/折叠切换与嵌套编辑器；**高度表准确时（高度表行 === DOM 行）零干预**——正常场景没有任何额外测量开销。
+
+**2.5.10** (2026-09-04) — 测量守护接入 css-change 语义事件（样式实际变更即重测）
+
+**错误修复**
+
+- **测量守护补上「语义信号」通道** — 2.5.9 的守护靠 DOM 观察器（head 突变、`html`/`body` 的 `class`/`style` 属性）被动捕获样式注入，仍有两类盲区：① 观察器挂载前的注入窗口（插件加载顺序竞态）；② 不产生可观察 DOM 突变、只发事件的注入路径。本版新增订阅工作区 `css-change` 事件（`plugin.app.workspace.on('css-change', schedule)`，与既有观测共用 200ms 防抖调度）：Obsidian 核心（主题切换、片段重载）与插件（如 Style Settings 族：把 CSS 变量写入 `body` 内联样式后立即触发 `{source:"style-settings"}`）都在「样式实际生效」的同一时刻发出该事件 —— 语义精确、不依赖 DOM 观察时序，直接消除了上述两类盲区。结合 2.5.9 的 html/body 属性观察器与点击同步（Click Sync），行高表陈旧窗口从「直到下次滚动/编辑」进一步压缩到至多一个防抖周期。
+- 注：同类「生产者侧」修复（应用样式后主动 `requestMeasure`）已同步进 Style Settings 系插件（Style Tuner 1.0.3），本版守护为通用兜底：覆盖**所有**触发 `css-change` 的样式变更方。
+
+**2.5.9** (2026-09-04) — 根治陈旧行高表下的点击偏移（点上一行下半部光标不动）
+
+**错误修复**
+
+- **「点击光标所在行的上一行下半部，光标无法跳到上一行」** — 与 2.5.7 同源的「行高表陈旧」家族问题，属该版修复的盲区补全。机制：CM6 的 `posAtCoords` 先按行高表选块（陈旧时可能选中错误的行），再用浏览器 `caretPositionFromPoint` 精定位 —— 但 Chrome 的「行间位置被归到下一行起点」启发式（CM6 的 `isSuspiciousChromeCaretResult`）会拒绝「点击在行文本下方（行下半部）」的准确结果并回退到行高表选中的块，于是点击上一行的下半部时光标落在当前行、无法跳回上一行。本版新增**点击同步（Click Sync，始终开启、无设置开关）**：挂 `mousedown`，在事件微任务里校验 —— 光标行 ≠ 点击行且无选区（拖选）时，用**真实 DOM 映射**（`view.posAtDOM` = CM6 `posFromDOM`：走真实 DOM 树 + 装饰分段簿记，与行高表无关、精确到列）把点击点的浏览器 caret 映射回文档坐标并纠正选区；高度表准确时零干预。时序关键：挂在 mousedown 而非 pointerdown（pointerdown 先于 mousedown 触发，微任务会跑在 CM6 原生点击选择之前、被其覆盖）。触发条件严格：仅左键单击（button=0、detail≤1）、无修饰键、跳过折叠指示器/折叠切换与嵌套编辑器（嵌入块内嵌 CM6）的点击；列精度取点击点原生 caret（行下半部退化时以该行文本中线重试，最终兜底行首）。
+- **编辑器测量守护盲区补全** — 2.5.7 的守护只观察 `<head>`（childList + subtree + characterData），漏掉：① 现有 `<link href>`/`<style 属性>` 的就地变更（属性变更是观察盲区）；② `<html>`/`<body>` 的 class/style 属性变更（主题明暗切换、布局类切换、`setCssProps` 内联样式写入 —— 均不在 `<head>` 内）。本版 head 观察器补 `attributes: true`，并新增观察 `document.documentElement` 与 `document.body` 的 `class`/`style` 属性（与既有头观察共用 200ms 防抖调度），从源头压缩行高表陈旧窗口。
+
+**2.5.8** (2026-09-04) — 修复选项聚焦折叠对文档末行续行扫描越界崩溃
+
+**错误修复**
+
+- **「选项聚焦」折叠计算偶发崩溃（RangeError: Invalid position）** — 控制台报错 `Uncaught RangeError: Invalid position 5931 in document of length 5930`，栈为 `recomputeFolds → computeFoldRanges → lineAt`。根因：`computeFoldRanges` 扫描「最后一个列表子树」的续行（软换行段落）时，若文档末尾无换行、末行恰是列表项的续行，末行 `to === doc.length`，代码仍继续执行 `doc.lineAt(scanLine.to + 1)` 取下一行 —— 位置 `doc.length + 1` 越界，CM6 直接抛 RangeError。修复：扫描推进前检查 `scanLine.to >= doc.length` 即终止（该行已计入折叠范围，其后无行可扫）；两个扫描分支（子列表块之间的续行扫描 / 末子树续行扫描）同步加防护。文档以换行结尾、末行为空行的情况不受影响（原本就在空行检查处提前 break）。
+
 **2.5.7** (2026-09-01) — 当前行高亮优化、编辑器测量守护（根治点击偏移）
 
 **新增功能**

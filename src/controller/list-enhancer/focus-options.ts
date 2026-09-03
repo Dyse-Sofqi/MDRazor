@@ -386,6 +386,9 @@ function computeFoldRanges(
 				if (isStructuralBoundary(scanLine.text)) break;
 				if (!listLineNumbers.has(scanLine.number)) {
 					foldTo = scanLine.to;
+					// 扫到文档末行（无结尾换行时 to === doc.length）后没有下一行，
+					// lineAt(to + 1) 越界抛 RangeError（Invalid position），必须终止。
+					if (scanLine.to >= doc.length) break;
 					scanPos = doc.lineAt(scanLine.to + 1).from;
 				} else {
 					break;
@@ -402,6 +405,9 @@ function computeFoldRanges(
 				if (listLineNumbers.has(scanLine.number)) break;
 				if (isStructuralBoundary(scanLine.text)) break;
 				foldTo = scanLine.to;
+				// 文档无结尾换行时最后一行 to === doc.length，后面没有行可扫描；
+				// lineAt(to + 1) 越界抛 RangeError（Invalid position），必须终止。
+				if (scanLine.to >= doc.length) break;
 				scanPos = doc.lineAt(scanLine.to + 1).from;
 			}
 		}
