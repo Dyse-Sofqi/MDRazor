@@ -13,6 +13,12 @@
  *   2. DOM 事件处理器 — 拦截 Backspace 和 Delete。如果被删除的字符
  *      与原子区间有交集，删除范围扩展为覆盖整个标记。如果该项后为空
  *      且上一行也有列表标记，则吞入前一个换行符使内容向上合并。
+ *   3. 「退格提升层级」开关（默认开启，`backspacePromoteLevel`）—
+ *      光标位于标记单元右边界（`- |` / `- [ ] |`，即列一体化把光标推到的
+ *      内容起点）时，退格不再整体删除标记，改为渐进退链：任务项先剥离
+ *      勾选框（`- [ ] |` → `- |`），再逐级提升（每按一次提升一级，整行
+ *      缩进替换为父级缩进，内容与子树随行），无父级（视为一级）则直接
+ *      删除列表格式。
  */
 
 import {
@@ -27,6 +33,7 @@ import {
 	getCurrentAtomicRanges,
 	AtomicRange,
 	buildAtomicRanges,
+	findParentListIndent,
 } from '../../model/shared';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -162,6 +169,79 @@ const listEnhancerPlugin = ViewPlugin.fromClass(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  退格提升层级 — 边界行为链
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 解析「退格提升层级」：光标位于该行标记单元右边界时，按链返回本次
+ * 退格应执行的单步变更；未命中边界返回 null（交给原有整体删除逻辑）。
+ *
+ * 行为链（每按一次 Backspace 退一步）：
+ *   1. 任务项（合并区间含勾选框，如 `- [ ] `）→ 剥离勾选框，变为普通
+ *      列表项 `- `——层级、缩进、内容均不动；
+ *   2. 普通列表项（任意层级、含内容的项同样适用）→ 提升一级：整行缩进
+ *      替换为父级缩进，内容与子树随行（其后的原同级项会因缩进关系成为
+ *      其子项，与 Obsidian 原生 Shift+Tab 的行级语义一致）；
+ *   3. 无更浅缩进的父级列表行（视为一级）→ 直接删除列表格式：移除行首
+ *      缩进与标记，内容保留。
+ *
+ * 触发条件：单光标恰好位于该行原子区间的右端点 `r.to === pos`（即
+ * 列一体化把光标推到的内容起点）。有序任务项剥离勾选框后保留有序
+ * 标记（`1. [ ] ` → `1. `）；「勾选框一体化」关闭时任务项无合并边界，
+ * 链从 `- |` 位置才开始生效。
+ *
+ * @param view  当前的 EditorView
+ * @param pos   光标位置
+ * @returns 变更描述（from/to 区间、insert 插入文本、cursor 落点），未命中返回 null
+ */
+function resolveBoundaryAction(
+	view: EditorView,
+	pos: number,
+): { from: number; to: number; insert: string; cursor: number } | null {
+	const line = view.state.doc.lineAt(pos);
+	const ranges = getCurrentAtomicRanges();
+
+	let markerRange: AtomicRange | null = null;
+	for (const r of ranges) {
+		if (r.from >= line.from && r.to <= line.to && r.to === pos) {
+			markerRange = r;
+			break;
+		}
+	}
+	if (!markerRange) return null;
+
+	const rangeText = view.state.doc.sliceString(markerRange.from, markerRange.to);
+
+	// ── 第 1 步：任务项 → 剥离勾选框（区间尾部的 `[ ]` 及其后吞入的空格）──
+	const checkboxMatch = /\[.\]\s?$/.exec(rangeText);
+	if (checkboxMatch) {
+		const from = markerRange.to - checkboxMatch[0].length;
+		return { from, to: markerRange.to, insert: '', cursor: from };
+	}
+
+	// ── 第 3 步判定：无父级列表行 → 视为一级，删除列表格式 ──
+	// 注意：原子区间文本不含行首缩进（formatting-list 节点从标记字符起，
+	// 缩进是节点之前的部分），层级比较必须用行首缩进而非区间文本。
+	const lineIndentMatch = /^[ \t]*/.exec(line.text);
+	const lineIndent = lineIndentMatch ? lineIndentMatch[0] : '';
+	const parentIndent = findParentListIndent(view, line.number, lineIndent);
+	if (parentIndent === null) {
+		return { from: line.from, to: markerRange.to, insert: '', cursor: line.from };
+	}
+
+	// ── 第 2 步：提升一级（整行缩进替换为父级缩进，内容不动）──
+	// rangeText 即标记文本（无缩进），[line.from, r.to] 覆盖「行首缩进 + 标记」，
+	// 以 parentIndent + 标记替换即完成缩进降级。
+	const prefix = parentIndent + rangeText;
+	return {
+		from: line.from,
+		to: markerRange.to,
+		insert: prefix,
+		cursor: line.from + prefix.length,
+	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  DOM 事件处理器 — Backspace / Delete
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -192,6 +272,22 @@ const listDeleteHandler = EditorView.domEventHandlers({
 
 		if (isBackspace) {
 			if (pos === 0) return false;
+
+			// ── 边界提升链：「退格提升层级」开启时，右边界退格优先走
+			// 剥勾选框 → 提升一级 → 删格式；未命中边界落入整体删除 ──
+			if (listEnhancerConfig.backspacePromoteLevel) {
+				const action = resolveBoundaryAction(view, pos);
+				if (action) {
+					event.preventDefault();
+					view.dispatch({
+						changes: { from: action.from, to: action.to, insert: action.insert },
+						selection: { anchor: action.cursor },
+						userEvent: 'deleteContentBackward',
+					});
+					return true;
+				}
+			}
+
 			delFrom = pos - 1;
 			delTo = pos;
 

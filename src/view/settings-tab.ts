@@ -394,6 +394,18 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(panel)
+			.setName(tr('退格提升层级', 'Backspace Promotes List Level'))
+			.setDesc(tr('光标位于一体化标记右边界（- | 或 - [ ] |）时按退格：任务项先剥离勾选框，再逐级提升层级（含内容的项同样提升），一级则直接删除列表格式（内容保留）。需配合列一体化；勾选框剥离需配合勾选框一体化', 'When Backspace is pressed at the right boundary of the integrated marker (- | or - [ ] |), the checkbox is stripped first, then the item is promoted one level per press (items with content included); at the top level the list format is removed outright (content kept). Requires List Integration; checkbox stripping requires Checkbox Integration.'))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.backspacePromoteLevel)
+					.onChange(async (value) => {
+						this.plugin.settings.backspacePromoteLevel = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
 			.setName(tr('光标行列表符号折叠', 'Fold Active Line via List Bullet'))
 			.setDesc(tr('即使光标位于列表项所在行，悬停列表符号仍显示折叠箭头，点击列表符号可折叠/展开该列表（Obsidian 原生仅在非活动行开放，本开关通过 CSS 为活动行恢复该功能）', 'Even when the cursor is on the list line, hovering the list bullet shows the fold arrow and clicking the bullet folds/unfolds the list. Obsidian only allows this on inactive lines; this toggle restores it for the active line via CSS.'))
 			.addToggle((toggle) =>

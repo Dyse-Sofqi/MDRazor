@@ -174,3 +174,36 @@ export function isInListItem(view: EditorView, pos: number): boolean {
 	} while (cursor.parent());
 	return false;
 }
+
+/**
+ * 向上扫描寻找父级列表缩进。
+ *
+ * 从 `fromLine - 1` 行向上逐行查找第一个「缩进严格小于 `currIndent` 且以
+ * 列表标记（`-`/`*`/`+` 或 `数字.`/`数字)`）开头」的行，返回其缩进字符串
+ * （可能为空串，表示父级位于行首）；找不到返回 null。
+ *
+ * 由回车软换行（Feature 3 提升）与列一体化退格提升链共用。两者对 null
+ * 的解释不同：Feature 3 提升到列 0（保持既有行为），退格链将 null 视为
+ * 一级、直接删除列表格式。
+ *
+ * @param view       当前的 EditorView
+ * @param fromLine   起始行号（从其上一行开始向上扫描）
+ * @param currIndent 当前行缩进（用于长度比较）
+ * @returns 父级缩进字符串；未找到父级时返回 null
+ */
+export function findParentListIndent(
+	view: EditorView,
+	fromLine: number,
+	currIndent: string,
+): string | null {
+	for (let j = fromLine - 1; j >= 1; j--) {
+		const cl = view.state.doc.line(j);
+		const clMatch = /^[ \t]*/.exec(cl.text);
+		if (!clMatch) continue;
+		if (clMatch[0].length < currIndent.length
+			&& (/^[ \t]*[-*+]/.test(cl.text) || /^[ \t]*\d+[.)]/.test(cl.text))) {
+			return clMatch[0];
+		}
+	}
+	return null;
+}

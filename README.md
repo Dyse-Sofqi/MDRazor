@@ -19,10 +19,12 @@
 MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 目前提供**通用**、**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**八大功能模块，更多功能正在开发中。
 
-### 关键词
+### 关键词 / Keywords
 
-- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 编辑器测量守护（行高表陈旧点击偏移根治）· 点击同步（点击/拖拽选错行根治）· 批量删除空行（Markdown 感知）
+- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化 / 退格提升层级）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 编辑器测量守护（行高表陈旧点击偏移根治）· 点击同步（点击/拖拽选错行根治）· 批量删除空行（Markdown 感知）
 - 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
+- Hidden formatting marks · List integration (List Integration / Checkbox Integration / Backspace Level Promotion) · Fold via list bullet on the active line · Enter soft break · Focus list item · Fold sibling lists/headings · Folder focus · Vertical tabs · Typewriter mode · Workspace autosave · Orphan image cleanup · Mouse/wheel line highlight · Current line highlight · Editor measure guard (root-cure for stale line-height click offsets) · Click sync (root-cure for click/drag landing on the wrong line) · Batch empty-line deletion (Markdown-aware)
+- Lazy loading · Dormant plugin configs (delays survive disabling) · Startup timing stats · Global load queue · Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Symbol boundary hint · Whitespace visualization · Data mirror fallback · English/Chinese i18n
 
 
 ### 功能
@@ -94,9 +96,11 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **勾选框一体化** — 将任务项标记 `- [ ]`（含 `[ ]` 内的状态字符）视为原子单元：光标定位跳过、退格键一次整体删除标记；与「列一体化」同时开启时合并为一个整体区间（`- [ ]` 视为一个整体），只开勾选框一体化时 `[ ]` 单独作为一个原子单元。勾选框样式（复选框 widget）在光标所在行始终显示，不会退化为原始 `[ ]`；点击勾选框切换任务状态不受影响。
 
+- **退格提升层级** — 光标位于一体化列表标记的右边界（`- |` 或 `- [ ] |`，即列一体化把光标推到的内容起点）时按 Backspace，不再整体删除标记，改为渐进退链：任务项先剥离勾选框（`- [ ] |` → `- |`，层级、缩进与内容不动）；再逐级提升——每按一次退格提升一级，整行缩进替换为父级缩进，内容保留、子树随行（其后的原同级项会因缩进关系成为其子项，与 Obsidian 原生 Shift+Tab 的行级语义一致），含内容的项同样提升；无更浅缩进的父级列表行（视为一级）时直接删除列表格式——移除行首缩进与标记，内容保留。有序任务项剥离勾选框后保留有序标记（`1. [ ] ` → `1. `）。需配合「列一体化」开启；「勾选框一体化」关闭时任务项无合并边界，退格链从 `- |` 位置才开始生效。
+
 - **光标行列表符号折叠** — 实时预览中光标所在列表行（活动行）原本悬停列表符号不显示折叠箭头、点击列表符号也无法折叠/展开列表（Obsidian 原生在活动行禁用的机制）；开启后恢复与非活动行一致的折叠行为：悬停箭头正常显现、点击列表符号照常折叠/展开。任务行沿用原生规则。设置变更即时生效，无需重启。
 
-- **回车软换行** — 在列表项内按 Enter 仅插入换行、缩进及两个空格（等效原生 `Shift+Enter` 行为），不新建列表项。需要新建列表项时，再按一次 Enter 即可，也就是连续回车新建列表项。适合多行列表项。
+- **回车软换行** — 在列表项内按 Enter 仅插入换行、缩进及两个空格（等效原生 `Shift+Enter` 行为），不新建列表项。需要新建列表项时，再按一次 Enter 即可，也就是连续回车新建列表项。适合多行列表项。任务项的勾选框继承：所属列表项带勾选框（`- [ ] ` / `- [x] `）时，连续回车新建的列表项同样以勾选框起头（默认未勾选，与 Obsidian 原生行为一致）。
 
 - **选项聚焦** — 光标移入列表项时，自动折叠所有非直属内容（兄弟、父兄弟等），仅展开焦点链（当前项、其祖先、及其子孙）。深度嵌套列表导航不再眼花缭乱。鼠标未弹起时不触发折叠，避免拖选过程中闪烁。
 
@@ -181,7 +185,7 @@ MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
 
 - **通用** — 2 个开关：鼠标/滚轮移动时行高亮、当前行高亮（「MD文档光标和滚轴位置持久化」与「清理本地持久化数据」的设置入口亦在本模块）
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
-- **列表增强** — 11 个开关 + 1 个滑块：列一体化、勾选框一体化、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
+- **列表增强** — 12 个开关 + 1 个滑块：列一体化、勾选框一体化、退格提升层级、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
 - **标签页** — 9 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
@@ -215,6 +219,100 @@ MDRazor 的两份数据文件保存在 Obsidian 配置目录（默认 `.obsidian
 1. 安装 [BRAT](https://obsidian.md/plugins?id=obsidian42-brat) 插件
 2. 在 BRAT 设置中添加 `Dyse-Sofqi/MDRazor`
 3. 手动启用 MDRazor 插件
+
+---
+
+## 🇬🇧 English
+
+### Introduction
+
+MDRazor is an Obsidian plugin focused on polishing the Markdown editing experience. It ships **eight feature modules** — **General**, **Hidden Styling**, **List Enhancement**, **Tabs**, **Status Bar**, **Left Ribbon**, **Context Menu** and **Lazy Loading** — each independently toggleable in the settings panel. More features are under development.
+
+Full release history: [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.en.md). After updating, the changelog for the new version pops up automatically on first launch.
+
+### Features
+
+Features are organized into the eight settings-panel areas; every item has its own toggle.
+
+#### 🧰 General
+
+- **Mouse/wheel line highlight** (on by default) — the row under the pointer highlights while the mouse moves or the wheel scrolls, fading out 300 ms after they rest. Translucent theme-color background + 8 px rounded corners + 22 px outer glow; stays in sync during smooth scrolling.
+- **Current line highlight** (off by default) — persistent highlight of the edited line (follows the caret, shown only while the editor is focused). Off by default to avoid stacking with the `activeline-highlight` Custom.css snippet.
+- **Click sync** (always on, no toggle) — fixes clicks/drags landing on the wrong line: in the lower half of a line box Chrome's caret snaps to the next line's start (leading element nodes such as `.list-bullet` break CM6's snap-suspicion check). The plugin corrects the caret/selection against true DOM row mappings across the whole click & drag cycle and does nothing when the native result is already correct.
+- **Cursor & scroll position persistence** and **Clear local persisted data** — settings entries live here (see Tabs / Data storage).
+
+#### ✂️ Hidden Styling
+
+Hide Markdown mark symbols, revealed automatically as the cursor passes. Cleaner Live Preview, zero distraction. Independent toggles for: bold `**`, italic `*`, highlight `==`, strikethrough `~~`, inline code `` ` ``, escape `\`, heading `#` (H1–H6, hidden only when followed by a space), wikilink `[[ ]]`, HTML hex color tags, HTML underline `<u>`, and HTML line tags `<span>` (any attributes; literal inside code blocks/math). **Paired hiding**: `<font>`/`<u>`/`<span>` hide only when their closing tag exists — unclosed tags stay visible so you can spot them. Shared robustness: inline content mixing math (`$..$`) with formatting never crashes the editor, and math bodies are never hidden as marks.
+
+- 👁️ **Whitespace visualization** — spaces shown as translucent `·`, view-range based, near-zero cost; also hides spaces inside already-hidden HTML tags.
+- 🔍 **Symbol boundary hint** — a tooltip under the cursor shows which side of a hidden marker the cursor is on (left/right symbol, complete combined marks like `***` never truncated), via the CM6 `showTooltip` system.
+
+#### 🗑️ Left Ribbon
+
+- **Orphan image cleanup** — a trash ribbon button scans all Markdown notes, extracts four image reference syntaxes (`![[path]]`, `[[path]]`, `![](path)`, `<img src>`) and lists images never referenced (jpg/jpeg/png/gif/svg) in a multi-select confirm dialog (checkboxes, paths, status, thumbnails; all selected by default) before moving them to the system trash. Unchecked images are whitelisted and pinned to the bottom next time.
+- **Custom commands** — pin any Obsidian/plugin command as a ribbon icon (pick command → confirm name → choose a Lucide icon with filtering); delete and drag-reorder, order synced both ways.
+- **Hidden commands** — auto-detects existing ribbon commands (custom / plugin / native), toggles them with eye / eye-off; drag-reorder persists across restarts and ribbon DOM rebuilds.
+
+#### 📝 List Enhancement
+
+- **List Integration** — the list marker (`-`, `1.`, `*` plus its trailing space) becomes an atomic unit: the cursor (click / Home / arrow keys / programmatic moves) never rests inside it, Backspace removes the whole marker at once, and bullets/fold arrows keep rendering on the active line.
+- **Checkbox Integration** — same treatment for the task marker: merged with the list marker into one atomic range (`- [ ]` as a whole) when both toggles are on; the checkbox widget never degrades to raw `[ ]` on the active line, and clicking the checkbox still toggles the task.
+- **Backspace Level Promotion** (on by default) — at the right boundary of the integrated marker (`- |` or `- [ ] |`, exactly where List Integration parks the cursor), Backspace no longer deletes the marker wholesale but unwinds progressively, one step per press: ① task items lose their checkbox first (`- [ ] |` → `- |`; ordered tasks keep `1. `); ② the item is then promoted level by level — the whole line's indent is replaced with the parent indent each press, content and subtree carried along (items with content promote too; a following former sibling becomes its child, matching Obsidian's native Shift+Tab line-level semantics); ③ with no shallower list line above (treated as top level) the list format is removed outright — leading indent and marker deleted, content kept. Requires List Integration; checkbox stripping requires Checkbox Integration.
+- **Fold via list bullet on the active line** — restores hover arrow and click-to-fold on the line the cursor occupies (Obsidian disables this on active lines).
+- **Enter Soft Break** — Enter inside a list item inserts a soft line break (newline + continuation indentation) instead of a new item; pressing Enter again on the blank continuation line creates the next list item. New items inherit the checkbox: after a soft break inside a task item, the created item starts with a checkbox too (always unchecked, matching Obsidian's native behavior).
+- **Focus list item** — moving into an item folds everything outside the focus chain (current item, ancestors, descendants); sub-settings: max second-level children to expand (slider 1–9 + toggle) and scroll sync (scrolls the focused row to 25% of the viewport after folding).
+- **Arrow keys don't skip folded items** — ↓/↑ expand a folded list/headline block and enter it, keeping the column; plus an ↑ sibling jump-back at any depth when the previous line's item is deeper.
+- **Expand/collapse sibling lists or headings (command)** — folds or unfolds the current row and every same-level list item/heading document-wide; reports the affected count. Bindable in Hotkeys; optional context-menu item.
+- **Folder focus** — clicking a folder name in the file explorer expands only it and its ancestor chain, collapsing unrelated branches; clicking blank space expands all top-level folders. Sub-feature of the same toggle.
+- **Show folder file count** — shows the number of direct children (subfolders + files) next to each folder title, refreshing within 200 ms of file events.
+
+#### 📑 Tabs
+
+- **Open in new tab by default** — clicking a file in the explorer jumps to its existing tab or opens a new one (context-menu created files too); Ctrl/Meta+click restores native behavior, Shift+click keeps native range multi-select.
+- **Wikilinks in new tab** — clicking `[[page]]`, `[[page|alias]]` or `[[page#^blockid]]` reuses an existing tab and jumps to the block, otherwise opens a new tab.
+- **Bookmarks in new tab** — same behavior for file bookmarks in the core Bookmarks view.
+- **🗂️ Vertical tabs** — tab management inside the file list: a toolbar button toggles a tabs-only view (hiding unopened files), open files show close buttons, closing the active tab focuses the previous one; the toggle button can be hidden on its own.
+- **Folder expansion follows tabs** — returning from the tabs-only view expands only folders containing open tabs (off: restores the previous expansion).
+- **Cursor & scroll position persistence** — remembers each Markdown document's caret and scroll position (250 ms debounce, saved on tab close), stored in `.obsidian/md-razor-position-cache.json`, surviving plugin reinstalls; legacy plugin-folder caches migrate automatically.
+- **Typewriter mode** — keeps the caret row in the middle band (viewport thirds: top 1/8 dim, middle 3/4 bright, bottom 1/8 dim by a configurable opacity slider); sub-options: head padding so line 1 can also center, and bottom-edge → top-edge jumping. Command `mdrazor-toggle-typewriter` stays in sync with the toggle.
+
+#### 🖥️ Status Bar
+
+- **Workspace switcher** — a button when 2+ workspaces exist (direct switch for 2, popup list for 3+), remembering the last workspace.
+- **Auto-update workspace layout** — saves the current layout when switching/loading workspaces, working with Obsidian's native loader.
+- **Sidebar toggle** — leftmost button collapses/expands both sidebars at once.
+- **Formatting toggle** — leftmost「Identifier」button flips all format-hiding styles at once (synced with the settings toggles; command `mdrazor-toggle-formatting`).
+- **Custom / hidden commands** — add any command as a status-bar button (icon + name); detect and eye/eye-off native & plugin commands, with persistent ordering.
+
+#### 🖱️ Context Menu
+
+- **Expand/collapse sibling lists or headings** — the same logic as the command, as a right-menu item (default on; the command/hotkey always work).
+- **Batch delete empty lines** — removes all empty lines in the selection or document, Markdown-aware: blank lines around headings/rules/tables/lists/quotes and inside code blocks are preserved (runs collapsed to one), so table and list structures survive pasted web content. Undoable via Ctrl/Cmd+Z.
+- **Custom / hidden commands** — add commands as menu items (icon + name); capture native/plugin menu entries with eye/eye-off, grouped by section with collapsible headers.
+
+#### 🚀 Lazy Loading
+
+- **Enable lazy loading** — master switch: community plugins start per their configured delays instead of all at once.
+- **Check now** — opens a startup-timing dialog listing every delayed plugin's measured load time vs its delay and status, plus environment counts; copyable.
+- **Per-plugin delay list** — a delay (seconds) input per community plugin; relative values define startup order. **Dormancy**: disabling a plugin in Community plugins keeps its delay config dimmed but intact — re-enabling resumes control automatically; uninstalling removes the entry.
+
+> Lazy loading covers community plugins only; disabling the master switch or uninstalling restores natural loading (dormant plugins stay disabled — never force-started).
+
+### Settings
+
+Configure in Obsidian → Settings → Community plugins → MDRazor. The eight modules appear as tabs (active tab remembered for the plugin's lifetime): General (2 toggles), Hidden Styling (13), List Enhancement (12 toggles + 1 slider), Tabs (9 toggles + 1 slider), Status Bar (4), Left Ribbon (1), Context Menu (2), Lazy Loading (1 master + per-plugin delays).
+
+### Data storage
+
+Two data files live in the Obsidian config directory (default `.obsidian/`) and survive uninstall/reinstall: `md-razor-settings.json` (all settings) and `md-razor-position-cache.json` (cursor/scroll positions). Read-only mirrors (`data.json` / `position-cache.json` in the plugin folder) are maintained on every save and auto-restore the main files if they are lost or corrupted — useful against sync tools wiping non-standard files in `.obsidian`. Legacy plugin-folder data files migrate automatically on first load; clear them anytime under **Settings → General → Clear local persisted data**.
+
+### Installation
+
+- **Community plugins (recommended)** — Obsidian → Settings → Community plugins → search **MDRazor** → Install → Enable.
+- **BRAT (pre-release)** — install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat), add `Dyse-Sofqi/MDRazor`, enable MDRazor.
+
+---
 
 ## 赞助
 

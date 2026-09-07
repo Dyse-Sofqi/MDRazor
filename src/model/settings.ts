@@ -57,6 +57,11 @@ export interface MDRazorSettings {
 	 * 其内（点击/Home/方向键落入即推到 `]` 之后），Backspace/Delete 整体删除
 	 * 该标记；与列表标记（`- `）合并为一个区间，复刻列一体化的处理 */
 	checkboxIntegration: boolean;
+	/** 退格提升层级：光标位于一体化标记单元右边界（`- |` / `- [ ] |`）按退格时，
+	 *  依次剥离勾选框（`- [ ] |` → `- |`）→ 逐级提升（每按一次提升一级，
+	 *  含内容的项同样提升）→ 一级直接删除列表格式。
+	 *  未命中右边界时退格行为不变（整体删除标记、空续行向上归并） */
+	backspacePromoteLevel: boolean;
 	/** 光标所在列表行也可折叠：悬停列表符号显示折叠箭头，点击列表符号折叠/展开该列表
 	 * （Obsidian 原生仅在非活动行开放——活动行上折叠指示器被压缩为 0 尺寸） */
 	listFoldOnActiveLine: boolean;
@@ -190,6 +195,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	symbolBoundaryHint: true,
 	listIntegration: true,
 	checkboxIntegration: true,
+	backspacePromoteLevel: true,
 	listFoldOnActiveLine: true,
 	enterSoftBreak: true,
 	listFocusOption: true,

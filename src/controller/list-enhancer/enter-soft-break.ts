@@ -7,13 +7,17 @@
  *
  * 当 `enterSoftBreak` 启用且光标位于列表项内时：
  *   1. Feature 1：插入软换行（\n + 缩进）而非创建新列表项
- *   2. Feature 2：空白续行升级为同级列表项
+ *   2. Feature 2：空白续行升级为同级列表项（任务项继承勾选框，默认未勾选）
  *   3. Feature 3：空白列表项（上级也空）回车 → 提升层级；一级项清除格式
  */
 
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
-import { listEnhancerConfig, isInListItem } from '../../model/shared';
+import {
+	listEnhancerConfig,
+	isInListItem,
+	findParentListIndent,
+} from '../../model/shared';
 
 /**
  * ViewPlugin — 在 capture 阶段拦截 Enter 按键。
@@ -86,7 +90,15 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 					if (prevLine.text.trim().length > 0) {
 						const beforeMarker = view.state.doc.sliceString(
 							markerLine.from, lastMarker.from);
-						const replacement = beforeMarker + markerText;
+						// 勾选框继承：所属列表项首行标记后紧跟任务勾选框
+						// （[ ]/[x]/[X]）时，新列表项同样以勾选框起头，
+						// 状态固定为未勾选（与 Obsidian 原生在任务项末尾
+						// 回车新建项的行为一致）
+						const afterMarker = markerLine.text.slice(
+							lastMarker.to - markerLine.from);
+						const checkbox = /^\s*\[[ xX]\]/.test(afterMarker)
+							? '[ ] ' : '';
+						const replacement = beforeMarker + markerText + checkbox;
 
 						event.preventDefault();
 						event.stopImmediatePropagation();
@@ -121,17 +133,9 @@ const enterCapturePlugin = ViewPlugin.fromClass(
 								return;
 							}
 							// Find parent indent level
-							let parentIndent = '';
-							for (let j = line.number - 1; j >= 1; j--) {
-								const cl = view.state.doc.line(j);
-								const clMatch = /^[ \t]*/.exec(cl.text);
-								if (!clMatch) continue;
-								if (clMatch[0].length < currIndent.length
-									&& (/^[ \t]*[-*+]/.test(cl.text) || /^[ \t]*\d+[.)]/.test(cl.text))) {
-									parentIndent = clMatch[0];
-									break;
-								}
-							}
+							// （共用扫描；无父级时保持既有行为：提升到列 0）
+							const parentIndent
+								= findParentListIndent(view, line.number, currIndent) ?? '';
 							const promoted = parentIndent + markerText;
 							event.preventDefault();
 							event.stopImmediatePropagation();
