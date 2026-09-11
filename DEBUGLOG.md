@@ -4,6 +4,30 @@
 
 ---
 
+## 2.5.16 (2026-09-11)
+
+### 失联图片清理：接入 Canvas 画布引用
+
+**需求：** 清理失联图片时，Canvas 画布（`.canvas`）中引用的图片必须被识别为「已引用」，避免画布专属素材被当作失联图片误删。
+
+**实现位置：** `src/controller/orphan-image-cleaner/orphan-image-cleaner.ts`
+
+**避坑记录：**
+
+1. **根因：扫描范围写死 `.md`** — 原实现 `allFiles.filter(f => f.extension === 'md')` 只读 Markdown，`.canvas` 从不进入 `vault.read()`，画布引用的图片 100% 落入失联集合；叠加弹窗默认全选 + `vault.trash()`，用户点一次确认即静默误删。这是数据丢失风险，不是「漏识别」。
+2. **Canvas 必须按 JSON 结构解析，不能靠文本正则** — Canvas 是 JSON，主引用形式 `{"type":"file","file":"assets/a.png"}` 的 `file` 字段不在任何 Markdown 正则覆盖内；只有文本节点里手写的 `![[a.png]]` 会被正则误打误撞抓到。正确做法是遍历 `nodes`：`type==='file'` 取 `node.file`，`type==='text'` 把 `node.text` 交给既有提取，`type==='link'` 忽略（外部 URL）。
+3. **解析失败必须退化而非跳过** — 被外部工具改坏的画布会让 `JSON.parse` 抛错，若直接跳过则又成新盲区。退化为「文本正则 + JSON 路径字段兜底」（`"file"\s*:\s*"..."` 与「以图片扩展名结尾的字符串值」）。
+4. **路径解析改用官方 API，且各方式取并集** — 手写 `path.endsWith(normalized)` / `f.name === bareName` 在重名文件与相对路径场景会**漏算**，而漏算方向正是误删。新增 `metadataCache.getFirstLinkpathDest(ref, sourcePath)` 作为首选解析，并保留原有宽松匹配，**取并集而非短路返回**——多算只少删几张，漏算会删掉在用图片。
+5. **JSON 转义斜杠** — Canvas 里路径可能写成 `assets\/a.png`，需在解析前 `.replace(/\\\//g, '/')` 还原。
+6. **frontmatter 与松散文本载体是另外两个盲区** — 属性写法 `cover: "[[a.png]]"` 与 `cover: "assets/a.png"` 都要计入（递归遍历字符串 / 数组 / 嵌套对象，裸路径仅在以图片扩展名结尾时才认）；`.base` / `.excalidraw` / `.html` / `.txt` 无固定链接语法，需「语法正则 + 图片路径兜底」双管，单文件超 2 MB 跳过。
+7. **模块级 `g` 正则要复位 `lastIndex`** — 复用带 `g` 的模块级正则跨文件调用时需显式 `pattern.lastIndex = 0`，并加零宽匹配防御，避免跨文件残留导致漏匹配。
+8. **取舍：md 正文保持精确，不外扩路径兜底** — 笔记正文里「提到」文件名（散文中的 `a.png`）不算引用，否则清理功能会因日常提及而大量失效；只有松散载体（`.base` 等）才用路径兜底。外部 URL 仍保留同名兜底（保守）。删除前额外复查文件是否仍在库中，规避弹窗期间文件已被移走的竞态。
+9. **架构决策：修复方是 MDRazor，不是 Trefoil** — 破坏性操作谁执行谁就要掌握完整引用图；让 Trefoil「主动适应」等于让 MDRazor 的正确性依赖另一个插件的存在与启用状态。且 `.canvas` 是 Obsidian 核心格式（`minAppVersion` 已 1.1.0），与由哪个插件打开无关。
+
+**验证：** 用 esbuild 打包真实模块 + obsidian 桩，端到端跑 `cleanOrphanImages`：canvas 文件节点 / 文本节点 / 转义斜杠、损坏 canvas 兜底、`../` 相对路径、frontmatter 三种写法、`.base` 路径、外部 URL 保守兜底均命中；md 正文里的散文提及仍正确判为失联。
+
+---
+
 ## 2.4.9 (2026-08-23)
 
 ### 左功能区/状态栏/右键菜单：统一命令管理与隐藏

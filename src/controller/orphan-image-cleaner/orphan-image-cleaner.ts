@@ -1,8 +1,17 @@
 /**
  * MDRazor — 失联图片清理
  *
- * 扫描库中所有 Markdown 笔记，找出未被任何笔记引用过的图片文件
+ * 扫描库中所有可能引用图片的文件，找出未被任何文件引用过的图片
  *（jpg、jpeg、png、gif、svg），将其移入系统回收站。
+ *
+ * 引用来源包括：
+ *   1. Markdown 笔记（.md）——正文语法 + frontmatter 属性
+ *   2. Canvas 画布（.canvas）——JSON 文件节点 / 文本节点
+ *   3. 其他文本载体（.base / .excalidraw / .html / .txt）——纯文本正则
+ *
+ * 引用收集遵循「宁可多算，绝不漏算」原则：任何可能命中图片的路径都会计入
+ * 引用集合。多算只会让清理更保守（少删几张），漏算则会误删在用图片，
+ * 因此所有解析方式取并集，且任何解析失败都退化为宽松匹配。
  */
 
 import { App, ButtonComponent, Modal, Notice, TFile } from 'obsidian';
@@ -10,6 +19,18 @@ import { tr } from '../../i18n';
 import type MDRazorPlugin from '../main';
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'svg']);
+
+/** 除 .md / .canvas 外，还需按纯文本正则扫描的引用来源扩展名 */
+const EXTRA_TEXT_EXTS = new Set(['base', 'excalidraw', 'html', 'htm', 'txt']);
+
+/** 额外文本载体的大小上限（字节），超过则跳过以免拖慢扫描 */
+const MAX_EXTRA_TEXT_BYTES = 2_000_000;
+
+/** frontmatter 属性值形如 assets/a.png 时，判定为文件引用 */
+const IMAGE_PATH_RE = /\.(?:jpe?g|png|gif|svg)$/i;
+
+/** 外部协议前缀（http:、data:、app: 等），不做链接解析，但仍保留文件名兜底 */
+const EXTERNAL_REF_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 
 /* ------------------------------------------------------------------ */
 /*  Ribbon 生命周期管理                                                 */
@@ -75,8 +96,8 @@ class OrphanImageConfirmModal extends Modal {
 		});
 		contentEl.createEl('p', {
 			text: tr(
-				'以下图片未被任何笔记引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。',
-				'These images are not referenced by any note and are checked by default. Unchecked images are added to the whitelist and kept; they appear at the bottom of the next dialog.',
+				'以下图片未被任何笔记或画布引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。',
+				'These images are not referenced by any note or canvas and are checked by default. Unchecked images are added to the whitelist and kept; they appear at the bottom of the next dialog.',
 			),
 			cls: 'mod-desc',
 		});
@@ -184,37 +205,60 @@ class OrphanImageConfirmModal extends Modal {
 /* ------------------------------------------------------------------ */
 
 /**
- * 扫描库中所有 Markdown 文件，找出未被引用过的图片并移入系统回收站。
+ * 扫描库中所有引用来源文件，找出未被引用过的图片并移入系统回收站。
  */
 async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
-	const allFiles = plugin.app.vault.getFiles();
+	const app = plugin.app;
+	const allFiles = app.vault.getFiles();
 	const imageFiles = allFiles.filter(f => IMAGE_EXTS.has(f.extension.toLowerCase()));
-	const markdownFiles = allFiles.filter(f => f.extension === 'md');
 
 	if (imageFiles.length === 0) {
 		new Notice(tr('库中未找到图片文件', 'No image files found in this vault'));
 		return;
 	}
 
-	// 步骤 1：扫描所有 Markdown 文件，提取被引用的图片路径集合
+	// 引用来源：Markdown 笔记、Canvas 画布，以及其他可能的文本载体
+	const sourceFiles = allFiles.filter(f => {
+		const ext = f.extension.toLowerCase();
+		return ext === 'md' || ext === 'canvas' || EXTRA_TEXT_EXTS.has(ext);
+	});
+
+	// 步骤 1：扫描所有引用来源，提取被引用的图片路径集合
 	const referencedPaths = new Set<string>();
-	const totalMd = markdownFiles.length;
+	const totalSources = sourceFiles.length;
 
 	// 单个常驻进度提示：仅更新内容，不连续弹出新提示
-	const progressNotice = totalMd > 50 ? new Notice(tr('正在扫描引用…', 'Scanning references…'), 0) : null;
+	const progressNotice = totalSources > 50
+		? new Notice(tr('正在扫描引用…', 'Scanning references…'), 0)
+		: null;
 
-	for (let i = 0; i < markdownFiles.length; i++) {
-		const mdFile = markdownFiles[i]!;
-		try {
-			const content = await plugin.app.vault.read(mdFile);
-			extractImageReferences(content, referencedPaths, allFiles);
-		} catch {
-			// 跳过无法读取的文件
+	for (let i = 0; i < sourceFiles.length; i++) {
+		const file = sourceFiles[i]!;
+		const ext = file.extension.toLowerCase();
+
+		// 超大文本载体跳过（.md / .canvas 始终读取），避免长时间阻塞
+		const tooLarge = EXTRA_TEXT_EXTS.has(ext) && file.stat.size > MAX_EXTRA_TEXT_BYTES;
+		if (!tooLarge) {
+			try {
+				const content = await app.vault.read(file);
+				if (ext === 'canvas') {
+					extractCanvasReferences(content, referencedPaths, allFiles, app, file.path);
+				} else if (ext === 'md') {
+					extractImageReferences(content, referencedPaths, allFiles, app, file.path);
+					extractFrontmatterReferences(app, file, referencedPaths, allFiles);
+				} else {
+					// .base / .excalidraw / .html / .txt：无固定语法，语法正则 + 路径兜底
+					extractImageReferences(content, referencedPaths, allFiles, app, file.path);
+					extractPatternMatches(content, TEXT_PATH_REF_PATTERNS, referencedPaths, allFiles, app, file.path);
+				}
+			} catch {
+				// 单个文件读取 / 解析失败不影响整体扫描
+			}
 		}
 
 		// 每处理 20 个文件刷新一次进度内容
 		if (progressNotice && i % 20 === 0) {
-			progressNotice.setMessage(`${tr('正在扫描引用…', 'Scanning references…')} ${i + 1}/${totalMd}`);
+			progressNotice.setMessage(`${tr('正在扫描引用…', 'Scanning references…')} ${i + 1}/${totalSources}`);
 		}
 	}
 
@@ -243,7 +287,12 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 
 			for (const file of selected) {
 				try {
-					await plugin.app.vault.trash(file, true);
+					// 删除前复查文件是否仍在库中，避免弹窗期间已被移走
+					if (!app.vault.getAbstractFileByPath(file.path)) continue;
+					// 刻意用 vault.trash(file, true) 强制走系统回收站，而非
+					// fileManager.trashFile()（后者会尊重用户「永久删除」偏好）。
+					// 本功能是一次性批量删除，误勾选代价高，强制可恢复更安全。
+					await app.vault.trash(file, true);
 					successCount++;
 				} catch {
 					failCount++;
@@ -276,63 +325,227 @@ const IMG_REF_PATTERNS = [
 ];
 
 /**
+ * Canvas JSON 解析失败（文件被外部工具改坏等）时的兜底正则：
+ * 直接按文本抓取 JSON 里的路径字段与图片扩展名字符串，宁可多算引用。
+ */
+const CANVAS_RAW_REF_PATTERNS = [
+	// "file": "assets/a.png"
+	/"file"\s*:\s*"([^"]+)"/g,
+	// 任意以图片扩展名结尾的字符串值: "assets/a.png"
+	/"([^"]*\.(?:jpe?g|png|gif|svg))"/gi,
+];
+
+/**
+ * 无固定链接语法的文本载体（.base / .excalidraw / .html / .txt）的兜底正则：
+ * 抓取任意位置出现的图片路径，宁可多算引用。
+ */
+const TEXT_PATH_REF_PATTERNS = [
+	// 以图片扩展名结尾的路径片段: path: assets/a.png / src="a.png"
+	/([^\s"'()<>[\]]+\.(?:jpe?g|png|gif|svg))/gi,
+];
+
+/**
  * 从文本中提取所有可能的图片引用路径，加入到 referencedPaths 集合。
- * 同时也检查路径是否以 ./ 或 ../ 开头，并解析为 vault 绝对路径。
  *
- * @param content       Markdown 文本内容
- * @param referenced    Set 收集结果（vault 绝对路径）
- * @param allFiles      库中所有文件的列表（用于将文件名解析为路径）
+ * @param content     文本内容（Markdown 正文 / Canvas 文本节点 / 任意文本）
+ * @param referenced  Set 收集结果（vault 绝对路径）
+ * @param allFiles    库中所有文件的列表（用于将文件名解析为路径）
+ * @param app         Obsidian App（用于调用官方链接解析）
+ * @param sourcePath  引用所在文件的路径（相对链接以此为基准解析）
  */
 function extractImageReferences(
 	content: string,
 	referenced: Set<string>,
 	allFiles: TFile[],
+	app: App,
+	sourcePath: string,
 ): void {
-	// 第一遍：直接匹配语法结构
-	const rawMatches: string[] = [];
+	extractPatternMatches(content, IMG_REF_PATTERNS, referenced, allFiles, app, sourcePath);
+}
 
-	for (const pattern of IMG_REF_PATTERNS) {
+/**
+ * 用一组正则逐个提取捕获组，作为引用候选交给 resolveReference 解析。
+ * 正则均为模块级 g 标志常量，每次使用前复位 lastIndex。
+ */
+function extractPatternMatches(
+	content: string,
+	patterns: readonly RegExp[],
+	referenced: Set<string>,
+	allFiles: TFile[],
+	app: App,
+	sourcePath: string,
+): void {
+	for (const pattern of patterns) {
+		// 正则带 g 标志且为模块级常量，显式复位 lastIndex 以免跨文件残留
+		pattern.lastIndex = 0;
 		let match: RegExpExecArray | null;
 		while ((match = pattern.exec(content)) !== null) {
 			const captured = match[1];
-			if (captured) rawMatches.push(captured.trim());
+			if (captured) resolveReference(captured, referenced, allFiles, app, sourcePath);
+			// 防御零宽匹配导致的死循环
+			if (match.index === pattern.lastIndex) pattern.lastIndex++;
+		}
+	}
+}
+
+/**
+ * 将一个引用字符串解析为库内文件路径，加入 referencedPaths。
+ *
+ * 依次尝试：官方链接解析 → 库内绝对路径 → 宽松后缀匹配 → 同名文件兜底。
+ * 各方式取并集而非短路返回，宁可多算引用，避免误删在用图片。
+ */
+function resolveReference(
+	rawRef: string,
+	referenced: Set<string>,
+	allFiles: TFile[],
+	app: App,
+	sourcePath: string,
+): void {
+	// 去掉查询参数和锚点: path.png?w=100 → path.png；并还原 JSON 转义斜杠
+	const ref = ((rawRef.split('?')[0] ?? '').split('#')[0] ?? '').trim().replace(/\\\//g, '/');
+	if (!ref) return;
+
+	// 外部链接（http:、data: 等）不做链接解析，但仍保留下面的文件名兜底
+	const isExternal = EXTERNAL_REF_RE.test(ref);
+
+	// 方式一：Obsidian 官方链接解析，正确处理相对路径、子目录与同名文件优先级
+	if (!isExternal) {
+		try {
+			const dest = app.metadataCache.getFirstLinkpathDest(ref, sourcePath);
+			if (dest) referenced.add(dest.path);
+		} catch {
+			// 忽略：继续走下面的宽松匹配
 		}
 	}
 
-	// 处理每个匹配到的引用
-	for (const ref of rawMatches) {
-		// 去掉查询参数和锚点: path.png?w=100 → path.png
-		const cleanRef = ((ref.split('?')[0] ?? '').split('#')[0] ?? '').trim();
-		if (!cleanRef) continue;
+	// 方式二：以 / 开头的库内绝对路径
+	if (ref.startsWith('/')) referenced.add(ref.slice(1));
 
-		// 如果是 vault 绝对路径（以 / 开头），直接添加
-		if (cleanRef.startsWith('/')) {
-			referenced.add(cleanRef.slice(1));
+	// 方式三：宽松匹配（宁可多算）
+	if (ref.includes('/')) {
+		const exact = allFiles.find(f => f.path === ref);
+		if (exact) referenced.add(exact.path);
+
+		const normalized = ref.replace(/^\.\//, '');
+		for (const f of allFiles) {
+			if (f.path.endsWith(normalized)) referenced.add(f.path);
+		}
+	}
+
+	// 方式四：纯文件名，匹配所有同名文件
+	const bareName = ref.split('/').pop() ?? ref;
+	for (const f of allFiles) {
+		if (f.name === bareName) referenced.add(f.path);
+	}
+}
+
+/* ------------------------------------------------------------------ */
+/* Canvas 引用提取                                                     */
+/* ------------------------------------------------------------------ */
+
+/** Canvas 节点（只声明用得到的字段，其余一律忽略） */
+interface CanvasNode {
+	type?: unknown;
+	file?: unknown;
+	text?: unknown;
+}
+
+interface CanvasDocument {
+	nodes?: unknown;
+}
+
+/**
+ * 从 .canvas 文件中提取图片引用。
+ *
+ * Canvas 为 JSON 结构，图片引用主要有两种形式：
+ *   - 文件节点：{ "type": "file", "file": "assets/a.png" }
+ *   - 文本节点：{ "type": "text", "text": "![[a.png]]" }
+ * 链接节点（{ "type": "link", "url": "https://…" }）指向外部地址，与库内图片无关。
+ *
+ * JSON 解析失败或结构异常时退化为纯文本正则，宁可多算引用。
+ */
+function extractCanvasReferences(
+	content: string,
+	referenced: Set<string>,
+	allFiles: TFile[],
+	app: App,
+	sourcePath: string,
+): void {
+	let canvasDoc: CanvasDocument | null = null;
+	try {
+		canvasDoc = JSON.parse(content) as CanvasDocument;
+	} catch {
+		canvasDoc = null;
+	}
+
+	const nodes = canvasDoc?.nodes;
+	if (!Array.isArray(nodes)) {
+		// JSON 解析失败或结构异常：退化为纯文本提取 + JSON 路径字段兜底，宁可多算引用
+		extractImageReferences(content, referenced, allFiles, app, sourcePath);
+		extractPatternMatches(content, CANVAS_RAW_REF_PATTERNS, referenced, allFiles, app, sourcePath);
+		return;
+	}
+
+	for (const rawNode of nodes) {
+		if (!rawNode || typeof rawNode !== 'object') continue;
+		const node = rawNode as CanvasNode;
+
+		// 文件节点：可能是图片，也可能是笔记（笔记路径加入集合无害）
+		if (node.type === 'file' && typeof node.file === 'string') {
+			resolveReference(node.file, referenced, allFiles, app, sourcePath);
 			continue;
 		}
 
-		// 如果是相对路径（包含 /），尝试精确匹配
-		if (cleanRef.includes('/')) {
-			// 尝试精确全路径匹配
-			const exact = allFiles.find(f => f.path === cleanRef);
-			if (exact) {
-				referenced.add(exact.path);
-				continue;
-			}
-			// 尝试去掉 ./ 前缀后匹配
-			const normalized = cleanRef.replace(/^\.\//, '');
-			const bySuffix = allFiles.find(f => f.path.endsWith(normalized));
-			if (bySuffix) {
-				referenced.add(bySuffix.path);
-				continue;
-			}
-		}
-
-		// 纯文件名：匹配所有同名的图片
-		const bareName = cleanRef.split('/').pop() ?? cleanRef;
-		const matches = allFiles.filter(f => f.name === bareName);
-		for (const m of matches) {
-			referenced.add(m.path);
+		// 文本节点：内部可能内嵌 ![[a.png]] / ![](a.png)
+		if (node.type === 'text' && typeof node.text === 'string') {
+			extractImageReferences(node.text, referenced, allFiles, app, sourcePath);
 		}
 	}
+}
+
+/* ------------------------------------------------------------------ */
+/* frontmatter 引用提取                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 从 Markdown 笔记的 frontmatter 属性中提取图片引用。
+ *
+ * 覆盖两种写法：
+ *   - 链接写法：cover: "[[a.png]]" / cover: "![[a.png]]"
+ *   - 裸路径写法：cover: "assets/a.png"
+ * 递归遍历字符串、数组与嵌套对象，兼容 Obsidian 属性面板的结构化数据。
+ */
+function extractFrontmatterReferences(
+	app: App,
+	file: TFile,
+	referenced: Set<string>,
+	allFiles: TFile[],
+): void {
+	const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+	if (!frontmatter) return;
+
+	const visit = (value: unknown): void => {
+		if (typeof value === 'string') {
+			const trimmed = value.trim();
+			if (!trimmed) return;
+			// 链接写法：交给通用引用提取处理
+			if (trimmed.includes('[[') || trimmed.includes('](')) {
+				extractImageReferences(trimmed, referenced, allFiles, app, file.path);
+			}
+			// 裸路径写法：以图片扩展名结尾才当作文件引用
+			if (IMAGE_PATH_RE.test(trimmed)) {
+				resolveReference(trimmed, referenced, allFiles, app, file.path);
+			}
+			return;
+		}
+		if (Array.isArray(value)) {
+			for (const item of value) visit(item);
+			return;
+		}
+		if (value && typeof value === 'object') {
+			for (const item of Object.values(value)) visit(item);
+		}
+	};
+
+	visit(frontmatter);
 }

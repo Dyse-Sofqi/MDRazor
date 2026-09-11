@@ -28,5 +28,8 @@ md-razor-position-cache.mirror.json
 .claude/skills/
 skills-lock.json
 
+# WorkBuddy AI metadata
+.workbuddy-ai/
+
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
