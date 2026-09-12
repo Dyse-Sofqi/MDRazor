@@ -27,6 +27,13 @@
  *     不一致 → 在插件 handler 内（先于原生 mousedown handler）调用内部
  *     view.measure() 同步刷新高度表，点击与拖拽全程走新表。
  *   - 点击自愈（healSelection）保留：单次点击（无拖拽）的微任务纠正。
+ *   - mouseup 最终纠错（2.6.0 补）：原生 MouseSelection 在 mouseup 时
+ *     若其 dragging == null（按下时已存在非空选区，CM6 即以 DOM selection
+ *     是否为空判断）会用最后一次 mousemove 的坐标重算并重发选区，覆盖
+ *     逐帧纠错的结果。点击同步挂载的 document mouseup 监听器在原生 up()
+ *     之后、同一事件内再跑一次 dragCorrection，使最终可见选区与 DOM 真值
+ *     一致；仅当本次拖拽确已发生过纠错（correctedOnce）时才运行，内容
+ *     拖拽（HTML5 dnd，期间无 mousemove 纠错）零干预。
  *
  * 时序关键：挂在 mousedown 而非 pointerdown —— pointerdown 先于 mousedown
  * 触发，而微任务在两次事件任务之间执行；mousedown 的微任务则在 CM6 原生
@@ -58,6 +65,8 @@ interface DragContext {
 	x: number;
 	y: number;
 	seq: number;
+	/** 本次拖拽中是否发生过至少一次纠错（mouseup 最终纠错的开关） */
+	correctedOnce: boolean;
 }
 
 let activeDrag: DragContext | null = null;
@@ -80,6 +89,15 @@ function ensureDragListeners(ctx: DragContext): void {
 		queueMicrotask(() => dragCorrection(drag));
 	});
 	ctx.doc.addEventListener('mouseup', () => {
+		const drag = activeDrag;
+		if (drag && drag.doc === ctx.doc && drag.correctedOnce) {
+			// 原生 MouseSelection 在 mouseup 时可能用最后一次 mousemove 的
+			// 坐标重算并重发选区（其 dragging == null 时，即按下时已存在
+			// 非空选区），覆盖上一帧的纠错结果 —— 最终选区又落回错误行。
+			// 本监听器挂在原生 up() 之后，同一事件内再跑一次最终纠错，
+			// 保证可见结果与 DOM 真值一致；原生结果正确时零干预。
+			dragCorrection(drag);
+		}
 		activeDrag = null; // 拖拽结束 —— 后续 move 无 DOM 真值对照，交给原生
 	});
 	ctx.doc.addEventListener('pointercancel', () => {
@@ -127,6 +145,7 @@ function dragCorrection(ctx: DragContext): void {
 		scrollIntoView: false,
 		userEvent: 'select.pointer',
 	});
+	ctx.correctedOnce = true;
 }
 
 /**
@@ -217,6 +236,7 @@ function handleMouseDown(event: MouseEvent, view: EditorView): void {
 					x: clickX,
 					y: clickY,
 					seq,
+					correctedOnce: false,
 				};
 				ensureDragListeners(activeDrag);
 			}

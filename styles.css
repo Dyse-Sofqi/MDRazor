@@ -689,3 +689,22 @@ body.mdrazor-current-line-highlight .markdown-source-view.mod-cm6 .cm-editor:not
 	box-shadow: none !important;
 	clip-path: none !important;
 }
+
+/* ────────────────────────────────────────────────────────────────
+   callout 块 widget 行盒空隙修复（点击/拖拽错行）
+   ────────────────────────────────────────────────────────────────
+   实时预览中 Obsidian 把 callout 渲染为块级 widget
+   （.cm-embed-block.cm-callout，display: inline-block，基线对齐）。
+   inline-block 参与匿名行盒：行盒在其自身盒底之下还会挂出约半个
+   行高的 strut descent 空隙（本主题实测 10px）。CM6 行高表只测量
+   widget 自身的 border box——于是 callout 之后的每一行在 DOM 中的
+   实际位置都比行高表低 10px。后果：点击这些行下半部（底部 10px
+   带）时 posAtCoords 映射到下一行，按住向右拖拽时选区整体落到
+   下一行同一列（callout 之前的行不受影响）。
+   修复：widget 盒底对齐所在行盒底（vertical-align: bottom），把
+   行盒空隙转成 widget 自身的透明 padding —— 视觉排版逐像素不变，
+   行高表与 DOM 几何完全一致。 */
+.markdown-source-view.mod-cm6 .cm-embed-block.cm-callout {
+	vertical-align: bottom;
+	padding-bottom: 10px;
+}

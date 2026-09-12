@@ -4,6 +4,24 @@
 
 ---
 
+## 2.6.0 (2026-09-13)
+
+### callout 之后的列表行下半部点击/拖拽选错行：callout 块 widget 行盒空隙被高度表漏测
+
+**需求：** 测试.md 中「callout 语法之后的列表」上，点击行下半部光标落对行，但按住向右拖拽时选区从下一行同一列向右选中（callout 之前的列表无此问题）。
+
+**实现位置：** `styles.css`（根因修复）、`src/controller/general/click-sync.ts`（mouseup 最终纠错兜底）
+
+**避坑记录：**
+
+1. **根因不是 Chrome caret 吸附（2.5.12 已治、失效），而是行高表结构性短测 10px** — 逐块实测（`.cm-content` 子级 DOM rect vs `view.lineBlockAt`/`elementAtHeight` 高度表）：callout 被 Obsidian 渲染为**块级 widget**（`.cm-embed-block.cm-callout`，`display: inline-block`，基线对齐），widget 盒（本主题 167..277，110px）**之下**还有约 10px 匿名行盒 strut descent 空隙才接下一行；CM6 高度表只按 widget 盒测量 → callout 之后每一行在 DOM 中的实际位置都比高度表低 10px（每个后续 block 的 deltaBottom = +10，之前的行为 0）。点击行下半部（底部 10px 带）→ `elementAtHeight` 选到下一块 → `posAtCoords`（precise true/false 均然）给下一行；拖拽每次 mousemove 重走同一映射 → 选区整段落下一行。`view.measure()` 同步重测**无效**（结构性差异，不是陈旧表）。
+2. **修复 = 把空隙装进 widget 盒** — `vertical-align: bottom`（widget 盒底对齐所在行盒底，空隙消失）+ `padding-bottom: 10px`（把原空隙转成 widget 自身透明 padding）：视觉排版逐像素不变，widget 盒 120px 被高度表测量，deltaBottom 全部归零。实测装完后 posAtCoords 双精度均与 DOM 真值一致，点击同步全程零干预。
+3. **click-sync 逐帧纠错之外的 mouseup 覆写洞（2.5.12–2.5.16 遗留）** — 强制复原坏几何复验时发现：原生 `MouseSelection.up()` 在 `this.dragging == null` 时用**最后一次 mousemove 坐标**重算并重发选区（`select(this.lastEvent)`），覆盖逐帧纠错的最终结果。dragging 为 null 的条件 = 按下瞬间 `isInPrimarySelection` 为真（状态选区非空且 DOM selection 为空 —— CM6 选区层不写 DOM selection，故**按下前存在任何非空选区**即命中），实测终态精确复现 `(start.pos, queryPos(lastEvent))` = 下一行同列。修复：click-sync 的 document mouseup 监听器（注册晚于原生 up() 的监听器，同一事件内后执行）在清空 activeDrag 之前，按 `correctedOnce` 门控再跑一次 `dragCorrection` —— 仅当本次拖拽确已发生过纠错才运行；内容拖拽（HTML5 dnd 期间无 mousemove 纠错、correctedOnce 恒 false）零干预。
+4. **验证（本机自动化）** — SendInput 真实鼠标事件 + 事件级几何/选区日志：修复前点击行 23 下半部 → posTrue/posFalse 均 L24、拖拽终态 anchor L24；修复后同点 → posTrue/posFalse 均 L23、拖拽终态 anchor 252(L23)/head 263(L23)，与 callout 前控制行完全一致。强制坏几何 + 预置非空选区复验 mouseup 洞：修复前终态 (335 L25, 352 L25)，修复后终态 (252 L23, 263 L23)。
+5. **样式注入时序** — Obsidian 在插件 enable 后**异步**注入 styles.css（实测约 1.5s 后才出现在 styleSheets），CM6 视图创建早于注入；注入瞬间会先量出「无 padding」的瞬时几何，随后 CM6 geometryChanged 自动重测恢复一致。用户正常启动顺序（插件 enable 先于编辑器打开）不受影响；查询「样式是否生效」须在 enable 后延迟探测，勿读视图构造时快照。
+
+---
+
 ## 2.5.16 (2026-09-11)
 
 ### 失联图片清理：接入 Canvas 画布引用
