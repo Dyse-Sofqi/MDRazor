@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-mdrazor",
-	"version": "2.6.2",
+	"version": "2.6.3",
 	"description": "MDRazor - An Obsidian plugin for enhanced markdown editing",
 	"main": "main.js",
 	"type": "module",
@@ -20,7 +20,7 @@
 		"@types/node": "^22.15.17",
 		"esbuild": "0.25.5",
 		"eslint": "^9.39.4",
-		"eslint-plugin-obsidianmd": "^0.3.0",
+		"eslint-plugin-obsidianmd": "^0.4.2",
 		"globals": "^17.6.0",
 		"jiti": "^2.6.1",
 		"obsidian": "latest",

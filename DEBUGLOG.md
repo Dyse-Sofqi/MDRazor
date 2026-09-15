@@ -4,6 +4,28 @@
 
 ---
 
+## 2.6.3 (2026-09-15)
+
+### 插件审核报错：屏蔽 obsidianmd 规则不被允许（本地绿、审核红的根因）
+
+**现象：** 提交社区插件审核后收到
+`Error: Disabling 'obsidianmd/prefer-file-manager-trash-file' is not allowed.`
+（`src/controller/orphan-image-cleaner/orphan-image-cleaner.ts:295`）。而本地 `npm run lint` 一直是零输出。
+
+**实现位置：** `src/controller/orphan-image-cleaner/orphan-image-cleaner.ts`、`package.json`、`manifest.json`、`eslint.config.mts`
+
+**避坑记录：**
+
+1. **根因是本地 lint 插件版本落后** — 本地 `eslint-plugin-obsidianmd` 是 **0.3.0**（2026-05-12），审核方用的是 **0.4.2**（2026-08-24）。0.4.x 新增依赖 `@eslint-community/eslint-plugin-eslint-comments`，并在推荐集里启用了 `eslint-comments/no-restricted-disable` —— **任何 obsidianmd 规则都不允许用 `eslint-disable` 屏蔽**。所以「本地全绿」不能代表审核能过，**必须把 lint 插件版本对齐审核环境**。
+2. **0.4.x 还新开了两条会报警告的规则**（0.3.0 里都没有）：`prefer-create-el`（16 处 `createElement`）、`settings-tab/prefer-setting-definitions`。升级后一次暴露，趁这次一起清掉，免得下一轮审核再被挑。
+3. **`no-unsupported-api` 会校验 minAppVersion** — 改用 `FileManager.trashFile()`（Obsidian ≥1.6.6）后立刻报
+   `'FileManager.trashFile' requires Obsidian v1.6.6, but minAppVersion is 1.1.0`。manifest 的 `minAppVersion` 必须同步提到 1.6.6（`versions.json` 新条目也用 1.6.6）。**这条规则是把「声明的最低版本」变成硬约束的关键**：换 API 时不能只改代码。
+4. **无法用「保留原行为 + 屏蔽规则」两全** — 原实现刻意用 `vault.trash(file, true)` 强制系统回收站（批量删除保证可恢复）。规则既然不可屏蔽，只能改用 `fileManager.trashFile()`（遵循用户「删除文件」偏好）。补偿手段是把删除方式写进弹框说明，让用户在勾选前知道会走哪条路径 —— **把「不可见的强制」换成「可见的告知」**，而不是默默降级。
+5. **游离节点与已知父节点的转换方式不同** — `createDiv()` / `createSpan()` 是 `declare global` 里的**全局函数**（`import { createDiv } from 'obsidian'` 会 TS2305 报「没有导出该成员」），语义是「建一个游离节点」；而 `someEl.createDiv({cls, text})` 是 Node 上的方法，**会直接把新节点挂到 someEl 上**，因此原来紧跟的 `appendChild` 要一并删掉。注意：`doc.win.createDiv()` / `activeWindow.createDiv()` 是 lint 规则给出的建议，但**当前 typings 里 Window 没有这些助手**（`Window` 上只有 `activeWindow`/`activeDocument`/`sleep`/`nextFrame`），照抄会编译不过 —— 用编译器实测确认过，别照抄规则建议。
+6. **顺带**：`eslint.config.mts` 的 `tseslint.config` 已废弃，改用 ESLint 核心的 `defineConfig`（官方 README 的写法：`defineConfig([globalIgnores([...]), {...}, ...obsidianmd.configs.recommended])`）。
+
+---
+
 ## 2.6.2 (2026-09-15)
 
 ### 发布工作流幂等化：`Create release` 撞名导致的连续红叉

@@ -52,29 +52,20 @@ function buildBoundaryTooltip(
 	right: string,
 	pos: number,
 ): Tooltip {
-	const dom = activeDocument.createElement('div');
-	dom.className = 'mdrazor-boundary-hint';
+	// 用 Obsidian DOM 助手而非 createElement（审核取向 obsidianmd/prefer-create-el）：
+	// 顶层弹框是游离节点（由 CM6 挂载到编辑器 DOM 上），用独立导出的 createDiv()；
+	// 三个 span 直接建在 dom 上（createSpan 自带挂载，无需再 appendChild）。
+	const dom = createDiv({ cls: 'mdrazor-boundary-hint' });
 
 	// 弹框展示被隐藏的标记原文。仅当空格可视化开启时才用 `·` 替代空格，
 	// 与编辑器内的空格展示保持一致；关闭时保留原文空格。
 	const display = (text: string): string =>
 		spaceConfig.showWhitespace ? text.replace(/ /g, '·') : text;
 
-	const leftSpan = activeDocument.createElement('span');
-	leftSpan.className = 'mdrazor-hint-left';
-	leftSpan.textContent = display(left);
-
-	const cursorSpan = activeDocument.createElement('span');
-	cursorSpan.className = 'mdrazor-hint-cursor';
-	cursorSpan.textContent = '|';
-
-	const rightSpan = activeDocument.createElement('span');
-	rightSpan.className = 'mdrazor-hint-right';
-	rightSpan.textContent = display(right);
-
-	dom.appendChild(leftSpan);
-	dom.appendChild(cursorSpan);
-	dom.appendChild(rightSpan);
+	// 三个 span 直接建在 dom 上（createSpan 自带挂载，无需再 appendChild）
+	dom.createSpan({ cls: 'mdrazor-hint-left', text: display(left) });
+	dom.createSpan({ cls: 'mdrazor-hint-cursor', text: '|' });
+	dom.createSpan({ cls: 'mdrazor-hint-right', text: display(right) });
 
 	return {
 		pos,

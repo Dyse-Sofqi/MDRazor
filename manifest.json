@@ -1,8 +1,8 @@
 {
 	"id": "md-razor",
 	"name": "MDRazor",
-	"version": "2.6.2",
-	"minAppVersion": "1.1.0",
+	"version": "2.6.3",
+	"minAppVersion": "1.6.6",
 	"description": "Hide formatting markers, list enhancement with soft-break, dir focus, vertical tabs, auto save workspace, auto pic clean.",
 	"author": "Sofqi",
 	"authorUrl": "https://github.com/Dyse-Sofqi",

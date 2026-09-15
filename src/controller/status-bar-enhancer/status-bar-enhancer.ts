@@ -33,7 +33,7 @@ export function registerStatusBarEnhancer(
 
 	const updateButtonText = (): void => {
 		if (!statusBarEl) return;
-		const nameSpan = statusBarEl.querySelector('.mdrazror-workspace-name');
+		const nameSpan = statusBarEl.querySelector('.mdrazor-workspace-name');
 		if (nameSpan) {
 			nameSpan.textContent = currentWorkspaceName || '';
 		}
@@ -171,9 +171,9 @@ export function registerStatusBarEnhancer(
 
 		setIcon(statusBarEl, 'panels-top-left');
 
-		const nameSpan = doc.createElement('span');
-		nameSpan.className = 'mdrazror-workspace-name';
-		statusBarEl.appendChild(nameSpan);
+		// 用 DOM 助手直接建在状态栏条目上（审核取向 prefer-create-el）；
+		// 顺带修正类名拼写 mdrazror → mdrazor（查询处同步改名）
+		statusBarEl.createSpan({ cls: 'mdrazor-workspace-name' });
 
 		statusBarEl.addEventListener('click', handleClick);
 

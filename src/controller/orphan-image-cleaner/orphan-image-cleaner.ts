@@ -96,8 +96,8 @@ class OrphanImageConfirmModal extends Modal {
 		});
 		contentEl.createEl('p', {
 			text: tr(
-				'以下图片未被任何笔记或画布引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。',
-				'These images are not referenced by any note or canvas and are checked by default. Unchecked images are added to the whitelist and kept; they appear at the bottom of the next dialog.',
+				'以下图片未被任何笔记或画布引用，默认全部勾选。未勾选的图片将加入白名单保留，并在下次弹框中置底显示。删除方式遵循「设置 → 文件与链接 → 删除文件」的偏好（系统回收站 / 库内 .trash / 永久删除）。',
+				'These images are not referenced by any note or canvas and are checked by default. Unchecked images are added to the whitelist and kept; they appear at the bottom of the next dialog. Deletion follows your "Settings → Files and links → Deleted files" preference (system trash / vault .trash / permanent).',
 			),
 			cls: 'mod-desc',
 		});
@@ -289,11 +289,12 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 				try {
 					// 删除前复查文件是否仍在库中，避免弹窗期间已被移走
 					if (!app.vault.getAbstractFileByPath(file.path)) continue;
-					// 刻意用 vault.trash(file, true) 强制走系统回收站，而非
-					// fileManager.trashFile()（后者会尊重用户「永久删除」偏好）。
-					// 本功能是一次性批量删除，误勾选代价高，强制可恢复更安全。
-					// eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- 有意偏离：批量删除需保证可恢复
-					await app.vault.trash(file, true);
+					// 用 FileManager.trashFile() 而非 vault.trash()：前者遵循用户在
+					// 「设置 → 文件与链接 → 删除文件」里选定的方式（系统回收站 / 库内
+					// .trash / 永久删除）。审核规范 obsidianmd/prefer-file-manager-trash-file
+					// 要求走官方入口，且该规则禁止被 eslint-disable 屏蔽；
+					// 为补偿「用户可能选了永久删除」，弹框说明里已注明删除方式来源。
+					await app.fileManager.trashFile(file);
 					successCount++;
 				} catch {
 					failCount++;

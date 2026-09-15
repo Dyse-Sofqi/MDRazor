@@ -88,9 +88,9 @@ function ensureBadge(app: App, titleEl: HTMLElement, directOnly: boolean): boole
 		return true;
 	}
 
-	badge = app.workspace.containerEl.ownerDocument.createElement('span');
-	badge.className = BADGE_CLASS;
-	badge.textContent = '' + count;
+	// 游离节点，稍后插入目录标题：用独立导出的 createSpan() 而非 createElement
+	// （审核取向 obsidianmd/prefer-create-el）
+	badge = createSpan({ cls: BADGE_CLASS, text: '' + count });
 
 	const titleContent = titleEl.querySelector('.nav-folder-title-content');
 	if (titleContent && titleContent.parentElement === titleEl) {

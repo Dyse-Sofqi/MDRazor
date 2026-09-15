@@ -76,8 +76,6 @@ export function registerVerticalTabs(
 	let lastActiveFilePath: string | null = null;
 	let closeBtnObserver: MutationObserver | null = null;
 
-	const doc = app.workspace.containerEl.ownerDocument;
-
 	/* ---- locate file-explorer container ---- */
 
 	const findContainer = (): boolean => {
@@ -156,8 +154,8 @@ export function registerVerticalTabs(
 	/* ---- close button factory ---- */
 
 	const buildCloseBtn = (path: string): HTMLElement => {
-		const btn = doc.createElement('span');
-		btn.className = 'mdr-vertical-tab-close';
+		// 游离节点（由调用方插入标题）：用独立导出的 createSpan()（审核取向 prefer-create-el）
+		const btn = createSpan({ cls: 'mdr-vertical-tab-close' });
 		btn.setAttribute('data-path', path);
 		setIcon(btn, 'x');
 		btn.setAttribute('aria-label', '关闭标签页');
@@ -187,8 +185,8 @@ export function registerVerticalTabs(
 		// 垂直标签页关闭或「切换标签页视图」按钮被隐藏时，不创建按钮
 		if (!enabled() || !showToggleButton()) return;
 
-		const btn = doc.createElement('div');
-		btn.className = 'clickable-icon nav-action-button mdr-vertical-tabs-toggle';
+		// 直接建在按钮容器上（createDiv 自带挂载，故末尾不再 appendChild）
+		const btn = navButtons.createDiv({ cls: 'clickable-icon nav-action-button mdr-vertical-tabs-toggle' });
 		if (isViewActive()) btn.classList.add('is-active');
 		btn.setAttribute('aria-label', '切换标签页视图');
 		setIcon(btn, 'arrow-left-right');
@@ -198,7 +196,6 @@ export function registerVerticalTabs(
 			btn.classList.toggle('is-active', next);
 			applyViewState();
 		});
-		navButtons.appendChild(btn);
 		toggleBtn = btn;
 	};
 
@@ -326,54 +323,47 @@ export function registerVerticalTabs(
 	/* ---- C: custom filtered list ---- */
 
 	const renderTreeNode = (node: TreeNode, depth: number, activePath: string | null): HTMLElement => {
-		const itemEl = doc.createElement('div');
-		itemEl.className = `tree-item ${node.type === 'folder' ? 'nav-folder' : 'nav-file'}`;
+		// 用 DOM 助手建节点（审核取向 prefer-create-el）：子树根是游离节点（由调用方挂载），
+		// 用独立导出的 createDiv()；子节点直接建在各自父节点上，故不再逐层 appendChild
+		const itemEl = createDiv({
+			cls: `tree-item ${node.type === 'folder' ? 'nav-folder' : 'nav-file'}`,
+		});
 		itemEl.setAttribute('data-path', node.path);
 
 		if (node.type === 'folder') {
 			const isCollapsed = customCollapsed.has(node.path);
 			itemEl.classList.toggle('is-collapsed', isCollapsed);
 
-			const selfEl = doc.createElement('div');
-			selfEl.className = 'tree-item-self is-clickable nav-folder-title';
+			const selfEl = itemEl.createDiv({ cls: 'tree-item-self is-clickable nav-folder-title' });
 
-			const chevronEl = doc.createElement('div');
-			chevronEl.className = 'tree-item-icon collapse-icon';
+			const chevronEl = selfEl.createDiv({ cls: 'tree-item-icon collapse-icon' });
 			setIcon(chevronEl, isCollapsed ? 'chevron-right' : 'chevron-down');
-			selfEl.appendChild(chevronEl);
 
-			const innerEl = doc.createElement('div');
-			innerEl.className = 'tree-item-inner nav-folder-title-content';
-			innerEl.textContent = node.name;
-			selfEl.appendChild(innerEl);
+			selfEl.createDiv({
+				cls: 'tree-item-inner nav-folder-title-content',
+				text: node.name,
+			});
 
-			itemEl.appendChild(selfEl);
-
-			const childrenEl = doc.createElement('div');
-			childrenEl.className = 'tree-item-children nav-folder-children';
+			const childrenEl = itemEl.createDiv({ cls: 'tree-item-children nav-folder-children' });
 			for (const child of node.children) {
 				childrenEl.appendChild(renderTreeNode(child, depth + 1, activePath));
 			}
-			itemEl.appendChild(childrenEl);
 		} else {
-			const selfEl = doc.createElement('div');
-			selfEl.className = 'tree-item-self is-clickable nav-file-title';
+			const selfEl = itemEl.createDiv({ cls: 'tree-item-self is-clickable nav-file-title' });
 
 			if (node.path === activePath) {
 				selfEl.classList.add('is-active');
 			}
 
-			const innerEl = doc.createElement('div');
-			innerEl.className = 'tree-item-inner nav-file-title-content';
-			innerEl.textContent = node.name;
-			selfEl.appendChild(innerEl);
+			selfEl.createDiv({
+				cls: 'tree-item-inner nav-file-title-content',
+				text: node.name,
+			});
 
 			if (node.isOpen) {
 				itemEl.classList.add('mdr-vertical-tab-active');
 				addCloseBtnToTitle(selfEl, node.path);
 			}
-
-			itemEl.appendChild(selfEl);
 		}
 
 		return itemEl;
@@ -537,8 +527,8 @@ export function registerVerticalTabs(
 
 		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container');
 
-		const wrapper = doc.createElement('div');
-		wrapper.className = 'nav-files-container mdr-vt-custom-list';
+		// 游离节点（稍后按 realList 是否存在决定插到其后或容器内）：用独立导出的 createDiv()
+		const wrapper = createDiv({ cls: 'nav-files-container mdr-vt-custom-list' });
 		for (const node of tree) wrapper.appendChild(renderTreeNode(node, 0, activePath));
 		if (realList) realList.after(wrapper); else containerEl.appendChild(wrapper);
 

@@ -1,5 +1,22 @@
 ### 版本历史
 
+**2.6.3** (2026-09-15) — 修复插件审核报错（不再屏蔽 obsidianmd 规则、失联图片清理改用官方删除入口、minAppVersion 提升到 1.6.6）+ 16 处 DOM 建节点改用 Obsidian 助手、lint 工具链对齐审核环境
+
+**错误修复**
+
+- **插件审核报错 `Disabling 'obsidianmd/prefer-file-manager-trash-file' is not allowed`** — 上一版为保留「强制走系统回收站」的行为，给 `vault.trash(file, true)` 加了一行 `eslint-disable`；而审核方使用的 `eslint-plugin-obsidianmd` 0.4.x 新增了 `eslint-comments/no-restricted-disable`，**禁止屏蔽任何 obsidianmd 规则**，于是审核直接被拒（本地 0.3.0 没有这条规则，所以「本地绿、审核红」）。本版改为官方入口 `fileManager.trashFile(file)`：它遵循用户在「设置 → 文件与链接 → 删除文件」里选定的方式（系统回收站 / 库内 `.trash` / 永久删除）。为补偿「用户可能选了永久删除」，清理弹框的说明文字已注明删除方式来自该设置。**行为变化：不再强制可恢复**。
+- **`minAppVersion` 1.1.0 → 1.6.6** — `FileManager.trashFile()` 要求 Obsidian ≥1.6.6，而审核方 0.4.x 的 `no-unsupported-api` 规则会校验「所用 API 的引入版本 vs manifest 声明的最低版本」，不同步提升会直接报 error。README 的 Obsidian 徽章同步改为 `^1.6.6`。
+
+**规范整改**
+
+- **16 处 `createElement` 改用 Obsidian DOM 助手** — `cursor-boundary-hint.ts`、`whitespace-visible.ts`、`dir-file-count.ts`、`vertical-tabs.ts`、`status-bar-enhancer.ts` 里的原生 `createElement('div' | 'span')` 全部改为 `createDiv()` / `createSpan()`：游离节点用独立导出的全局助手，已知父节点的直接建在父节点上，并同步删掉因此多余的 `appendChild`。0.4.x 把 `prefer-create-el` 纳入推荐集后，这些位置会全部报警告。
+- **lint 工具链对齐审核环境** — `eslint-plugin-obsidianmd` 0.3.0 → 0.4.2（这正是本次审核「本地绿、审核红」的根因：本地旧版既没有 `no-restricted-disable`，也没有启用 `prefer-create-el` / `no-unsupported-api`）；`eslint.config.mts` 从已废弃的 `tseslint.config` 改为 ESLint 核心的 `defineConfig`。
+- **顺带修正类名拼写** — 状态栏工作区名 `mdrazror-workspace-name` → `mdrazor-workspace-name`（创建处与查询处同步改名；styles.css 未引用该类名）。
+
+**已知遗留**
+
+- `obsidianmd/settings-tab/prefer-setting-definitions`（警告）：设置页尚未实现 Obsidian 1.13+ 的声明式设置 API `getSettingDefinitions()`，因此设置项不会出现在设置搜索中。该 API 不在当前 `obsidian` typings（1.12.3）里，属功能级改造，留待后续版本。
+
 **2.6.2** (2026-09-15) — 发布工作流幂等化（消除连续多个版本的红叉）+ 工作区切换菜单改用 Obsidian DOM 助手建节点
 
 **工程改进**

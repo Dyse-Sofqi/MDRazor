@@ -26,12 +26,10 @@ import { getHiddenRanges } from './format-hider';
 export const spaceConfig: MDRazorSettings = { ...DEFAULT_SETTINGS };
 
 class SpaceWidget extends WidgetType {
-		toDOM(view: EditorView): HTMLElement {
-			const doc = view.dom.ownerDocument;
-			const span = doc.createElement('span');
-			span.className = 'mdrazor-space-char';
-			span.textContent = '·';
-			return span;
+		// 返回游离节点（由 CM6 自行挂载）：用独立导出的 createSpan() 而非 createElement，
+	// 审核取向 obsidianmd/prefer-create-el；不需要 view，故省略该参数
+	toDOM(): HTMLElement {
+		return createSpan({ cls: 'mdrazor-space-char', text: '·' });
 	}
 
 	eq(other: SpaceWidget): boolean {
