@@ -9,7 +9,7 @@
  */
 
 import { EditorView } from '@codemirror/view';
-import { type Plugin, TFile, type WorkspaceLeaf } from 'obsidian';
+import { type Plugin, MarkdownView, type WorkspaceLeaf } from 'obsidian';
 import { getFileTabPath } from './tab-utils';
 
 interface LinkTarget {
@@ -172,13 +172,14 @@ function resolveLinkTarget(
 }
 
 function getEditorView(plugin: Plugin): EditorView | null {
-	const leaf = plugin.app.workspace.activeLeaf;
-	if (!leaf) return null;
+	// activeLeaf 已废弃（审核规范 no-deprecated）：改用 getActiveViewOfType 取活动 Markdown 视图
+	const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+	if (!mdView) return null;
 	try {
-		const mdView = leaf.view;
-		const editor = (mdView as { editor?: { cm?: EditorView } }).editor;
-		return editor?.cm ?? null;
-	} catch { return null; }
+		return (mdView.editor as unknown as { cm?: EditorView }).cm ?? null;
+	} catch {
+		return null;
+	}
 }
 
 export function registerLinkOpener(
@@ -205,11 +206,10 @@ export function registerLinkOpener(
 		const linkTarget = resolveLinkTarget(linkEl as HTMLElement, cm);
 		if (!linkTarget) return;
 
-		// Resolve source path from active leaf
-		const activeLeaf = app.workspace.activeLeaf;
-		if (!activeLeaf) return;
-		const sourceFile = (activeLeaf.view as { file?: TFile })?.file;
-		const sourcePath = sourceFile?.path ?? '';
+		// 源路径取当前活动 Markdown 视图（activeLeaf 已废弃，改用 getActiveViewOfType）
+		const activeMdView = app.workspace.getActiveViewOfType(MarkdownView);
+		if (!activeMdView) return;
+		const sourcePath = activeMdView.file?.path ?? '';
 
 		const targetFile = app.metadataCache.getFirstLinkpathDest(
 			linkTarget.linkText,
@@ -229,7 +229,7 @@ export function registerLinkOpener(
 		});
 
 		handled = true;
-		setTimeout(() => { handled = false; }, 0);
+		window.setTimeout(() => { handled = false; }, 0);
 		e.stopPropagation();
 		e.stopImmediatePropagation();
 		e.preventDefault();

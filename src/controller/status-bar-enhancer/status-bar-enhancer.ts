@@ -88,9 +88,13 @@ export function registerStatusBarEnhancer(
 		menuEl = doc.createElement('div');
 		menuEl.addClass('mdrazor-workspace-menu');
 
+		// 动态位置经 CSS 自定义属性下发（Obsidian 审核规范：不要直接设样式，
+		// 改用 CSS 类 / setCssProps），定位规则见 styles.css 的 .mdrazor-workspace-menu
 		const rect = statusBarEl.getBoundingClientRect();
-		menuEl.style.bottom = `${window.innerHeight - rect.top + 4}px`;
-		menuEl.style.left = `${Math.max(4, rect.left)}px`;
+		menuEl.setCssProps({
+			'--mdrazor-menu-bottom': `${window.innerHeight - rect.top + 4}px`,
+			'--mdrazor-menu-left': `${Math.max(4, rect.left)}px`,
+		});
 
 		for (const name of names) {
 			const item = doc.createElement('div');

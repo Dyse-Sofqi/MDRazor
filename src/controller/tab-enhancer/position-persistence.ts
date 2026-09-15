@@ -12,8 +12,10 @@
  * ── 恢复 ──
  *   不依赖 ViewPlugin 构造时机（构造时 DOM 可能未挂载、叶子复用时不重建），
  *   在 update() 检测到整档内容加载（首次打开 / 切换文件）时恢复：
- *   从 [data-path] 解析文件路径，命中记录则还原光标 + 滚动位置，
+ *   按叶子视图解析文件路径，命中记录则还原光标 + 滚动位置，
  *   再以还原后的位置为基础继续监测新变动。
+ *   恢复事务经 queueMicrotask 推迟到本轮 CM6 更新之后派发 —— update() 处于
+ *   更新周期内，直接 view.dispatch 会抛 "update ... in progress" 并被 CM6 销毁插件实例。
  *
  * ── 持久化 ──
  *   独立缓存文件 .obsidian/md-razor-position-cache.json（与用户设置 data.json 分离），
@@ -387,6 +389,10 @@ function createPositionPlugin(app: App, enabled: () => boolean) {
 			private timer: number | null = null;
 			/** 最近一次已尝试恢复的文件路径，路径变化 / 整档加载时重新恢复 */
 			private lastRestoredPath: string | null = null;
+			/** 已排入微任务、等待派发的恢复目标路径（同一路径不重复排程） */
+			private pendingRestore: string | null = null;
+			/** 实例已销毁：延迟派发不得再触碰视图 */
+			private destroyed = false;
 			private win: Window;
 
 			constructor(private view: EditorView) {
@@ -402,6 +408,8 @@ function createPositionPlugin(app: App, enabled: () => boolean) {
 			}
 
 			update(update: ViewUpdate) {
+				// 只判定、不派发：update() 在 CM6 更新周期内，
+				// 恢复所需的事务由 scheduleRestore 推迟到本轮更新之后（见其注释）。
 				if (update.docChanged) {
 					this.onDocumentLoaded(update);
 				}
@@ -411,6 +419,8 @@ function createPositionPlugin(app: App, enabled: () => boolean) {
 			}
 
 			destroy() {
+				this.destroyed = true;
+				this.pendingRestore = null;
 				this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
 				if (this.timer !== null) {
 					this.win.clearTimeout(this.timer);
@@ -465,7 +475,33 @@ function createPositionPlugin(app: App, enabled: () => boolean) {
 					return;
 				}
 				this.lastRestoredPath = path;
-				this.restorePosition(path);
+				this.scheduleRestore(path);
+			}
+
+			/**
+			 * 排程位置恢复：判定在 update() 内做，实际派发推迟到本轮更新之后。
+			 *
+			 * 切勿在 update() 内直接 view.dispatch() —— update() 运行在 CM6 的更新周期里
+			 * （EditorView.update 调用插件前已把 updateState 置为 Updating），此时派发会抛
+			 * "Calls to EditorView.update are not allowed while an update is in progress"，
+			 * 且 CM6 捕获插件异常后会 destroy + deactivate 本插件实例，
+			 * 该编辑器的位置追踪与恢复随之彻底失效（正是本次报错的成因）。
+			 *
+			 * 更新周期是同步的（事务 → EditorView.update → 插件 → 测量/渲染 → finally 复位
+			 * updateState），因此用 queueMicrotask 即可：它在本轮同步代码结束后、
+			 * 浏览器渲染前执行，光标不会先落在映射后的位置再跳一下。
+			 * 与 focus-options / cursor-boundary-hint 的既有约定保持一致。
+			 */
+			private scheduleRestore(path: string): void {
+				if (this.pendingRestore === path) return;
+				this.pendingRestore = path;
+				queueMicrotask(() => {
+					// 已被更新的排程取代 / 实例已销毁 → 本次作废
+					if (this.pendingRestore !== path || this.destroyed) return;
+					this.pendingRestore = null;
+					if (!enabled()) return;
+					this.restorePosition(path);
+				});
 			}
 
 			private restorePosition(path: string): void {

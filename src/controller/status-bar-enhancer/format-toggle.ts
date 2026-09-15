@@ -82,7 +82,10 @@ export function registerFormatToggle(
 		updateIcon();
 		statusBarEl.createSpan({ text: tr('标识', 'Markers') });
 
-		statusBarEl.addEventListener('click', toggle);
+		// toggle 是 async，事件回调里显式丢弃 Promise，避免 no-misused-promises
+		statusBarEl.addEventListener('click', () => {
+			void toggle();
+		});
 	};
 
 	const removeButton = (): void => {

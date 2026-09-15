@@ -1,3 +1,14 @@
+/* ── 通用：按用户配置隐藏条目（状态栏 / 左功能区 / 设置项）──
+ * 由 JS 用 toggleClass('mdrazor-hidden', hidden) 切换；
+ * 原实现直接赋内联 style.display，改为类切换（Obsidian 审核规范：
+ * 不要直接设样式，改用 CSS 类 / setCssProps / setCssStyles）。
+ * !important 用于压过核心的同优先级规则（.status-bar-item / .setting-item
+ * 等元素自身声明了 display）。
+ */
+.mdrazor-hidden {
+	display: none !important;
+}
+
 /* MDRazor — 设置面板标签页切换 */
 .mdrazor-settings-tabs {
 	display: flex;
@@ -225,8 +236,12 @@ div.nav-folder-title {
 	background-color: var(--background-modifier-border);
 	color: var(--text-normal);
 }
+/* 工作区切换菜单：位置由 JS 经 setCssProps 下发（--mdrazor-menu-bottom/left），
+ * 不在 JS 里直接设样式（Obsidian 审核规范） */
 .mdrazor-workspace-menu {
 	position: fixed;
+	bottom: var(--mdrazor-menu-bottom, 0);
+	left: var(--mdrazor-menu-left, 4px);
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;

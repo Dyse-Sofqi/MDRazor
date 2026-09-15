@@ -292,6 +292,7 @@ async function cleanOrphanImages(plugin: MDRazorPlugin): Promise<void> {
 					// 刻意用 vault.trash(file, true) 强制走系统回收站，而非
 					// fileManager.trashFile()（后者会尊重用户「永久删除」偏好）。
 					// 本功能是一次性批量删除，误勾选代价高，强制可恢复更安全。
+					// eslint-disable-next-line obsidianmd/prefer-file-manager-trash-file -- 有意偏离：批量删除需保证可恢复
 					await app.vault.trash(file, true);
 					successCount++;
 				} catch {

@@ -155,7 +155,7 @@ function dragCorrection(ctx: DragContext): void {
 export function createClickSyncExtension(): Extension {
 	return EditorView.domEventHandlers({
 		mousedown: (event, view) => {
-			handleMouseDown(event as MouseEvent, view);
+			handleMouseDown(event, view);
 			return false; // 不拦截，原生点击行为完整保留
 		},
 	});
@@ -290,6 +290,15 @@ function healedPosAt(view: EditorView, lineEl: HTMLElement, x: number, y: number
 	return pos;
 }
 
+/**
+ * 旧引擎兜底接口：caretRangeFromPoint 未进标准（typings 已标记 deprecated），
+ * 但它是 Chromium < 128（旧版 Electron 的 Obsidian）唯一可用的 caret 接口，
+ * 因此经类型收窄保留为兜底路径 —— 不直接引用已废弃成员，同时不丢旧版兼容。
+ */
+interface LegacyCaretDocument {
+	caretRangeFromPoint?: (x: number, y: number) => Range | null;
+}
+
 /** 取 (x, y) 处的浏览器 caret 并映射为文档坐标；无结果/节点非法返回 null */
 function caretPosAt(view: EditorView, x: number, y: number): number | null {
 	const doc = view.dom.ownerDocument;
@@ -300,8 +309,9 @@ function caretPosAt(view: EditorView, x: number, y: number): number | null {
 				return view.posAtDOM(cp.offsetNode, clampOffset(cp.offsetNode, cp.offset));
 			}
 		}
-		if (doc.caretRangeFromPoint) {
-			const range = doc.caretRangeFromPoint(x, y);
+		const legacy = doc as unknown as LegacyCaretDocument;
+		if (legacy.caretRangeFromPoint) {
+			const range = legacy.caretRangeFromPoint(x, y);
 			if (range && range.startContainer && view.contentDOM.contains(range.startContainer)) {
 				return view.posAtDOM(range.startContainer, clampOffset(range.startContainer, range.startOffset));
 			}

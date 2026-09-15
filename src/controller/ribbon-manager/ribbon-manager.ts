@@ -153,7 +153,8 @@ export function registerRibbonManager(plugin: MDRazorPlugin): RibbonManager {
 			const name = item.title || meta.name;
 			const icon = item.icon || meta.icon || 'command';
 			const key = nonCustomKey(name, icon);
-			item.buttonEl.style.display = isHidden(key) ? 'none' : '';
+			// 用 CSS 类而非内联 style.display（Obsidian 审核规范），规则见 styles.css 的 .mdrazor-hidden
+			item.buttonEl.toggleClass('mdrazor-hidden', isHidden(key));
 		}
 	};
 

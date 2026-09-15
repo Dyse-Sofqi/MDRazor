@@ -245,7 +245,8 @@ export function registerDirFileCount(
 			for (const mutation of mutations) {
 				/* ---- childList: new nodes entering the DOM ---- */
 				for (const node of mutation.addedNodes) {
-					if (!(node instanceof HTMLElement)) continue;
+					// instanceOf 是跨窗口安全的 instanceof（popout 窗口的节点也能正确判定）
+					if (!node.instanceOf(HTMLElement)) continue;
 
 					if (node.matches('.nav-folder-title')) {
 						batch.add(node);
@@ -263,7 +264,7 @@ export function registerDirFileCount(
 				if (
 					mutation.type === 'attributes' &&
 					mutation.attributeName === 'class' &&
-					mutation.target instanceof HTMLElement &&
+					mutation.target.instanceOf(HTMLElement) &&
 					mutation.target.matches('.nav-folder')
 				) {
 					const wasCollapsed = mutation.target.classList.contains('is-collapsed');

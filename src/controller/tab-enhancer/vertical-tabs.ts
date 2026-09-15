@@ -43,6 +43,15 @@ interface TreeNode {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Workspace split shape (typings do not expose `children`)            */
+/* ------------------------------------------------------------------ */
+
+interface WorkspaceSplitNode {
+	children?: WorkspaceSplitNode[];
+	view?: unknown;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Lifecycle                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -224,18 +233,18 @@ export function registerVerticalTabs(
 	/** Get open file paths in visual tab order (left-to-right). */
 	const getOrderedOpenPaths = (): string[] => {
 		const paths: string[] = [];
-		const walk = (item: any): void => {
+		const walk = (item: WorkspaceSplitNode | undefined): void => {
 			if (!item) return;
-			if (item.children && Array.isArray(item.children)) {
+			if (Array.isArray(item.children)) {
 				for (const child of item.children) walk(child);
 				return;
 			}
 			if ('view' in item) {
-				const path = getFileTabPath(app, item as WorkspaceLeaf);
+				const path = getFileTabPath(app, item as unknown as WorkspaceLeaf);
 				if (path) paths.push(path);
 			}
 		};
-		walk(app.workspace.rootSplit);
+		walk(app.workspace.rootSplit as unknown as WorkspaceSplitNode);
 		return paths;
 	};
 

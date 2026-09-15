@@ -1,5 +1,17 @@
 ### 版本历史
 
+**2.6.1** (2026-09-15) — 位置持久化在 CM6 更新周期内派发事务的报错根治（不再销毁插件实例）+ 按 Obsidian 审核规范整改样式写法并清零 lint 问题
+
+**错误修复**
+
+- **重新打开文档时控制台报 `Calls to EditorView.update are not allowed while an update is in progress`，位置恢复随之失效** — 位置持久化在 CM6 `ViewPlugin.update()` 里检测到整档加载时，会同步调用 `view.dispatch()` 还原光标。而 `EditorView.update()` 是先把内部 `updateState` 置为 `Updating`、之后才回调各插件的 `update()`，所以这次派发必然抛错；更严重的是 CM6 捕获插件异常后会 `destroy()` + `deactivate()` 该插件实例 —— 不只是控制台报错，那个编辑器的光标/滚动追踪与恢复会**永久停摆**，直到视图重建。本版把「判定」留在 `update()` 内、「派发」推迟到 `queueMicrotask`（更新周期是同步的，微任务在本轮同步代码结束后、浏览器渲染前执行，光标不会先落在映射后的位置再跳一下），并补上重复排程去重与销毁保护。触发条件是「整档替换」类事务（首次加载、其他插件全文件格式化、外部改动重载），所以装了 Linter / obsidian-git 这类插件的库更容易命中。
+
+**规范整改（Obsidian 插件审核）**
+
+- **不再直接设置元素样式** — 状态栏条目、左功能区按钮、设置子项的显隐由 `el.style.display = ...` 改为 `toggleClass('mdrazor-hidden', ...)` + `styles.css` 中的 `.mdrazor-hidden` 规则；工作区切换菜单的动态定位由内联 `bottom` / `left` 改为 `setCssProps()` 下发 `--mdrazor-menu-bottom` / `--mdrazor-menu-left` 自定义属性，定位规则统一收进 `styles.css`。
+- **其余 lint / 审核项清零** — `instanceof HTMLElement` 改为跨窗口安全的 `instanceOf(HTMLElement)`；`addEventListener` 传入 async 回调改为显式丢弃 Promise；已废弃的 `workspace.activeLeaf` 改为 `getActiveViewOfType(MarkdownView)`；裸 `setTimeout` 改为 `window.setTimeout`（弹出窗口兼容）；`vertical-tabs` 中遍历工作区分屏树的 `any` 换成显式形状接口；`click-sync` 的 `caretRangeFromPoint` 兜底路径经类型收窄保留（Chromium < 128 / 旧版 Electron 的唯一可用接口），不再直接引用废弃成员。`npm run lint` 与 `tsc --noEmit` 现均无输出。
+- **失联图片清理的删除方式保持不变（有意偏离审核建议）** — 仍用 `vault.trash(file, true)` 强制走系统回收站，而非 `fileManager.trashFile()`：后者会尊重用户「永久删除」偏好，而本功能是一次性批量删除，误勾选代价高，保证可恢复更重要。已在代码内注明理由。
+
 **2.6.0** (2026-09-13) — callout 之后的列表行下半部点击/拖拽选错行根治（callout 块 widget 行盒空隙并入测量，几何一致性根因修复）+ 点击同步 mouseup 最终纠错
 
 **错误修复**

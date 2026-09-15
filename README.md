@@ -16,17 +16,29 @@
 
 ### 简介
 
-MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验。
-目前提供**通用**、**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**八大功能模块，更多功能正在开发中。
+MDRazor 是一款 Obsidian 插件，专注于提升 Markdown 编辑体验 —— 像剃刀一样，把书写过程中多余的部分精准削掉：标记符号该藏的藏、列表该整齐的整齐、点击该落在哪行就落在哪行。
 
-MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experience — like a razor. It ships **eight feature modules** — **General**, **Hidden Styling**, **List Enhancement**, **Tabs**, **Status Bar**, **Left Ribbon**, **Context Menu** and **Lazy Loading** — each independently toggleable in the settings panel, with more features under development.
+目前提供**通用**、**隐藏样式**、**列表增强**、**标签页**、**状态栏**、**左功能区**、**右键菜单**和**懒加载**八大功能模块，每项均可在设置面板独立开关，更多功能正在开发中。插件完全本地运行、不联网：设置与光标/滚轴位置数据存放在 Obsidian 配置目录，并在插件目录保留只读镜像兜底，主文件丢失或损坏时可自动恢复。
+
+MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experience — like a razor, shaving off whatever gets in the way: formatting marks that should stay hidden, lists that should line up, clicks that should land on the line you aimed at. It ships **eight feature modules** — **General**, **Hidden Styling**, **List Enhancement**, **Tabs**, **Status Bar**, **Left Ribbon**, **Context Menu** and **Lazy Loading** — each independently toggleable in the settings panel, with more features under development. Everything runs locally with no network access: settings and cursor/scroll data live in the Obsidian config directory, with read-only mirrors kept in the plugin folder that restore the main files automatically if they are lost or corrupted.
 
 ### 关键词 / Keywords
 
-- 隐藏格式标记 · 列表一体化（列一体化 / 勾选框一体化 / 退格提升层级）· 活动行列表符号折叠 · 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 目录聚焦 · 垂直标签页 · 打字机模式 · 自动保存工作区 · 自动清理失联图片 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 编辑器测量守护（行高表陈旧点击偏移根治）· 点击同步（点击/拖拽选错行根治，含 mouseup 最终纠错）· callout 之后行点击/拖拽错位根治（块 widget 行盒空隙并入测量）· 批量删除空行（Markdown 感知）
-- 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 符号边界提示 · 空格可视化 · 数据镜像兑底 · 中英文 i18n
-- Hidden formatting marks · List integration (List Integration / Checkbox Integration / Backspace Level Promotion) · Fold via list bullet on the active line · Enter soft break · Focus list item · Fold sibling lists/headings · Folder focus · Vertical tabs · Typewriter mode · Workspace autosave · Orphan image cleanup · Mouse/wheel line highlight · Current line highlight · Editor measure guard (root-cure for stale line-height click offsets) · Click sync (root-cure for click/drag landing on the wrong line, incl. mouseup final correction) · Callout-following-row click/drag offset cure (block-widget line-box gap folded into measurement) · Batch empty-line deletion (Markdown-aware)
-- Lazy loading · Dormant plugin configs (delays survive disabling) · Startup timing stats · Global load queue · Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Symbol boundary hint · Whitespace visualization · Data mirror fallback · English/Chinese i18n
+**中文**
+
+- **编辑体验** — 隐藏格式标记 · 空格可视化 · 符号边界提示 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 打字机模式 · 点击同步（点击/拖拽选错行根治，含 mouseup 最终纠错）· callout 之后行点击/拖拽错位根治（块 widget 行盒空隙并入测量）· 编辑器测量守护（行高表陈旧点击偏移根治）· 光标与滚轴位置持久化
+- **列表与结构** — 列表一体化（列一体化 / 勾选框一体化 / 退格提升层级）· 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 活动行列表符号折叠 · 折叠项方向键穿越 · 目录聚焦 · 目录文件计数 · 批量删除空行（Markdown 感知）
+- **标签页与导航** — 默认在新标签页打开 · 内链/书签新标签页 · 垂直标签页 · 自动保存工作区
+- **命令与外观** — 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 左功能区管理 · 自动清理失联图片
+- **数据与性能** — 懒加载 · 配置休眠（停用不丢延迟）· 启动耗时统计 · 全局加载队列 · 数据镜像兜底 · 中英文 i18n
+
+**English**
+
+- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
+- **Lists & structure** — List integration (list marks / checkboxes / backspace level promotion) · Enter soft break · Focus list item · Fold sibling lists/headings · Fold via list bullet on the active line · Arrow-key traversal of folded items · Folder focus · Folder file count · Markdown-aware empty-line cleanup
+- **Tabs & navigation** — Open in new tab by default · Wikilinks and bookmarks in new tabs · Vertical tabs · Workspace autosave
+- **Commands & appearance** — Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Left-ribbon management · Orphan image cleanup
+- **Data & performance** — Lazy loading · Dormant configs (delays survive disabling) · Startup timing stats · Global load queue · Data mirror fallback · English/Chinese i18n
 
 
 ### 功能
@@ -136,7 +148,7 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 - **目录展开关联标签页** — 开启后，从垂直标签页视图切换回文件列表时，仅展开包含已打开标签页的文件夹；关闭后，切换时恢复文件列表原来的展开结构。
 
-- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。位置记录保存在 Obsidian 配置目录（默认 `.obsidian/`）的 `md-razor-position-cache.json`，卸载重装插件后仍保留；旧版插件目录缓存（`position-cache.json`）首次加载时自动迁移。设置入口已移至「通用」模块。
+- **MD文档光标和滚轴位置持久化** — 自动记录 Markdown 文档的光标与滚动位置，重新打开文档时还原上次位置。位置变更停止 250ms 后一次性记录最终位置（连续变更只记一次），关闭标签页时立即保存末位，性能开销低。位置记录保存在 Obsidian 配置目录（默认 `.obsidian/`）的 `md-razor-position-cache.json`，卸载重装插件后仍保留；旧版插件目录缓存（`position-cache.json`）首次加载时自动迁移。设置入口已移至「通用」模块。2.6.1 起，还原光标的事务在本轮 CM6 更新结束之后派发（`queueMicrotask`）：此前它发生在更新周期内，遇到「整档替换」类事务（首次加载、其他插件全文件格式化、外部改动重载）会抛 `Calls to EditorView.update are not allowed while an update is in progress`，并连带让该编辑器的位置追踪被销毁、恢复功能静默失效。
 
 - **打字机模式** — 开启后聚焦中部阅读带：视口高度分为顶部 1/8、中部 3/4、底部 1/8，死区（12.5%~87.5%）之外（顶部/底部 1/8）的行按「死区外的不透明度」淡化显示，死区内与当前行保持明亮。光标跨行时维持视觉位置：落入顶部 1/8 → 滚回死区上沿（12.5%）；落入底部 1/8 → 默认滚回死区下沿（87.5%）。子设置项「死区外的不透明度」为 0-100 数值拉杆（默认 50），100 为完全不淡化；子开关「允许文档头部留存空白区域」（默认开启）开启后在文档顶部预留视口高度 1/8 的空白，使光标位于文档第一行时也能滚入中部区域；子开关「死区下沿跳转上沿」（默认关闭）开启后，光标跨过死区下沿时跳到上沿（12.5%）而非滚回下沿。子设置项仅模式开启时显示。命令「开启/关闭打字机模式」（`mdrazor-toggle-typewriter`）可绑定快捷键，与设置开关双向同步。
 
@@ -228,7 +240,7 @@ MDRazor 的两份数据文件保存在 Obsidian 配置目录（默认 `.obsidian
 
 ### Introduction
 
-MDRazor is an Obsidian plugin focused on polishing the Markdown editing experience. It ships **eight feature modules** — **General**, **Hidden Styling**, **List Enhancement**, **Tabs**, **Status Bar**, **Left Ribbon**, **Context Menu** and **Lazy Loading** — each independently toggleable in the settings panel. More features are under development.
+MDRazor is an Obsidian plugin focused on polishing the Markdown editing experience — like a razor, shaving off whatever gets in the way: formatting marks that should stay hidden, lists that should line up, clicks that should land on the line you aimed at. It ships **eight feature modules** — **General**, **Hidden Styling**, **List Enhancement**, **Tabs**, **Status Bar**, **Left Ribbon**, **Context Menu** and **Lazy Loading** — each independently toggleable in the settings panel. More features are under development. Everything runs locally with no network access; settings and cursor/scroll data live in the Obsidian config directory with read-only mirrors in the plugin folder as a fallback.
 
 Full release history: [CHANGELOG](https://github.com/Dyse-Sofqi/MDRazor/blob/main/CHANGELOG.en.md). After updating, the changelog for the new version pops up automatically on first launch.
 
@@ -346,13 +358,17 @@ Designed to refine your writing experience with precision like a razor.
 
 ### Introduction
 
-MDRazor is an Obsidian plugin focused on improving the Markdown editing experience.
-Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, **Context Menu**, and **Lazy Load** — eight feature modules, with more in development.
+MDRazor is an Obsidian plugin focused on improving the Markdown editing experience — like a razor, shaving off whatever gets in the way: formatting marks that should stay hidden, lists that should line up, clicks that should land on the line you aimed at.
+
+Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs**, **Statusbar**, **Left Ribbon**, **Context Menu**, and **Lazy Load** — eight feature modules, each independently toggleable in the settings panel, with more in development. Everything runs locally with no network access: settings and cursor/scroll data live in the Obsidian config directory, with read-only mirrors kept in the plugin folder that restore the main files automatically if they are lost or corrupted.
 
 ### Keywords
 
-- Hide formatting markers · List integration (list marks / checkboxes) · List fold on active line · Enter soft break · List focus · Sibling fold · Dir focus · Vertical tabs · Typewriter mode · Auto save workspace · Orphan image cleaner · Mouse/scroll line highlight · Current line highlight · Measure guard for the stale CM6 height map (click offset) · Click sync (click/drag misplacement heal, incl. mouseup final correction) · Callout-following-row click/drag offset cure (block-widget line-box gap folded into measurement) · Delete empty lines (Markdown-aware)
-- Lazy Load · Config dormancy (delays survive disabling) · Startup time stats · Serialized load queue · Custom Commands · Hidden Commands · Status Bar Commands · Context Menu Commands · Icon Picker · Drag Reorder · Symbol Boundary Hint · Space Visualization · Mirror data fallback · i18n (Chinese/English)
+- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
+- **Lists & structure** — List integration (list marks / checkboxes / backspace level promotion) · Enter soft break · Focus list item · Fold sibling lists/headings · Fold via list bullet on the active line · Arrow-key traversal of folded items · Folder focus · Folder file count · Markdown-aware empty-line cleanup
+- **Tabs & navigation** — Open in new tab by default · Wikilinks and bookmarks in new tabs · Vertical tabs · Workspace autosave
+- **Commands & appearance** — Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Left-ribbon management · Orphan image cleanup
+- **Data & performance** — Lazy loading · Dormant configs (delays survive disabling) · Startup timing stats · Global load queue · Data mirror fallback · English/Chinese i18n
 
 
 ### Features
@@ -458,7 +474,7 @@ File tab management with the following independent toggles:
 
 - **Tab Expansion Associated Folders** — When enabled, switching back from the vertical tabs view to the file list expands only folders containing open tabs; when disabled, the original expanded structure is restored.
 
-- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Records are stored in `md-razor-position-cache.json` inside the Obsidian config folder (default `.obsidian/`) and survive plugin uninstall/reinstall; the legacy plugin-dir cache (`position-cache.json`) is migrated automatically on first load. The settings entry has moved to the General section.
+- **MD Document Cursor & Scroll Position Persistence** — Automatically records each Markdown document's cursor and scroll position and restores them when the document is reopened. Positions are saved once, 250ms after changes settle (continuous changes batch into a single write); the final position is flushed immediately when a tab closes, keeping overhead low. Records are stored in `md-razor-position-cache.json` inside the Obsidian config folder (default `.obsidian/`) and survive plugin uninstall/reinstall; the legacy plugin-dir cache (`position-cache.json`) is migrated automatically on first load. The settings entry has moved to the General section. Since 2.6.1 the cursor-restore transaction is dispatched after the current CM6 update cycle finishes (`queueMicrotask`): it used to run inside that cycle, so whole-document replacement transactions (first load, another plugin formatting the whole file, reload after an external change) threw `Calls to EditorView.update are not allowed while an update is in progress` and tore down that editor's tracking, silently disabling restore.
 
 - **Typewriter Mode** — When enabled, focuses the middle reading band: the viewport is split into a top eighth, a middle 3/4, and a bottom eighth; lines outside the dead zone (12.5%–87.5%, i.e. the top/bottom eighth) are dimmed per the "Outside Dead-Zone Opacity" sub-setting, while lines inside the dead zone and the current line stay bright. The cursor's visual position is maintained across lines: entering the top eighth scrolls it back to the dead zone's top edge (12.5%); entering the bottom eighth scrolls it back to the bottom edge (87.5%) by default. The sub-setting is a 0-100 opacity slider (default 50); 100 means no dimming. The "Allow Blank Area at Document Top" sub-toggle (default on) reserves blank space of 1/8 viewport height above the document so the cursor can reach the middle band even on the very first line. The "Dead-Zone Bottom Edge Jump to Top Edge" sub-toggle (default off) makes the cursor jump to the top edge (12.5%) when it crosses the bottom edge, instead of scrolling back to the bottom edge. Sub-settings appear only while the mode is on. The command "Toggle Typewriter Mode" (`mdrazor-toggle-typewriter`) can be bound to a hotkey and stays bidirectionally in sync with the settings toggle.
 

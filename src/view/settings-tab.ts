@@ -1003,7 +1003,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			this.typewriterTopPaddingSetting,
 			this.typewriterDeadZoneJumpSetting,
 		]) {
-			if (setting) setting.settingEl.style.display = show ? '' : 'none';
+			// 用 CSS 类而非内联 style.display（Obsidian 审核规范），规则见 styles.css 的 .mdrazor-hidden
+			if (setting) setting.settingEl.toggleClass('mdrazor-hidden', !show);
 		}
 	}
 

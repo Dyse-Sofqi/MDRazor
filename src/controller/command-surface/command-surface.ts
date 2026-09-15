@@ -227,7 +227,9 @@ export function registerCommandSurfaceManager(
 	const applyStatusBarVisibility = (): void => {
 		for (const el of getStatusBarItemEls()) {
 			const key = getStatusBarElementKey(el);
-			el.style.display = isHidden(key) ? 'none' : '';
+			// 用 CSS 类而非内联 style.display（Obsidian 审核规范：
+			// 不要直接设样式，改用 CSS 类 / setCssProps），规则见 styles.css 的 .mdrazor-hidden
+			el.toggleClass('mdrazor-hidden', isHidden(key));
 		}
 	};
 

@@ -4,6 +4,36 @@
 
 ---
 
+## 2.6.1 (2026-09-15)
+
+### 位置持久化在 CM6 更新周期内派发事务：报错 + 插件实例被静默销毁
+
+**现象：** 用户库（learning-records，2.5.16）控制台报
+`Error: Calls to EditorView.update are not allowed while an update is in progress`，
+栈为 `restorePosition → onDocumentLoaded → ViewPlugin.update → EditorView.updatePlugins → EditorView.update → dispatchTransactions`。
+
+**实现位置：** `src/controller/tab-enhancer/position-persistence.ts`
+
+**避坑记录：**
+
+1. **机制（读 `@codemirror/view/dist/index.js` 确认，不是猜）** — `EditorView.update()` 先 `this.updateState = Updating`，**之后**才 `this.updatePlugins(update)` 遍历 `PluginInstance.update()` 回调各插件的 `update()`；`updateState` 在 `finally` 里复位 Idle。因此插件 `update()` 内的任何 `view.dispatch()` 必然抛错 —— 栈里同时出现 `updatePlugins` 与 `plugin:<id>` 两帧即是判据。
+2. **后果不止是控制台报错** — `PluginInstance.update()` 的 catch 会 `logException(..., "CodeMirror plugin crashed")` → `value.destroy()` → `deactivate()`（`spec` / `value` 置空）。该编辑器的光标/滚动追踪与恢复因此**永久失效**，直到视图重建；判定方式：`view.plugin(spec)` 变 `null`。排查「功能静默失效」时这是必查项。
+3. **不是每次编辑都会踩到** — 只有 update 内真走到 dispatch 的分支才抛，即 `isFullDocReplace` 为真：`startState.doc.length === 0` 的首次加载，或 from 0 覆盖到全文的整档替换。所以「本机测试库怎么点都没事、用户那个库必现」的差别通常在**那个库装着会整档替换的插件**（Linter 全文件格式化、obsidian-git 自动拉取后重载、regex-replace 等）—— learning-records 的 `community-plugins.json` 里这三个都在。
+4. **修法** — 判定（读 `update.startState` / `update.changes`）留在 `update()` 内，派发用 `queueMicrotask` 推迟到本轮更新之后：更新周期是同步的，微任务在本轮同步代码结束、浏览器渲染前执行，光标不会先落在映射后的位置再跳一帧（rAF 也能避开，但会晚一帧）。另补 `pendingRestore` 去重（同一轮内同一路径只派发一次）与 `destroyed` 标志（销毁后不再触碰视图）。仓库内既有约定已如此：`focus-options.ts` 顶部注释、`cursor-boundary-hint.ts`、`typewriter.ts` 都用 queueMicrotask，本文件是唯一遗漏处 —— 顺带审计了全部 ViewPlugin，其余只重建 decorations 或已推迟。
+5. **验证（无头浏览器复现，不开 Obsidian）** — esbuild 以 `format: 'iife'` 打包「一个 ViewPlugin + 一次整档替换」的最小场景并**内联进 `file://` 页面**（`<script type="module">` 在 file:// 下会被 CORS 拦，内联成经典脚本就不用起本地服务），走 CDP 跑三种写法：现网写法 → 抛错且 `view.plugin(spec) === null`、光标未恢复；自行捕获写法 → 错误文本与用户栈逐帧一致；修复写法 → 派发成功、实例存活、光标恢复到目标位置。Windows 两个坑：`esbuild --alias:<pkg>=<path>` 在 Git Bash 里会被 MSYS 改写成 `/f/...` 导致解析失败（改用 JS API + `nodePaths`）；CDP 脚本要用 `env -u http_proxy -u https_proxy` 跑，否则 Node 的 `fetch` 到 `127.0.0.1` 会被代理拦掉。
+
+### 按 Obsidian 审核规范复查：直接设样式等 14 项
+
+**实现位置：** `styles.css`、`src/controller/command-surface/command-surface.ts`、`ribbon-manager.ts`、`status-bar-enhancer.ts`、`format-toggle.ts`、`link-opener.ts`、`vertical-tabs.ts`、`dir-file-count.ts`、`click-sync.ts`、`view/settings-tab.ts`
+
+**避坑记录：**
+
+1. **`no-static-styles-assignment` 只查字面量** — `el.style.color = 'red'` 报错，而 `el.style.width = myWidth`、含表达式的模板字符串不报。本插件 5 处赋值恰好都是条件表达式 / 模板字符串，`npm run lint` 因此一直是绿的；但人工审核看的是模式本身，故照改：布尔显隐 → `toggleClass('mdrazor-hidden', ...)`（`.mdrazor-hidden { display: none !important }`，`!important` 用于压过 `.status-bar-item` / `.setting-item` 等核心同优先级的 `display`）；动态定位 → `setCssProps({ '--mdrazor-menu-bottom': ... })`，定位规则收进 `styles.css`。注意该规则的白名单也只认自定义属性：`setCssProps({ color: 'blue' })` 同样会被报。
+2. **必须跑全量 `eslint .`** — 此前只对改动文件跑 eslint，全量实际有 13 error + 1 warning：`instanceof HTMLElement`（跨窗口不安全）、async 事件回调、`activeLeaf` 已废弃、裸 `setTimeout`、`any` 遍历工作区分屏树、`caretRangeFromPoint` 废弃、多余类型断言。这也意味着 `lint.yml` 工作流此前一直在失败。
+3. **两处有意保留** — ① `caretRangeFromPoint` 是 Chromium < 128（旧版 Electron 的 Obsidian）唯一可用的 caret 接口，经 `LegacyCaretDocument` 类型收窄保留兜底路径，不直接引用废弃成员，也不丢旧版兼容；② 失联图片清理仍用 `vault.trash(file, true)` 强制系统回收站（一次性批量删除，误勾选代价高，可恢复优先），加 eslint-disable 注明理由。
+
+---
+
 ## 2.6.0 (2026-09-13)
 
 ### callout 之后的列表行下半部点击/拖拽选错行：callout 块 widget 行盒空隙被高度表漏测
