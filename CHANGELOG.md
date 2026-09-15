@@ -1,5 +1,12 @@
 ### 版本历史
 
+**2.6.2** (2026-09-15) — 发布工作流幂等化（消除连续多个版本的红叉）+ 工作区切换菜单改用 Obsidian DOM 助手建节点
+
+**工程改进**
+
+- **发布工作流幂等化（消除连续多个版本的红叉）** — `release.yml` 在 tag 触发时执行 `gh release create`，而本项目的发版流程是「先经 REST API 建好 release → 再建 tag」，于是这一步必然因同名 release 报错、整个工作流红叉（2.5.15 / 2.5.16 / 2.6.0 / 2.6.1 连续四个版本皆如此，且失败步骤固定是 `Create release`，`Build plugin` 一直是成功的）。本版改为先 `gh release view` 探测：已存在则打印现有 release 的 tag / draft / 资产清单后跳过，不存在才创建。两条发版路径（API 优先，以及只推 tag 让工作流发版）现在都能正常收敛；已有 release 时**不覆盖资产**，避免 CI 产物把已校验过 digest 的三件套悄悄替换掉。
+- **工作区切换菜单改用 Obsidian DOM 助手** — 菜单与其条目由 `doc.createElement('div')` 改为 `statusBarEl.createDiv({ cls })` / `menuEl.createDiv({ cls })`，符合官方 eslint 插件 `prefer-create-el` 规则的取向（优先用 `createEl` / `createDiv` 等 Obsidian DOM 助手）。宿主元素本身属于正确的文档，弹出窗口（popout）下同样建到对的 `document` 里；菜单建好后整体移到 `document.body`，视觉与交互零变化。
+
 **2.6.1** (2026-09-15) — 位置持久化在 CM6 更新周期内派发事务的报错根治（不再销毁插件实例）+ 按 Obsidian 审核规范整改样式写法并清零 lint 问题
 
 **错误修复**

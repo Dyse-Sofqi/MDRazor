@@ -4,6 +4,34 @@
 
 ---
 
+## 2.6.2 (2026-09-15)
+
+### 发布工作流幂等化：`Create release` 撞名导致的连续红叉
+
+**现象：** `Release` 工作流在 2.5.15 / 2.5.16 / 2.6.0 / 2.6.1 连续四个版本红叉，失败步骤固定是 `Create release`（`Build plugin` 一直是 success）。
+
+**实现位置：** `.github/workflows/release.yml`
+
+**避坑记录：**
+
+1. **根因是「先 API 建 release、再建 tag」这个顺序** — 工作流最后一步执行 `gh release create "$GITHUB_REF_NAME" main.js manifest.json styles.css`，而 release 已经由 REST API 建好了，同名必然报错。
+2. **实测推翻了一条经验：API 建的 tag 照样会触发 `on: push: tags` 工作流** — 2.6.1 的 tag 是 `POST /git/refs` 建的，`actions/runs` 里照样出现 `Release #95`，`head_branch=2.6.1`、`event=push`。（此前在别的仓库观察到「API 建 tag 不触发工作流」，所以这条不能当结论用。）**判据是建完 tag 立刻查 `actions/runs` 看 `head_branch`**，别等也别猜。
+3. **修法：探测式幂等** — `if gh release view "$TAG" >/dev/null 2>&1; then 打印现状并跳过; else gh release create ...; fi`。两条发版路径（API 优先 / 只推 tag 让工作流发版）从此都能收敛，不会再有一条必然红叉。
+4. **已存在的 release 不覆盖资产** — 没有选择「存在则 `gh release upload --clobber`」：API 流程上传的三件套已按 digest 逐项核对过，让 CI 产物再覆盖一遍会把已核对的文件悄悄换掉（CI 与本地构建理论上一致，但不值得用「已校验」换「理论一致」）。
+5. **排查顺序** — 这类红叉先看失败步骤名：`Create release` 失败 ≠ 构建失败，不必去查代码或依赖。
+
+### 工作区切换菜单改用 Obsidian DOM 助手
+
+**实现位置：** `src/controller/status-bar-enhancer/status-bar-enhancer.ts`
+
+**避坑记录：**
+
+1. **`prefer-create-el` 规则不在 recommended 配置里** — 官方 eslint 插件的 `document.createElement` → `createEl/createDiv` 规则存在且有 autofix，但 `recommended` 未启用，所以全量 lint 不会报它；它属「官方取向」而非硬门槛，顺手改掉即可。
+2. **不要图省事写 `doc.createDiv()`** — `doc` 是 `Document`；该规则只把助手声明在 `Node` 接口上，而官方文档只承诺「每个 HTMLElement 都有 createEl」。把宿主换成**确定的 HTMLElement**（此处的 `statusBarEl` 与建好的 `menuEl`）才是有保证的写法，同时仍然建在正确的文档里（popout 兼容）。
+3. **`createDiv` 会直接把节点挂到宿主上** — 因此 `menuEl.appendChild(item)` 要一并删掉；菜单最后仍用 `doc.body.appendChild(menuEl)` 整体移到 body（对已有父节点的元素是移动而非复制）。整段同步执行，不会出现「空菜单先闪一帧」。
+
+---
+
 ## 2.6.1 (2026-09-15)
 
 ### 位置持久化在 CM6 更新周期内派发事务：报错 + 插件实例被静默销毁

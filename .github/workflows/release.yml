@@ -26,7 +26,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            main.js manifest.json styles.css \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          # 幂等：release 已存在时（例如先经 REST API 建好 release、再推/建 tag）直接跳过。
+          # 否则 `gh release create` 会因 tag 已有同名 release 报错，让整个工作流红叉
+          # ——2.5.15 / 2.5.16 / 2.6.0 / 2.6.1 都是这个红叉，构建本身一直是成功的。
+          # 已有 release 时资产以先建者为准（API 流程上传的三件套不做覆盖）。
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists — skipping creation (assets left as-is)."
+            gh release view "$GITHUB_REF_NAME" --json tagName,isDraft,assets \
+              --jq '"  tag=\(.tagName) draft=\(.isDraft) assets=\([.assets[].name] | join(", "))"'
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              main.js manifest.json styles.css \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

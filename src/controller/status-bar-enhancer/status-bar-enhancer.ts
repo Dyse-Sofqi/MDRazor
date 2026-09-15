@@ -85,8 +85,10 @@ export function registerStatusBarEnhancer(
 		removeMenu();
 		if (!statusBarEl) return;
 
-		menuEl = doc.createElement('div');
-		menuEl.addClass('mdrazor-workspace-menu');
+		// 用 Obsidian 的 DOM 助手（createDiv）而非 doc.createElement：
+		// 助手挂在 HTMLElement 上，宿主元素 statusBarEl 已属于正确的文档，
+		// 弹出窗口（popout）下同样能建到对的 document 里（见下：末尾整体移到 body）
+		menuEl = statusBarEl.createDiv({ cls: 'mdrazor-workspace-menu' });
 
 		// 动态位置经 CSS 自定义属性下发（Obsidian 审核规范：不要直接设样式，
 		// 改用 CSS 类 / setCssProps），定位规则见 styles.css 的 .mdrazor-workspace-menu
@@ -97,8 +99,8 @@ export function registerStatusBarEnhancer(
 		});
 
 		for (const name of names) {
-			const item = doc.createElement('div');
-			item.addClass('mdrazor-workspace-menu-item');
+			// createDiv 已把节点挂到 menuEl 上，无需再 appendChild
+			const item = menuEl.createDiv({ cls: 'mdrazor-workspace-menu-item' });
 			item.textContent = name;
 			if (name === currentName) {
 				item.classList.add('is-active');
@@ -110,9 +112,9 @@ export function registerStatusBarEnhancer(
 					switchWorkspace(name).catch(console.error);
 				}
 			});
-			menuEl.appendChild(item);
 		}
 
+		// 建好后整体移到 body（appendChild 对已有父节点的元素是移动）
 		doc.body.appendChild(menuEl);
 
 		const closeOnOutsideClick = (e: MouseEvent) => {
