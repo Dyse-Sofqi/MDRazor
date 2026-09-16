@@ -21,6 +21,8 @@ import {
 	DecorationSet,
 	EditorView,
 	Tooltip,
+	TooltipView,
+	Direction,
 	showTooltip,
 } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
@@ -47,6 +49,31 @@ const boundaryHintState = StateField.define<readonly Tooltip[]>({
 
 /* ── Tooltip 构建 ── */
 
+/**
+ * 量出弹框内 `|` 相对弹框左边缘的水平偏移，使 `|` 与光标对齐。
+ *
+ * CM6 把弹框左边缘定位在 `光标 x + offset.x`（tooltipSpace 是整个视口，
+ * 左侧为 0，故负偏移不会被裁剪）。设 `|` 字形中心距弹框左边缘为 d，
+ * 取 offset.x = -d，`|` 即落在光标的屏幕 x 上。这样光标在隐藏标记内左右
+ * 移动时，`|` 始终压住光标不动，只有弹框随标记文本长短伸缩。
+ *
+ * 在 mount() 中调用：此时弹框已插入文档、布局可量。量的是框内相对量
+ * （`|` 中心 − 弹框左边缘），与弹框此刻所处屏幕位置无关。
+ *
+ * 仅 LTR 下计算：RTL 的定位公式是镜像的（以右边缘对齐锚点），负偏移会
+ * 推向反方向，故留 0 保持原有行为。
+ */
+function barAlignOffset(
+	view: EditorView,
+	dom: HTMLElement,
+	bar: HTMLElement,
+): number {
+	if (view.textDirection !== Direction.LTR) return 0;
+	const box = dom.getBoundingClientRect();
+	const rect = bar.getBoundingClientRect();
+	return -(rect.left + rect.width / 2 - box.left);
+}
+
 function buildBoundaryTooltip(
 	left: string,
 	right: string,
@@ -62,16 +89,31 @@ function buildBoundaryTooltip(
 	const display = (text: string): string =>
 		spaceConfig.showWhitespace ? text.replace(/ /g, '·') : text;
 
-	// 三个 span 直接建在 dom 上（createSpan 自带挂载，无需再 appendChild）
+	// 三个 span 直接建在 dom 上（createSpan 自带挂载，无需再 appendChild）。
+	// 留 `|` 的引用：mount 时要量它相对弹框左边缘的位置。
 	dom.createSpan({ cls: 'mdrazor-hint-left', text: display(left) });
-	dom.createSpan({ cls: 'mdrazor-hint-cursor', text: '|' });
+	const bar = dom.createSpan({ cls: 'mdrazor-hint-cursor', text: '|' });
 	dom.createSpan({ cls: 'mdrazor-hint-right', text: display(right) });
 
 	return {
 		pos,
 		above: false,
 		strictSide: true,
-		create: () => ({ dom }),
+		// create 每次都是新闭包：TooltipViewManager 以 create 的函数标识判断
+		// 能否复用 tooltipView，新闭包即触发重建，重建就会重新 mount 量一次偏移
+		create: (): TooltipView => {
+			const tooltipView: TooltipView = {
+				dom,
+				offset: { x: 0, y: 0 },
+				mount: (editorView) => {
+					tooltipView.offset = {
+						x: barAlignOffset(editorView, dom, bar),
+						y: 0,
+					};
+				},
+			};
+			return tooltipView;
+		},
 	};
 }
 
@@ -175,12 +217,24 @@ export function createCursorBoundaryHintExtension() {
 
 				update(update: ViewUpdate) {
 					this.decorations = buildDecorations(update.view);
-					if (update.selectionSet || update.docChanged) {
-						this.updateHint(update.view, update.view.state.selection.main.head);
+					if (
+						update.selectionSet ||
+						update.docChanged ||
+						update.geometryChanged
+					) {
+						this.updateHint(
+							update.view,
+							update.view.state.selection.main.head,
+							update.geometryChanged,
+						);
 					}
 				}
 
-				private updateHint(view: EditorView, pos: number) {
+				private updateHint(
+					view: EditorView,
+					pos: number,
+					geometryChanged = false,
+				) {
 					if (!formattingConfig.symbolBoundaryHint) {
 						this.clearHint(view);
 						return;
@@ -198,11 +252,15 @@ export function createCursorBoundaryHintExtension() {
 						this.lastWhitespace !== spaceConfig.showWhitespace;
 					this.lastWhitespace = spaceConfig.showWhitespace;
 
+					// 几何变化（缩放、字体、面板尺寸）同样强制重建：对齐偏移是
+					// mount 时按字号量出来的，字号变了旧偏移就失准。滚动不置
+					// geometryChanged（见 CM6 UpdateFlag.Geometry），故不会每帧重建。
 					if (
 						pos === this.lastPos &&
 						info.left === this.lastLeft &&
 						info.right === this.lastRight &&
-						!wsChanged
+						!wsChanged &&
+						!geometryChanged
 					) {
 						return;
 					}

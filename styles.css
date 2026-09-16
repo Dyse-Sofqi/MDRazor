@@ -291,6 +291,22 @@ div.nav-folder-title {
 	pointer-events: none;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
+/* 暗色主题：编辑器底色已是近黑（--background-primary 与弹框填充同色），
+ * 黑色投影没有可压暗的余量 —— 同样的 15% 黑在 #fff 上压掉约 38 个色阶、
+ * 在 #1C1C1C 上只剩 4 个，模糊后肉眼不可辨；默认 1px #333 描边也不足以
+ * 勾勒轮廓，弹框会融进编辑器。故改用「提亮面 + 亮描边 + 加重投影」。
+ * 填充从画布底色本身的文字色推导，而非用 --background-secondary：后者在
+ * 暗色下通常比画布亮一档（Obsidian 默认色阶 base-20 > base-00），但并非
+ * 合约 —— Blue Topaz 就把它定得比画布更暗，弹框会变成下沉面。
+ * 描边沿用暗色色阶变量，实测三个主题下都稳定给出 2.29:1（原为 1.31~1.35:1）。
+ * 特异性 (0,3,0) 压过上方 (0,2,0) 规则，无需 !important。 */
+.theme-dark .mdrazor-boundary-hint.mdrazor-boundary-hint {
+	background: color-mix(in srgb, var(--text-normal) 8%, var(--background-primary));
+	border-color: var(--background-modifier-border-focus);
+	box-shadow:
+		0 0 0 1px rgba(0, 0, 0, 0.5),
+		0 4px 16px rgba(0, 0, 0, 0.6);
+}
 .mdrazor-hint-cursor {
 	color: var(--text-accent);
 }

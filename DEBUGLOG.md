@@ -4,6 +4,53 @@
 
 ---
 
+## 2.6.4 (2026-09-16)
+
+### 符号边界提示：弹框内 `|` 与光标对齐（CM6 的定位机制）
+
+**现象：** 用户反馈「提示显示在光标的右侧」，希望框内的 `|` 与光标对齐——这样光标在标记内左右移动时，`|` 压住光标不动、只有弹框轮廓在动。实测改动前 `|` 与光标的距离随弹框内容长短在 10.6~39.2px 之间变化。
+
+**实现位置：** `src/controller/format-hider/cursor-boundary-hint.ts`（`barAlignOffset()` + `Tooltip` 的 `create()`）
+
+**避坑记录：**
+
+1. **「弹框在光标右侧」是 CM6 的设计，不是 bug** — `tooltip.ts` 的 `writeMeasure` 里：
+   `let left = ltr ? Math.max(space.left, Math.min(pos.left + offset.x, space.right - width)) : ...`
+   即把弹框**左边缘**对齐到 `coordsAtPos(pos).left`，整框向右展开。而 `|` 又在左边缘再往右 `d = 描边 + 左内边距 + 左侧文本宽度 + | 字宽/2` 处。所以对齐只能靠 `offset` 反向补偿，不能指望 CM6 居中。
+2. **`TooltipView.offset` 就是官方为此预留的钩子** — 注释原文 "Adjust the position of the tooltip relative to its anchor position"。注意它被包在 `Math.max/min` 内部，是「先叠加再裁剪」。
+3. **在 `mount()` 里写 offset，而不是 `positioned()`** — `createTooltip()` 的顺序是：设 `position` / `top: Outside` / `left: 0px` → `container.insertBefore(dom)` → `mount(view)`，而真正的定位发生在之后的 `requestMeasure` 读写阶段。所以在 `mount` 里写好的 offset 首次定位即生效；`positioned(space)` 则是「定位之后」回调，在那里改 offset 得多一轮 measure 才生效（还要防抖收敛）。
+4. **量的是框内相对量，因此与弹框当前屏幕位置无关** — `mount` 时弹框被临时摆在 `left: 0px; top: -10000px`，直接量绝对坐标没有意义；但量 `|` 字形中心 − 弹框左边缘不受影响，所以可以放心在这一刻测。
+5. **`d` 用实测而不是字宽公式** — 公式版需要跟着 `--font-monospace`、字号、内边距（未来改样式）一起维护，且弹框字号（13px）与编辑器正文字号本来就不同。实测版自动适配。实测值与解析式吻合，可作交叉校验：`d = 7 + 左侧字数 × 7.15 + 3.57`（13px Consolas）。
+6. **`create` 必须是新闭包** — `TooltipViewManager.update()` 用 `other.create == tip.create` 判断能否复用 tooltipView。若把 `create` 提成稳定引用以「省一次重建」，`mount` 就不再重跑，内容变化后偏移不会重测 —— 对齐会悄悄失效。这条与既有实现（每次新闭包）方向一致，别顺手优化掉。
+7. **负偏移不会被左边界裁剪** — 取决于 `tooltipSpace`。CM6 默认 `windowSpace`（`{top:0, left:0, bottom:clientHeight, right:clientWidth}`），且从 Obsidian 的 `app.js` 里核对过 `cs`（该处实际生效的实现）就是 `windowSpace`，Obsidian 未自定义 `tooltipSpace`。所以 `space.left = 0`，`pos.left` 只要有十几像素就不会被裁 —— 否则光标贴近编辑器左缘时对齐会被裁掉。
+8. **缩放/字体变化要重测，但别挂到 `viewportChanged`** — 偏移是按当前字号量的，缩放后失准。改挂 `geometryChanged`：核对了 CM6 `UpdateFlag.Geometry` 的**全部**赋值处（scaleX/scaleY 变化、padding 变化、`editorWidth` 变化、contentDOM 尺寸/高度变化、字符宽刷新），**滚动不在其中**（滚动只更新 `scrollTop`/`scrollAnchorHeight`），所以不会出现「每帧重建弹框」。强制重建复用「空格可视化开关翻转」那条既有路径。
+9. **RTL 有意不处理** — RTL 分支公式是镜像的（`pos.left - width + offset.x`，以右边缘对齐锚点），同样的负偏移会推向反方向。故按 `view.textDirection !== Direction.LTR` 直接返回 0，保持原行为，不做想当然的镜像推导（无环境可验证）。
+
+**验证方式（真实 CM6 实跑，非推理）：** 把真实的 `createCursorBoundaryHintExtension()` 塞进真实 CM6 实例，走 **HTML 下划线标签**这条纯正则路径产出真实隐藏装饰（不需要 Obsidian 的 markdown 解析器，其节点名 `formatting-*` 与 `@codemirror/lang-markdown` 完全不同，装 lang-markdown 也没用），并伪造 `.markdown-source-view.is-live-preview.mod-cm6` 祖先与 Obsidian 的 `createDiv`/`createSpan` 全局助手。9 个光标位置（含左/右为空、闭标签、长前缀）实测偏差全部 **0.00px**。
+
+### 夜间模式弹框不可见（黑投影的幅度与背景亮度成正比）
+
+**现象：** 白天模式的符号边界提示有边框+阴影、清晰可见；夜间模式几乎看不到弹框，只剩三个字符浮在半空。
+
+**实现位置：** `styles.css`（`.theme-dark .mdrazor-boundary-hint.mdrazor-boundary-hint`）
+
+**避坑记录：**
+
+1. **别只盯描边，先算对比度** — 暗色描边 `--background-modifier-border`(#333) 对画布 `#1C1C1C` 是 **1.35:1**，反而略高于亮色 `#e4e4e4` 对白底的 **1.27:1**。所以「白天明显、夜间不可见」的锅不在描边，而在**阴影**：`rgba(0,0,0,0.15)` 的作用幅度与背景亮度成正比 —— 白底上压掉约 38 个色阶（`#fff`→`#D9D9D9`，一圈明显暗环），`#1C1C1C` 上只剩约 4 个（28→24），再被 8px 模糊摊开就没了。近黑区域没有「可压暗的余量」。
+2. **填充与画布同色是另一半根因** — `background: var(--background-primary)` 与编辑器底色**完全一致**，层次感 100% 靠阴影。亮色下阴影顶得住，暗色下就塌了。
+3. **暗色「提亮面」不要照抄 `--background-secondary`** — 在暗色下它通常比画布亮一档（Obsidian 默认色阶 base-20 > base-00；Ethereal 未覆盖、同样成立），但这是**约定而非合约**：实测 Blue Topaz 把它定成 `#151515`，比画布 `#202020` **更暗**，照用会让弹框变成下沉的凹面。改用 `color-mix(in srgb, var(--text-normal) 8%, var(--background-primary))` 从画布自身推导，「更亮」方向才在任意主题上稳定。
+4. **`color-mix` 可用性** — Chromium 111 起支持；`minAppVersion` 1.6.6 → Electron ≥25 → Chromium ≥114，且 Obsidian 自己的 `app.css` 也在用（`--background-modifier-message: color-mix(in oklch, ...)`）。故未额外写降级声明（那会是不可达的死代码）。
+5. **写解析脚本时注意序列化形式** — `getComputedStyle` 把 `color-mix()` 结果序列化成 `color(srgb 0.16 0.16 0.16)` 而非 `rgb(...)`，按 `rgb()` 匹配的解析器会拿到 null。另外探针 `body` 要同时带 `theme-dark` 与 `css-settings-manager` 两个类，Ethereal 的注入值块用的是 `body.theme-dark.css-settings-manager.theme-dark` 这种高特异性选择器。
+6. **特异性** — `.theme-dark .mdrazor-boundary-hint.mdrazor-boundary-hint` = `(0,3,0)`，压过原有 `(0,2,0)` 规则，**无需 `!important`**（原规则当初就是为躲覆盖才写成双类）。白天模式零影响。
+7. **取主题真实值的方法（可复用）** — 用 Obsidian 的 `app.css` + 主题 `theme.css` 在无头 Chromium 里做级联，再 `getComputedStyle(body).getPropertyValue('--x')` 读**解析后**的值（自定义属性的计算值会完成 `var()` 替换），比手读主题源码可靠。
+
+### 无头验证环境的两个坑（可复用）
+
+1. **`--virtual-time-budget` 下 rAF 只投递 1 帧**（实测 `frames=1`，定时器正常）。所以等待 CM6 的 measure 必须用 `setTimeout`，用「嵌套 rAF」会永久挂住；好在 CM6 的 measure 由那一帧驱动，定时器等它就够了。
+2. **截图时把结果文本放在页面底部** — 若把结果写进页面顶部的 `<pre>`，写完会撑高页面，而弹框是 `position: fixed`（按写入前的布局定位），截图里看起来就整体错位，容易被误判成对齐失败。
+
+---
+
 ## 2.6.3 (2026-09-15)
 
 ### 插件审核报错：屏蔽 obsidianmd 规则不被允许（本地绿、审核红的根因）

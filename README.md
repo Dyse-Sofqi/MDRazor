@@ -26,7 +26,7 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 **中文**
 
-- **编辑体验** — 隐藏格式标记 · 空格可视化 · 符号边界提示 · 鼠标/滚轮移动时行高亮 · 当前行高亮 · 打字机模式 · 点击同步（点击/拖拽选错行根治，含 mouseup 最终纠错）· callout 之后行点击/拖拽错位根治（块 widget 行盒空隙并入测量）· 编辑器测量守护（行高表陈旧点击偏移根治）· 光标与滚轴位置持久化
+- **编辑体验** — 隐藏格式标记 · 空格可视化 · 符号边界提示（框内 `|` 与光标对齐 · 夜间模式弹框可见）· 鼠标/滚轮移动时行高亮 · 当前行高亮 · 打字机模式 · 点击同步（点击/拖拽选错行根治，含 mouseup 最终纠错）· callout 之后行点击/拖拽错位根治（块 widget 行盒空隙并入测量）· 编辑器测量守护（行高表陈旧点击偏移根治）· 光标与滚轴位置持久化
 - **列表与结构** — 列表一体化（列一体化 / 勾选框一体化 / 退格提升层级）· 回车软换行 · 选项聚焦 · 折叠同级列表/标题 · 活动行列表符号折叠 · 折叠项方向键穿越 · 目录聚焦 · 目录文件计数 · 批量删除空行（Markdown 感知）
 - **标签页与导航** — 默认在新标签页打开 · 内链/书签新标签页 · 垂直标签页 · 自动保存工作区
 - **命令与外观** — 自定义命令 · 隐藏命令 · 状态栏命令 · 右键菜单命令 · 图标选择 · 拖拽排序 · 左功能区管理 · 自动清理失联图片
@@ -34,7 +34,7 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 **English**
 
-- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
+- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint (tooltip `|` aligned with the caret · visible in dark mode) · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
 - **Lists & structure** — List integration (list marks / checkboxes / backspace level promotion) · Enter soft break · Focus list item · Fold sibling lists/headings · Fold via list bullet on the active line · Arrow-key traversal of folded items · Folder focus · Folder file count · Markdown-aware empty-line cleanup
 - **Tabs & navigation** — Open in new tab by default · Wikilinks and bookmarks in new tabs · Vertical tabs · Workspace autosave
 - **Commands & appearance** — Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Left-ribbon management · Orphan image cleanup
@@ -88,7 +88,7 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 👁️ **空格可视化** — 以半透明 `·` 标记显示空格位置，一目了然看清缩进和对齐。基于 CM6 视图范围迭代，仅处理可视行，性能开销极低。半透明样式不干扰编辑。已隐藏格式符号（如 `<span style="...">` HTML 标签）内的空格一并隐藏，不残留 `·`。作为隐藏样式区域中的一项独立开关。
 
-🔍 **符号边界提示** — 光标处于格式标识符与文本内容边界时，在光标下方弹出小框，展示光标与隐藏标识符的位置关系（左/右两侧符号）。弹框原样展示完整隐藏标记（含组合标记如加粗+斜体的 `***`），不截断、不重复；空格可视化开启时弹框内空格同样以 `·` 展示。使用 CM6 `showTooltip` 系统，自动跟随光标位置、响应滚动和编辑器销毁生命周期。在隐藏样式设置区独立开关。
+🔍 **符号边界提示** — 光标处于格式标识符与文本内容边界时，在光标下方弹出小框，展示光标与隐藏标识符的位置关系（左/右两侧符号）。弹框原样展示完整隐藏标记（含组合标记如加粗+斜体的 `***`），不截断、不重复；空格可视化开启时弹框内空格同样以 `·` 展示。**弹框内的 `|` 与光标严格对齐**（实测偏差 0px）：光标在隐藏标记内左右移动时，`|` 始终压在光标上保持不动，只有弹框轮廓随标记长短伸缩，观感上不再「各动各的」；对齐偏移在弹框挂载后按实际字体实测，缩放/改字体/改面板尺寸后自动重新测量。夜间模式下弹框单独取样式（提亮面 + 亮描边 + 加重投影），避免近黑底色上黑投影失效导致弹框「消失」。使用 CM6 `showTooltip` 系统，自动跟随光标位置、响应滚动和编辑器销毁生命周期。在隐藏样式设置区独立开关。
 
 ---
 
@@ -260,7 +260,7 @@ Features are organized into the eight settings-panel areas; every item has its o
 Hide Markdown mark symbols, revealed automatically as the cursor passes. Cleaner Live Preview, zero distraction. Independent toggles for: bold `**`, italic `*`, highlight `==`, strikethrough `~~`, inline code `` ` ``, escape `\`, heading `#` (H1–H6, hidden only when followed by a space), wikilink `[[ ]]`, HTML hex color tags, HTML underline `<u>`, and HTML line tags `<span>` (any attributes; literal inside code blocks/math). **Paired hiding**: `<font>`/`<u>`/`<span>` hide only when their closing tag exists — unclosed tags stay visible so you can spot them. Shared robustness: inline content mixing math (`$..$`) with formatting never crashes the editor, and math bodies are never hidden as marks.
 
 - 👁️ **Whitespace visualization** — spaces shown as translucent `·`, view-range based, near-zero cost; also hides spaces inside already-hidden HTML tags.
-- 🔍 **Symbol boundary hint** — a tooltip under the cursor shows which side of a hidden marker the cursor is on (left/right symbol, complete combined marks like `***` never truncated), via the CM6 `showTooltip` system.
+- 🔍 **Symbol boundary hint** — a tooltip under the cursor shows which side of a hidden marker the cursor is on (left/right symbol, complete combined marks like `***` never truncated), via the CM6 `showTooltip` system. **The `|` inside the tooltip is aligned exactly with the caret** (0px deviation measured): as the caret moves left/right inside a hidden marker the `|` stays pinned to it while only the tooltip's outline grows and shrinks, so the two no longer appear to drift apart. The alignment offset is measured against the real font after the tooltip mounts, and is re-measured automatically after zoom / font / pane-size changes. In dark mode the tooltip takes its own styling (raised surface + brighter border + heavier shadow) so it cannot vanish — a black shadow has no headroom to darken a near-black canvas.
 
 #### 🗑️ Left Ribbon
 
@@ -364,7 +364,7 @@ Currently provides **General**, **Style Hiding**, **List Enhancements**, **Tabs*
 
 ### Keywords
 
-- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
+- **Editing experience** — Hidden formatting marks · Whitespace visualization · Symbol boundary hint (tooltip `|` aligned with the caret · visible in dark mode) · Mouse/wheel line highlight · Current line highlight · Typewriter mode · Click sync (click/drag misplacement cure, incl. mouseup final correction) · Callout-following-row offset cure (block-widget line-box gap folded into measurement) · Measure guard (stale height-map click-offset cure) · Cursor & scroll position persistence
 - **Lists & structure** — List integration (list marks / checkboxes / backspace level promotion) · Enter soft break · Focus list item · Fold sibling lists/headings · Fold via list bullet on the active line · Arrow-key traversal of folded items · Folder focus · Folder file count · Markdown-aware empty-line cleanup
 - **Tabs & navigation** — Open in new tab by default · Wikilinks and bookmarks in new tabs · Vertical tabs · Workspace autosave
 - **Commands & appearance** — Custom commands · Hidden commands · Status-bar commands · Context-menu commands · Icon picker · Drag-and-drop ordering · Left-ribbon management · Orphan image cleanup
@@ -418,7 +418,7 @@ All hidden formats share these behaviors:
 
 👁️ **Space Visualization** — Display spaces as translucent `·` markers, making indentation and alignment visible at a glance. Based on CM6 viewport iteration — only visible lines are processed, minimal performance overhead. Translucent style won't interfere with editing. Spaces inside hidden format markers (e.g. `<span style="...">` HTML tags) are hidden along with the tag, leaving no stray dots. Listed as an independent toggle within the Style Hiding section.
 
-🔍 **Symbol Boundary Hint** — When the cursor is at the boundary between a formatting marker and content, a small tooltip appears below the cursor displaying the hidden markers on either side. The tooltip shows the complete hidden marker verbatim (including combined markers such as bold+italic `***`) — no truncation, no duplication; with space visualization enabled, tooltip spaces also render as `·`. Built on CM6's `showTooltip` system — automatically tracks cursor position, follows scrolling, and cleans up on editor destroy. Independent toggle under the Style Hiding section.
+🔍 **Symbol Boundary Hint** — When the cursor is at the boundary between a formatting marker and content, a small tooltip appears below the cursor displaying the hidden markers on either side. The tooltip shows the complete hidden marker verbatim (including combined markers such as bold+italic `***`) — no truncation, no duplication; with space visualization enabled, tooltip spaces also render as `·`. **The `|` inside the tooltip is aligned exactly with the caret** (0px deviation measured): as the caret moves left/right inside a hidden marker, the `|` stays pinned to the caret while only the tooltip's outline grows and shrinks, so the box and the marker no longer appear to move independently. The alignment offset is measured against the actual font once the tooltip is mounted, and is re-measured automatically after zoom / font / pane-size changes. In dark mode the tooltip takes its own styling (raised surface + brighter border + heavier shadow), because a black shadow has no headroom to darken a near-black canvas and the tooltip would otherwise disappear. Built on CM6's `showTooltip` system — automatically tracks cursor position, follows scrolling, and cleans up on editor destroy. Independent toggle under the Style Hiding section.
 
 ---
 
