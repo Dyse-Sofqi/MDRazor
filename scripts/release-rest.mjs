@@ -97,7 +97,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** 写接口是否值得重试：服务端 5xx、TLS/连接类错误、gh 的空响应解析错误 */
 function retryable(text) {
-	return /HTTP\/2(?:\.0)? 5\d\d|HTTP 5\d\d|TLS handshake|timed out|timeout|EOF|connection reset|unexpected end of JSON input|Internal Server Error/i.test(
+	return /HTTP\/2(?:\.0)? 5\d\d|HTTP 5\d\d|TLS handshake|TLS connect|SSL|timed out|timeout|EOF|connection (reset|refused)|Failed to connect|RPC failed|unexpected end of JSON input|Internal Server Error/i.test(
 		text,
 	);
 }
@@ -411,9 +411,11 @@ async function giteeMirror(body) {
 	}
 	const authed = `https://${giteeSlug.split('/')[0]}:${token}@gitee.com/${giteeSlug}.git`;
 
-	const push = run('git', ['-c', 'credential.helper=', 'push', authed, 'main:main'], {
-		env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-	});
+	const push = await withRetry('Gitee 推送 main', () =>
+		run('git', ['-c', 'credential.helper=', 'push', authed, 'main:main'], {
+			env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+		}),
+	);
 	if (push.code !== 0) fail(`Gitee 推送 main 失败：${(push.stdout + push.stderr).replaceAll(token, '***').trim()}`);
 	ok('main 已推送');
 	mark('Gitee 推送 main');
@@ -435,17 +437,28 @@ async function giteeMirror(body) {
 		ok(`Gitee release 已存在（id=${releaseId}），跳过创建`);
 	} else {
 		const payload = tmpFile('gitee.json', JSON.stringify({ tag_name: version, name: version, body, target_commitish: 'main' }));
-		exist = giteeJson([
-			'-X',
-			'POST',
-			`${api}/releases?access_token=${token}`,
-			'-H',
-			'Content-Type: application/json',
-			'--data-binary',
-			`@${payload}`,
-		]);
-		if (exist?.message) fail(`Gitee 建 release 失败：${exist.message}`);
-		if (!exist?.id) fail('Gitee 建 release 返回不可解析（检查令牌是否有效 / 是否走 query 参数）');
+		const created = await withRetry(
+			'Gitee 建 release',
+			() =>
+				run('curl', [
+					'-s',
+					'-X',
+					'POST',
+					`${api}/releases?access_token=${token}`,
+					'-H',
+					'Content-Type: application/json',
+					'--data-binary',
+					`@${payload}`,
+				]),
+			(r) => r.code === 0 && /"id"\s*:/.test(r.stdout),
+		);
+		try {
+			exist = JSON.parse(created.stdout || '{}');
+		} catch {
+			exist = {};
+		}
+		if (exist?.message) fail(`Gitee 建 release 失败：${exist.message}（令牌须走 query 参数）`);
+		if (!exist?.id) fail(`Gitee 建 release 返回不可解析：${(created.stdout || created.stderr).slice(0, 160)}`);
 		releaseId = String(exist.id);
 		ok(`release 已创建（id=${releaseId}）`);
 		mark('Gitee 创建 release');
@@ -457,14 +470,26 @@ async function giteeMirror(body) {
 			ok(`附件已就绪：${f}`);
 			continue;
 		}
-		const up = giteeJson([
-			'-X',
-			'POST',
-			`${api}/releases/${releaseId}/attach_files?access_token=${token}`,
-			'-F',
-			`file=@${join(ROOT, f)}`,
-		]);
-		if (!up.name) fail(`Gitee 上传 ${f} 失败：${JSON.stringify(up).slice(0, 160)}`);
+		const upRaw = await withRetry(
+			`Gitee 上传 ${f}`,
+			() =>
+				run('curl', [
+					'-s',
+					'-X',
+					'POST',
+					`${api}/releases/${releaseId}/attach_files?access_token=${token}`,
+					'-F',
+					`file=@${join(ROOT, f)}`,
+				]),
+			(r) => r.code === 0 && /"name"\s*:/.test(r.stdout),
+		);
+		let up = {};
+		try {
+			up = JSON.parse(upRaw.stdout || '{}');
+		} catch {
+			up = {};
+		}
+		if (!up.name) fail(`Gitee 上传 ${f} 失败：${(upRaw.stdout || upRaw.stderr).slice(0, 160)}`);
 		ok(`已上传附件：${up.name}`);
 		mark(`Gitee 上传 ${f}`);
 	}
