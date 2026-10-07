@@ -244,32 +244,37 @@ async function preflight() {
 
 /* ────────────────────────── GitHub 主链 ────────────────────────── */
 
-function ghJson(args) {
+/** gh api → 解析 JSON（失败返回 null）。
+ *  注意：调用方一律不传 --jq —— jq 过滤器里的 \(...) 在 JS 字符串中反斜杠会被
+ *  吃掉，过滤器变为非法且 gh 静默失败（探测已存在资产时踩过：会导致重复上传同名资产）。 */
+function ghJsonParse(args) {
 	const r = run('gh', ['api', ...args]);
-	return r;
-}
-function ghValue(args) {
-	const r = ghJson(args);
 	if (r.code !== 0) return null;
-	return r.stdout.trim();
+	try {
+		return JSON.parse(r.stdout);
+	} catch {
+		return null;
+	}
 }
 
-/** 查询 release（草稿不可按 tag 寻址，故 tag 查询失败时按 id 查找） */
+/** 分页拉全量 release（列表接口可能命中缓存，仅用于「找草稿」这类修复性分支） */
+function listAllReleases(maxPages = 4) {
+	const all = [];
+	for (let page = 1; page <= maxPages; page++) {
+		const arr = ghJsonParse([`repos/${ghSlug}/releases?per_page=100&page=${page}`]);
+		if (!Array.isArray(arr)) break;
+		all.push(...arr);
+		if (arr.length < 100) break;
+	}
+	return all;
+}
+
+/** 查询 release（草稿不可按 tag 寻址，故 tag 查询失败时在列表中找草稿） */
 function findReleaseByTag() {
-	const byTag = ghValue(['repos/' + ghSlug + '/releases/tags/' + version, '--jq', '.id']);
-	if (byTag) return { id: byTag, draft: ghValue(['repos/' + ghSlug + '/releases/' + byTag, '--jq', '.draft']) === 'true' };
-	// 草稿：遍历（列表可能命中缓存，但草稿分支只用于修复，最终以双端点验收为准）
-	const r = run('gh', [
-		'api',
-		'--paginate',
-		`repos/${ghSlug}/releases?per_page=100&_cb=${Date.now()}`,
-		'--jq',
-		`.[] | select(.tag_name == "${version}") | "\(.id) \(.draft)"`,
-	]);
-	if (r.code !== 0) return null;
-	for (const line of r.stdout.trim().split('\n').filter(Boolean)) {
-		const [id, draft] = line.trim().split(/\s+/);
-		if (draft === 'true') return { id, draft: true };
+	const byTag = ghJsonParse([`repos/${ghSlug}/releases/tags/${version}`]);
+	if (byTag?.id) return { id: String(byTag.id), draft: byTag.draft === true };
+	for (const rel of listAllReleases()) {
+		if (rel.tag_name === version) return { id: String(rel.id), draft: rel.draft === true };
 	}
 	return null;
 }
@@ -317,15 +322,11 @@ async function githubRelease(body) {
 
 	// 资产：缺失才上传（幂等）；尺寸一致视为已就绪
 	if (rel) {
-		const existing = run('gh', [
-			'api',
-			`repos/${ghSlug}/releases/${rel.id}/assets?per_page=100&_cb=${Date.now()}`,
-			'--jq',
-			'.[] | "\(.name):\(.size)"',
-		]).stdout.trim();
+		const assets = ghJsonParse([`repos/${ghSlug}/releases/${rel.id}/assets?per_page=100`]) ?? [];
+		const existing = new Set(assets.map((a) => `${a.name}:${a.size}`));
 		for (const f of ['main.js', 'manifest.json', 'styles.css']) {
 			const size = String(readFileSync(join(ROOT, f)).length);
-			if (existing.includes(`${f}:${size}`)) {
+			if (existing.has(`${f}:${size}`)) {
 				ok(`资产已就绪：${f} (${size})`);
 				continue;
 			}
@@ -357,25 +358,32 @@ async function githubRelease(body) {
 		log('   （dry-run 跳过在线验收；正式运行会断言 by-tag 与 latest 均为该版本且 draft=false）');
 		return;
 	}
-	await withRetry(
-		'验收',
-		() => {
-			const byTag = run('gh', ['api', `repos/${ghSlug}/releases/tags/${version}`, '--jq', '[.tag_name,.draft]|join(":")']);
-			const latest = run('gh', ['api', `repos/${ghSlug}/releases/latest`, '--jq', '[.tag_name,.draft]|join(":")']);
-			return {
-				code: byTag.code === 0 && latest.code === 0 && byTag.stdout.trim() === `${version}:false` && latest.stdout.trim() === `${version}:false` ? 0 : 1,
-				stdout: `by-tag=${byTag.stdout.trim()} latest=${latest.stdout.trim()}`,
-				stderr: byTag.stderr + latest.stderr,
-			};
-		},
-		(r) => r.code === 0,
-		4,
-	);
-	const byTag = run('gh', ['api', `repos/${ghSlug}/releases/tags/${version}`, '--jq', '[.tag_name,.draft]|join(":")']);
-	const latest = run('gh', ['api', `repos/${ghSlug}/releases/latest`, '--jq', '[.tag_name,.draft]|join(":")']);
-	if (byTag.stdout.trim() !== `${version}:false`) fail(`验收失败：/releases/tags/${version} = ${byTag.stdout.trim() || byTag.stderr.trim()}`);
+	const published = (rel) => rel?.tag_name === version && rel.draft === false;
+	let byTag = null;
+	for (let i = 1; i <= 4; i++) {
+		byTag = ghJsonParse([`repos/${ghSlug}/releases/tags/${version}`]);
+		if (published(byTag)) break;
+		if (i < 4) {
+			log(`   … 验收 by-tag 第 ${i} 次未就绪，重试`);
+			await sleep(5000 * i);
+		}
+	}
+	if (!published(byTag)) {
+		fail(`验收失败：/releases/tags/${version} 未返回已发布状态（${byTag ? `draft=${byTag.draft}` : '查询失败'}）`);
+	}
 	ok(`by-tag ${version}：已发布 ✓`);
-	if (latest.stdout.trim() !== `${version}:false`) fail(`验收失败：/releases/latest = ${latest.stdout.trim() || latest.stderr.trim()}`);
+	let latest = null;
+	for (let i = 1; i <= 4; i++) {
+		latest = ghJsonParse([`repos/${ghSlug}/releases/latest`]);
+		if (published(latest)) break;
+		if (i < 4) {
+			log(`   … 验收 latest 第 ${i} 次未就绪，重试`);
+			await sleep(5000 * i);
+		}
+	}
+	if (!published(latest)) {
+		fail(`验收失败：/releases/latest 返回 ${latest?.tag_name ?? '（查询失败）'}（应为 ${version}，草稿不计）`);
+	}
 	ok(`latest ${version}：已发布 ✓`);
 	mark('GitHub 双端点验收通过');
 	log(`   ${`https://github.com/${ghSlug}/releases/tag/${version}`}`);
@@ -411,41 +419,53 @@ async function giteeMirror(body) {
 	mark('Gitee 推送 main');
 
 	// payload 走临时文件 + 令牌走 query —— 两条实证过的坑（见 DEBUGLOG / 记忆）
-	const payload = tmpFile('gitee.json', JSON.stringify({ tag_name: version, name: version, body, target_commitish: 'main' }));
 	const api = `https://gitee.com/api/v5/repos/${giteeSlug}`;
-	const created = run('curl', [
-		'-s',
-		'-X',
-		'POST',
-		`${api}/releases?access_token=${token}`,
-		'-H',
-		'Content-Type: application/json',
-		'--data-binary',
-		`@${payload}`,
-	]);
-	let releaseId = null;
-	try {
-		const j = JSON.parse(created.stdout);
-		if (j.id) releaseId = String(j.id);
-		else if (j.message) fail(`Gitee 建 release 失败：${j.message}`);
-	} catch {
-		fail(`Gitee 建 release 返回不可解析：${created.stdout.slice(0, 160)}`);
-	}
-	ok(`release 已创建（id=${releaseId}）`);
-	mark('Gitee 创建 release');
+	const giteeJson = (args) => {
+		try {
+			return JSON.parse(run('curl', ['-s', ...args]).stdout || '{}');
+		} catch {
+			return {};
+		}
+	};
 
+	// 幂等：已存在则跳过创建，只补缺失附件
+	let exist = giteeJson([`${api}/releases/tags/${version}?access_token=${token}`]);
+	let releaseId = exist?.id ? String(exist.id) : null;
+	if (releaseId) {
+		ok(`Gitee release 已存在（id=${releaseId}），跳过创建`);
+	} else {
+		const payload = tmpFile('gitee.json', JSON.stringify({ tag_name: version, name: version, body, target_commitish: 'main' }));
+		exist = giteeJson([
+			'-X',
+			'POST',
+			`${api}/releases?access_token=${token}`,
+			'-H',
+			'Content-Type: application/json',
+			'--data-binary',
+			`@${payload}`,
+		]);
+		if (exist?.message) fail(`Gitee 建 release 失败：${exist.message}`);
+		if (!exist?.id) fail('Gitee 建 release 返回不可解析（检查令牌是否有效 / 是否走 query 参数）');
+		releaseId = String(exist.id);
+		ok(`release 已创建（id=${releaseId}）`);
+		mark('Gitee 创建 release');
+	}
+
+	const have = new Set((exist.assets ?? []).map((a) => a.name));
 	for (const f of ['main.js', 'manifest.json', 'styles.css']) {
-		const up = run('curl', [
-			'-s',
+		if (have.has(f)) {
+			ok(`附件已就绪：${f}`);
+			continue;
+		}
+		const up = giteeJson([
 			'-X',
 			'POST',
 			`${api}/releases/${releaseId}/attach_files?access_token=${token}`,
 			'-F',
 			`file=@${join(ROOT, f)}`,
 		]);
-		const j = JSON.parse(up.stdout);
-		if (!j.name) fail(`Gitee 上传 ${f} 失败：${up.stdout.slice(0, 160)}`);
-		ok(`已上传附件：${j.name}`);
+		if (!up.name) fail(`Gitee 上传 ${f} 失败：${JSON.stringify(up).slice(0, 160)}`);
+		ok(`已上传附件：${up.name}`);
 		mark(`Gitee 上传 ${f}`);
 	}
 
