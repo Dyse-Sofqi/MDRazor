@@ -12,7 +12,8 @@
 		"verify:indent": "node scripts/verify-first-line-indent.mjs",
 		"verify:list": "node scripts/verify-list-integration.mjs",
 		"verify:callout": "node scripts/verify-callout-parse.mjs",
-		"verify:caret": "node scripts/verify-caret-reveal.mjs"
+		"verify:caret": "node scripts/verify-caret-reveal.mjs",
+		"release": "node scripts/release-rest.mjs"
 	},
 	"keywords": [],
 	"license": "0-BSD",

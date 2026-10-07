@@ -97,6 +97,11 @@ npm run build
 - Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
 - Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
 - Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
+- **发版一律走 `npm run release -- <版本>`**（`scripts/release-rest.mjs`，GitHub REST API + 可选 Gitee 镜像）。
+  - 禁止手工拼 API 调用、禁止 `git push` 推 tag、禁止单独建 tag（tag 由 release API 自动创建，无 `v` 前缀）。
+  - 验收只认「草稿不可寻址」的两个端点：`GET /releases/tags/<ver>` 与 `GET /releases/latest`（列表接口可能命中缓存，禁止用于判断是否发布成功）。
+  - `GITEE_TOKEN` 环境变量存在时脚本自动发布 Gitee 镜像；dry-run 用 `--dry-run`。
+  - 脚本属开发工具，不参与插件构建（esbuild 只打包 `src/main.ts`），不影响社区插件审核。
 - After the initial release, follow the process to add/update your plugin in the community catalog as required.
 
 ## Security, privacy, and compliance
