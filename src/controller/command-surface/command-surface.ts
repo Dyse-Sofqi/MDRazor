@@ -40,6 +40,7 @@ export interface SurfaceCommandManager {
 interface CommandsInternal {
 	commands?: Record<string, { id: string; name: string; icon?: string }>;
 	executeCommandById?: (id: string) => unknown;
+	findCommand?: (id: string) => unknown;
 }
 
 const SIBLING_FOLD_KEY = 'context:mdrazor-sibling-fold';
@@ -130,8 +131,23 @@ export function registerCommandSurfaceManager(
 			new Notice(tr('无法执行命令：当前 Obsidian 版本不支持', 'Unable to execute command in this Obsidian version'));
 			return;
 		}
+		// 与 ribbon-manager 同款守卫：executeCommandById 对「命令不存在」与
+		// 「回调抛错」都返回 false，只看返回值会把两者混为一谈；先用 findCommand
+		// 判定存在性，命令缺失时明确提示（否则就是永久静默失效）。
+		if (typeof commands.findCommand === 'function' && !commands.findCommand(commandId)) {
+			console.error('MDRazor: command not found', commandId);
+			new Notice(
+				tr('命令不存在（可能来自已改名或卸载的插件）：', 'Command not found (renamed or removed plugin?): ') +
+					commandId,
+			);
+			return;
+		}
 		try {
-			await commands.executeCommandById(commandId);
+			const executed = await commands.executeCommandById(commandId);
+			if (executed === false) {
+				console.error('MDRazor: command failed to run', commandId);
+				new Notice(tr('执行命令失败', 'Failed to execute command'));
+			}
 		} catch (e) {
 			console.error('MDRazor: failed to execute command', commandId, e);
 			new Notice(tr('执行命令失败', 'Failed to execute command'));

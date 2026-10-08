@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>空行缩进：三种位移方案对比（行盒 / 内容盒 / br / 高度）</title>
+<style>
+	html, body { margin: 0; padding: 0; background: #fff; }
+	body { font: 16px/1.6 sans-serif; }
+	.cm-content { width: 400px; padding: 4px 0; }
+	/* 复刻 CM6 baseTheme + Obsidian 的 .cm-line 基样式 */
+	.cm-line { display: block; padding: 0 2px 0 6px; white-space: pre-wrap; box-sizing: border-box; }
+	/* ① 现状：text-indent（只推内联内容，行盒不动） */
+	.v-indent { text-indent: 2em; }
+	/* ② margin：整行盒（含背景）右移 —— 当前行高亮会跟着内缩 */
+	.v-margin { margin-inline-start: 2em; }
+	/* ③ padding：内容盒右移、背景仍整行 —— 但 CM6 posAtCoords 读首个 .cm-line 的 paddingLeft */
+	.v-padding { padding-inline-start: 2em; }
+	/* ④ 透明 border：内容盒右移、背景仍整行、CM6 不读 border */
+	.v-border { border-inline-start: 2em solid transparent; }
+</style>
+</head>
+<body>
+<div class="cm-content" id="content" contenteditable="true">
+	<div class="cm-line v-indent"  id="A-indent"><br /></div>
+	<div class="cm-line v-margin"  id="B-margin"><br /></div>
+	<div class="cm-line v-padding" id="C-padding"><br /></div>
+	<div class="cm-line v-border"  id="D-border"><br /></div>
+	<div class="cm-line"           id="E-none"><br /></div>
+</div>
+<pre id="out">…</pre>
+<script>
+	const rows = [];
+	for (const el of document.querySelectorAll('.cm-line')) {
+		const cs = getComputedStyle(el);
+		const box = el.getBoundingClientRect();
+		const br = el.querySelector('br');
+		const padL = parseFloat(cs.paddingLeft) || 0;
+		const borL = parseFloat(cs.borderLeftWidth) || 0;
+		const marL = parseFloat(cs.marginLeft) || 0;
+		rows.push({
+			id: el.id,
+			// 行盒（背景盒）左边界：margin 会把它推右 → 当前行高亮内缩
+			borderBoxLeft: +box.left.toFixed(2),
+			marginLeft: marL,
+			borderLeft: borL,
+			paddingLeft: padL,
+			// 内容盒左边界 = 光标/文本的落点基准
+			contentLeft: +(box.left + borL + padL).toFixed(2),
+			brLeft: br ? +br.getBoundingClientRect().left.toFixed(2) : null,
+			height: +box.height.toFixed(2),
+		});
+	}
+	document.getElementById('out').textContent =
+		'期望：内容盒（光标基准）与 br 都应到 38；高度应保持 25.59；\n' +
+		'      borderBoxLeft 是「背景/高亮」的左边界 —— 只有 text-indent 与透明 border 方案能保持 6（高亮不内缩）。\n\n' +
+		rows
+			.map((r) =>
+				`${r.id.padEnd(11)} borderBoxLeft=${String(r.borderBoxLeft).padEnd(6)} (margin=${String(r.marginLeft).padEnd(4)} border=${String(r.borderLeft).padEnd(4)} padding=${String(r.paddingLeft).padEnd(4)}) contentLeft=${String(r.contentLeft).padEnd(6)} brLeft=${String(r.brLeft).padEnd(6)} h=${r.height}`,
+			)
+			.join('\n');
+</script>
+</body>
+</html>

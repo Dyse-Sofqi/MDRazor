@@ -36,6 +36,11 @@ const EXTERNAL_REF_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
 /*  Ribbon 生命周期管理                                                 */
 /* ------------------------------------------------------------------ */
 
+/** Obsidian 左功能区内部结构（未公开 API，与 ribbon-manager 同款收窄访问） */
+interface LeftRibbonInternal {
+	removeRibbonAction(id: string): void;
+}
+
 /**
  * 注册失联图片清理功能，返回 ribbon 图标添加/移除控制函数。
  */
@@ -43,15 +48,40 @@ export function registerOrphanImageCleaner(
 	plugin: MDRazorPlugin,
 ): { addRibbon: () => void; removeRibbon: () => void } {
 	let ribbonEl: HTMLElement | null = null;
+	/**
+	 * `Plugin.addRibbonIcon()` 在 `workspace.leftRibbon` 内部以
+	 * `${manifest.id}:${title}` 为 action id 注册条目（asar 实证：app.js 的
+	 * `addRibbonIcon` → `leftRibbon.addRibbonItemButton(id, ...)`）。
+	 *
+	 * 仅 detach DOM 元素是不够的：条目仍留在 `leftRibbon.items` 里、`buttonEl`
+	 * 未清空，本插件功能区管理器同步顺序（`applyRibbonOrder`）时会把已摘除的
+	 * 按钮重新挂回容器 —— 表现为开关关掉后按钮「又回来了」、点击仍可触发清理。
+	 * 故必须用同一个 id 调 `removeRibbonAction` 真正注销。
+	 */
+	let ribbonActionId: string | null = null;
 
 	const addRibbon = (): void => {
 		if (ribbonEl) return;
-		ribbonEl = plugin.addRibbonIcon('trash-2', tr('清理失联图片', 'Clean orphan images'), async () => {
+		const title = tr('清理失联图片', 'Clean orphan images');
+		ribbonEl = plugin.addRibbonIcon('trash-2', title, async () => {
 			await cleanOrphanImages(plugin);
 		});
+		ribbonActionId = `${plugin.manifest.id}:${title}`;
 	};
 
 	const removeRibbon = (): void => {
+		if (ribbonActionId) {
+			const leftRibbon = (plugin.app.workspace as unknown as {
+				leftRibbon?: LeftRibbonInternal;
+			}).leftRibbon;
+			try {
+				// 清空 item.buttonEl / callback，使功能区管理器不再把它当作可渲染条目
+				leftRibbon?.removeRibbonAction(ribbonActionId);
+			} catch (e) {
+				console.error('[MDRazor] 注销失联图片清理按钮失败', e);
+			}
+			ribbonActionId = null;
+		}
 		if (ribbonEl) {
 			ribbonEl.remove();
 			ribbonEl = null;

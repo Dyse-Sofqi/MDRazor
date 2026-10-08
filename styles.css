@@ -1157,6 +1157,26 @@ body.mdrazor-first-line-indent .markdown-reading-view .markdown-preview-view p {
 	text-indent: var(--mdrazor-first-line-indent, 2em);
 }
 
+/* 空的段落首行（回车后光标所在的那一行）：用**透明左边框**把内容盒右移一个缩进宽度，
+ * 而不是 text-indent。text-indent 只推「首行盒里的内联内容」——空行里没有内联内容
+ * （只有一个 <br>），浏览器仍把光标画在未缩进处，键入第一个字符才跳过去。
+ *
+ * 为什么是透明 border 而不是别的位移手段（三者实测对比见
+ * scripts/fixtures/first-line-indent-empty-line-shift.html，Chrome 153 @16px）：
+ *   · text-indent 2em：内容盒左边界仍是 6px（光标基准没动）→ 修不了本 bug；
+ *   · margin-inline-start 2em：内容盒到 38px ✔，但**行盒（背景盒）也被推到 32px**
+ *     → 「当前行高亮」等整行背景会在空行上缺一角；
+ *   · padding-inline-start 2em：内容盒只到 32px（它**覆盖**而不是累加基础 padding），
+ *     且会污染 CM6 的文本区基准（posAtCoords 读「首个 .cm-line 的 paddingLeft」）；
+ *   · 透明 border-inline-start 2em：内容盒到 38px ✔、行盒仍在 0 ✔、高度不变 ✔，
+ *     且边框是**累加**在既有 padding 之外的 —— 不依赖宿主把 .cm-line 的 padding
+ *     设成多少（Obsidian 归零、CM6 基础主题是 0 2px 0 6px）。
+ * 空行不会换行，故与 text-indent 视觉等价。 */
+body.mdrazor-first-line-indent .cm-line.mdrazor-indent-first-line.mdrazor-indent-first-line-empty {
+	text-indent: 0;
+	border-inline-start: var(--mdrazor-first-line-indent, 2em) solid transparent;
+}
+
 /* 阅读视图的逐行缩进占位元素（JS 插入在每个 <br> 之后）：
  * 空节点 + height:0 → 不进文本内容、不改变段落高度（实测与插入前逐像素一致），
  * 只把该行之后的文本推右一个缩进宽度。宽度跟随设置变量，改宽度无需重插。 */

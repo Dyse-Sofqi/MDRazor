@@ -284,6 +284,9 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	/* ------------------------------------------------------------------ */
 
 	private buildRibbonSection(panel: HTMLElement): void {
+		// 先占位、后赋值：onChange 里需要重绘下方列表，但 DOM 顺序要求开关在前
+		let ribbonCustomizationEl: HTMLElement | null = null;
+
 		new Setting(panel)
 			.setName(tr('清理失联图片', 'Clean Orphan Images'))
 			.setDesc(
@@ -305,10 +308,14 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						// 其他功能区图标增删后，重新应用隐藏命令状态
 						this.plugin.ribbonManager?.refresh();
+						// 图标已增删：立即重绘下方列表，避免刚注销的条目仍留在列表中
+						if (ribbonCustomizationEl) {
+							renderRibbonCustomization(ribbonCustomizationEl, this.plugin);
+						}
 					}),
 			);
 
-		const ribbonCustomizationEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
+		ribbonCustomizationEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
 		renderRibbonCustomization(ribbonCustomizationEl, this.plugin);
 	}
 

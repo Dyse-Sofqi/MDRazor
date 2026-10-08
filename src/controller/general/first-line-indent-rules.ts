@@ -400,13 +400,21 @@ export interface IndentRuleOptions {
 /**
  * 找出「需要首行缩进的正文段落首行」（1-based 行号，升序）。
  *
- * 判定：该行是 text（正文）且属于一个段落的首行；再排除两类虽然算正文、
- * 但不该缩进的段落：
+ * 判定：该行是 text（正文）**或 blank（空行）**且属于一个段落的首行；
+ * 再排除三类虽然算正文、但不该缩进的段落：
  *   - 以 `![` 开头（纯图片 / 嵌入 `![[…]]`）—— 缩进会把图整体推右；
  *   - 以 `%%` 开头（单行注释开头，注释渲染为空）或 `$$` 开头（同行数学）。
  *
+ * 空行为什么也要缩进：回车新建的那一行是空的，若不挂装饰，光标会停在未缩进处、
+ * 键入第一个字符才跳过去（用户报告）。空行按「它若变成正文行会不会是段落首行」
+ * 判定，故与正文行共用同一条规则（见下）。
+ *
  * 「段落首行」随 Obsidian 的严格换行设置而变（见 IndentRuleOptions）：
  * 非严格换行时每个 text 行都是首行；严格换行时只有连续 text 行的第一行是。
+ * 空行同理：严格换行下「上一行是 text」即视为同一段的延续，不缩进。
+ *
+ * 注意：围栏代码块 / 数学块 / 注释块 / HTML 块**内部**的空行不会走到这里 ——
+ * 它们在 classifyLines 里已被块状态分支吃掉，类型是 code / math / comment / html。
  */
 export function findIndentableParagraphStarts(
 	src: IndentLineSource,
@@ -416,8 +424,9 @@ export function findIndentableParagraphStarts(
 	const kinds = classifyLines(src);
 	const starts: number[] = [];
 	for (let n = 1; n <= src.lineCount; n++) {
-		if (kinds[n - 1] !== 'text') continue;
-		// 严格换行：连续 text 行属同一段，只有第一行缩进
+		const kind = kinds[n - 1];
+		if (kind !== 'text' && kind !== 'blank') continue;
+		// 严格换行：连续正文行属同一段，只有第一行缩进
 		if (!nonStrict && n > 1 && kinds[n - 2] === 'text') continue;
 		const trimmed = src.readLine(n).trim();
 		if (trimmed.startsWith('![')) continue;

@@ -4,6 +4,61 @@
 
 ---
 
+## 2.7.1 (2026-10-08)
+
+### 左功能区「清理失联图片」开关：关闭后按钮未真正注销（用户报告）
+
+**现象：** 设置 → 左功能区 → 关闭「清理失联图片」后，左侧功能区的垃圾桶按钮没有消失（或闪一下又回来），点击仍能触发清理；「隐藏命令」列表里也仍然列着它。
+
+**实现位置：** `src/controller/orphan-image-cleaner/orphan-image-cleaner.ts`（`removeRibbon` 新增 `leftRibbon.removeRibbonAction(id)`）、`src/controller/ribbon-manager/ribbon-manager.ts`（`getRibbonItems` 跳过无 `buttonEl` 的条目）、`src/view/settings-tab.ts`（开关切换后重绘下方列表）；新增离线回归 `scripts/verify-ribbon-lifecycle.mjs`（`npm run verify:ribbon`，24 项）。
+
+1. **根因：`addRibbonIcon` 不只是「返回一个元素」** —— asar 实证（obsidian 1.13.7 的 app.js）：`addRibbonIcon(icon, title, cb)` 会算出 `id = manifest.id + ":" + title`，调 `workspace.leftRibbon.addRibbonItemButton(id, icon, title, cb)` 登记条目，再 `this.register(() => { removeRibbonAction(id); el.detach() })`。原 `removeRibbon()` 只做了 `el.remove()`，没做 `removeRibbonAction(id)`。
+2. **为什么「只摘 DOM」不够 —— 本插件自己的功能区管理器会把它装回去** —— `ribbon-manager` 的 `applyRibbonOrder()` 在每次 `refresh()` 时会把 `leftRibbon.items` 里**所有**带 `buttonEl` 的条目 `appendChild` 回容器（它需要这样做来同步拖拽排序）。而 `removeRibbonAction` 的真实语义是**只** `delete item.buttonEl; delete item.callback`，**不从 `items` 里 splice**（asar 实证，且这是宿主有意为之：条目留着才能保住位置、重新注册时按 id 复用）—— 所以正确注销后条目仍在数组里但不再可渲染；反之只摘 DOM 时 `buttonEl` 还在，下一次 `refresh()` 就把它挂了回来。设置面板的 onChange 恰好就是「`removeRibbon` → `saveSettings` → `ribbonManager.refresh()`」这个顺序，于是按钮「立刻又回来了」。
+3. **第二处缺口：列表仍列出该条目** —— `getRibbonItems()` 原先无条件遍历 `leftRibbon.items`，注销后的条目（无 `buttonEl`）仍会被列出（`name` 取 `item.title`，照样有名字、有图标）。补 `if (!item.buttonEl) continue;`。
+4. **第三处：设置面板不重绘** —— 开关 onChange 里没有重绘下方的「自定义命令 / 隐藏命令」列表，即使数据已更新用户仍看到旧列表。补一次 `renderRibbonCustomization(...)`（容器引用先 `let` 声明、后赋值，以保住「开关在上、列表在下」的 DOM 顺序，同时避免在闭包里引用尚未声明的 `const`）。
+5. **回归与 A/B** —— `scripts/verify-ribbon-lifecycle.mjs` 用**照抄 asar 语义**的 leftRibbon 桩（`addRibbonItemButton` / `removeRibbonAction` / `onChange` 三个方法逐条对齐，含「只 delete 不 splice」这个关键细节），把 `registerOrphanImageCleaner` 与 `registerRibbonManager` 的真实实现接上去跑 24 项断言。**A/B 实测**：把 `orphan-image-cleaner.ts` 回退到修复前 → 15 通过 / 9 失败（失败项全是「按钮复活 / 列表仍列出 / 回调未解除」）；只回退 `ribbon-manager.ts` → 22 / 2 失败（只剩列表项）；两处都在 → 24 / 0。夹具内另留一条**反例守卫**（只 detach 不注销 → 断言按钮必然复活），保证这条回归对原 bug 敏感、不会变成假绿。
+6. **写 DOM 桩的两个坑** —— ① 桩里的 `appendChild` 必须实现 **DOM 的「移动」语义**（先从前一个父节点摘除、再插到当前父节点末尾），否则 `applyRibbonOrder` 的重复 append 会在桩里堆出重复子节点，计数类断言全歪（本次先踩后修，4 项失败即由此而来）。② Node 22 的 `globalThis.navigator` 是**只读 getter**（直接赋值抛 `Cannot set property navigator`），`tr()` 的语言要固定就走桩里的 `requireApiVersion`/`getLanguage`，别去写 `navigator`。
+
+### 自定义命令的命令 id 失效：静默失效与守卫（用户报告：左功能区「Style Tuner」按钮点了没反应）
+
+**现象：** 库里左功能区的「Style Tuner」按钮点了没有任何反应，也没有任何提示。
+
+**根因：** 该按钮**不是** style-tuner 自带的 ribbon 图标（style-tuner 全程没调过 `addRibbonIcon`），而是 MDRazor 的自定义命令（`customRibbonCommands`），存的 `commandId` 是 `style-tuner:show-style-tuner-leaf`；而 style-tuner 在 **1.1.x 把命令 id 规范化成了 `show-view`**（作者 CHANGELOG 原文：「命令 id 规范化 — `show-style-tuner-leaf` → `show-view`」），库里装的 1.2.2 只注册 `show-view` → 命令不存在。**asar 实证**：`findCommand(id)` 是纯 id 查表（`this.commands[e]`），`executeCommandById` 对不存在的 id **返回 `false` 且不抛错**；而原 `executeCommand()` 只 `catch` 抛错 → `false` 被静默吞掉，无提示、无日志。
+
+**实现位置：** `src/controller/ribbon-manager/ribbon-manager.ts` 与 `src/controller/command-surface/command-surface.ts` 的 `executeCommand()`；回归 `scripts/verify-ribbon-lifecycle.mjs` 第 ⑦ 组（7 项）。
+
+1. **不能只看 `executeCommandById` 的返回值** —— 宿主在**回调抛错**时同样返回 `false`（asar：`executeCommand` 内部 `try{a5(e)}catch(t){…return!1}`），只看返回值会把「命令不存在」与「命令执行失败」混为一谈（第一版就是这么写的，被回归用例③当场打回）。正解：先用 `findCommand` 判定存在性，再执行；`false` 才归为「执行命令失败」。
+2. **命令 id 失效是「插件改名 / 卸载」的必然结果**，MDRazor 侧无法预知；能做的是**让失效可见** —— 提示里带上命令 id，用户一眼能看出是哪个插件改了名。同一守卫在功能区 / 状态栏 / 右键菜单三处共用。
+3. **回归的三种情形** —— 命令缺失（1 条提示且含 id）/ 命令正常（回调执行、0 条提示）/ 回调抛错（1 条「执行命令失败」）。Notice 桩把消息记进 `globalThis.__mdrazorNotices`，`makeCommands()` 按 asar 语义实现 `findCommand` + `executeCommandById`。
+
+### 首行缩进：回车新建的空行不缩进（用户报告）
+
+**现象：** 开启「首行缩进」后按回车，光标停在未缩进处；键入任意字符后光标与文字才一起跳到缩进位。
+
+**根因：** 缩进由 CM6 行装饰驱动，而段落首行判定只认 `text` 行 —— **空行是 `blank`**（`classifyLines` 的 `BLANK_RE` 分支），于是回车新建的空行**根本没挂装饰**；键入字符后该行变成 `text`，装饰才补上。**与 `text-indent` 本身无关。**
+
+**实现位置：** `src/controller/general/first-line-indent-rules.ts`（`findIndentableParagraphStarts` 纳入 `blank`）、`src/controller/general/first-line-indent.ts`（新增 `FIRST_LINE_INDENT_EMPTY_LINE_CLASS`，空行走另一套装饰类）、`styles.css`（空行改用透明左边框位移）；回归 `scripts/verify-first-line-indent.mjs`；机制页 `scripts/fixtures/first-line-indent-caret.html`、`first-line-indent-empty-line-shift.html`。
+
+1. **空行的判定沿用正文行的规则** —— 等价于问「这一行若变成正文行，会不会是段落首行」：非严格换行（Obsidian 默认）下每行都是一段，故**所有空行都缩进**（这正是「回车后光标对齐缩进」要的）；严格换行下只有「上一行不是正文行」的空行才算段落首行（回车是软换行，新行属同段续行，不缩进）。围栏代码块 / 数学块 / 注释块 / HTML 块**内部**的空行不受影响 —— 它们在 `classifyLines` 里已被块状态分支吃掉，类型不是 `blank`。
+2. **`text-indent` 修不了这个 bug（实测）** —— 无头 Chrome 153 量（`first-line-indent-caret.html`）：空行里唯一的子元素 `<br>` 已被 `text-indent` 推到 x=38px，但**内容盒左边界仍是 6px**；光标锚在行首时按内容盒定位，所以停在 6px。要修必须移动**内容盒本身**。
+3. **四种位移方案的实测对比（`first-line-indent-empty-line-shift.html`）** —— 目标：内容盒到 38px、行盒（背景盒）保持 0、高度不变。
+
+   | 方案 | 内容盒（光标基准） | 行盒 / 背景左边界 | 高度 |
+   |---|---|---|---|
+   | `text-indent: 2em`（原） | 6px ✗ | 0 ✓ | 25.59 ✓ |
+   | `margin-inline-start: 2em` | 38px ✓ | **32px ✗**（当前行高亮缺一角） | 25.59 ✓ |
+   | `padding-inline-start: 2em` | **32px ✗**（覆盖而非累加基础 padding） | 0 ✓ | 25.59 ✓ |
+   | `border-inline-start: 2em solid transparent` | 38px ✓ | 0 ✓ | 25.59 ✓ |
+
+   取**透明左边框**：内容盒右移、行盒不动、边框**累加**在既有 padding 之外（不依赖宿主把 `.cm-line` 的 padding 设成多少 —— Obsidian 归零、CM6 基础主题是 `0 2px 0 6px`）。弃用 padding 的第二个理由：CM6 的 `posAtCoords`（`rectanglesForRange`）会读「首个 `.cm-line` 的 `paddingLeft`」当文本区左边界，对 `text-indent` 取 `Math.min(0, x)` 故无副作用 —— padding 会污染该基准（表现为多行选择的背景左边界偏移）。
+4. **无头环境测不了「光标画在哪」** —— 折叠 range 的 `getBoundingClientRect()` 在空行里返回空矩形（`left=0, width=0`；`document.hasFocus()` 为 true、且锚在文本节点内时能正常返回，故不是焦点问题），`--screenshot` 连文字都不渲染（整图全白，539 字节）。故本次用**可测的代理量**（内容盒左边界 / `<br>` 左边界 / 高度）作判据，并明确记录「光标绘制位置」这一项是**推断**（内容盒已右移，光标锚在内容盒内）。**待用户在真实 Obsidian 里复验。**
+5. **夹具断言的写法调整** —— 空行是第 5 类刻意偏离（参考实现里空行不产出 `Paragraph`），逐行手写期望值会非常脆，故夹具那一层改成**性质断言**：参考实现判定过的行一个都不能丢、新增的只能落在空行上、非严格结果包含严格结果。内联用例仍逐条给精确期望值（含本 bug 的回归：`'甲段\n'` 在非严格换行下必须是 `[1, 2]`）。
+6. **无头浏览器可用性（本机实测）** —— `msedge.exe` 在本会话里完全跑不出输出（`--version` 都是空的，`--screenshot` 不产文件）；改用 Playwright 缓存的
+   `C:\Users\Administrator\AppData\Local\ms-playwright\chromium_headless_shell-1243\chrome-headless-shell-win64\chrome-headless-shell.exe`
+   可正常 `--dump-dom` 跑页面内测量脚本（`Google Chrome for Testing 153`）。另外本机 pip 装不了包（Pillow 失败），需要解析 PNG 时用纯 Python + `zlib` 手写解码。
+
+---
+
 ## 2.7.0 (2026-10-08)
 
 ### Callout 增强：可折叠 callout 单击标题区域切换折叠/展开

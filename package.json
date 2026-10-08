@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-mdrazor",
-	"version": "2.7.0",
+	"version": "2.7.1",
 	"description": "MDRazor - An Obsidian plugin for enhanced markdown editing",
 	"main": "main.js",
 	"type": "module",
@@ -14,7 +14,9 @@
 		"verify:callout": "node scripts/verify-callout-parse.mjs",
 		"verify:callout-fold": "node scripts/verify-callout-title-fold.mjs",
 		"verify:caret": "node scripts/verify-caret-reveal.mjs",
-		"release": "node scripts/release-rest.mjs"
+		"verify:ribbon": "node scripts/verify-ribbon-lifecycle.mjs",
+		"release": "node scripts/release-rest.mjs",
+		"release:py": "python scripts/release-rest.py"
 	},
 	"keywords": [],
 	"license": "0-BSD",

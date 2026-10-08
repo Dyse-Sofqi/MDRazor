@@ -67,6 +67,20 @@ export const FIRST_LINE_INDENT_BODY_CLASS = 'mdrazor-first-line-indent';
 /** 正文段落首行的行装饰类（styles.css 据它应用 text-indent） */
 export const FIRST_LINE_INDENT_LINE_CLASS = 'mdrazor-indent-first-line';
 
+/**
+ * **空的**段落首行的行装饰类（styles.css 据它改用透明左边框位移）。
+ *
+ * 为什么空行要单独一套：`text-indent` 只推「首行盒里的内联内容」。空行里没有
+ * 内联内容（只有一个 `<br>`），浏览器仍把光标画在**未缩进**处 —— 实测
+ * （scripts/fixtures/first-line-indent-caret.html，Chrome 153）：空行里的 `<br>`
+ * 已被 text-indent 推到 38px，但内容盒左边界仍是 6px，光标停在 6px；键入第一个
+ * 字符后行盒有了内容，光标才跳到 38px。改用**透明 `border-inline-start`** 把内容盒
+ * 右移一个缩进宽度：光标基准跟着走，而行盒（背景盒）不动，故「当前行高亮」等整行
+ * 背景不会被切掉一角；也不碰 `padding`，CM6 的 `posAtCoords` 文本区基准不受影响。
+ * 三者的实测对比见 scripts/fixtures/first-line-indent-empty-line-shift.html。
+ */
+export const FIRST_LINE_INDENT_EMPTY_LINE_CLASS = 'mdrazor-indent-first-line-empty';
+
 /** 缩进宽度 CSS 变量（body 上，单位 em；1em = 一个中文字符宽） */
 export const FIRST_LINE_INDENT_VAR = '--mdrazor-first-line-indent';
 
@@ -168,6 +182,11 @@ const firstLineIndentPlugin = ViewPlugin.fromClass(
 
 			const doc = view.state.doc;
 			const deco = Decoration.line({ class: FIRST_LINE_INDENT_LINE_CLASS });
+			// 空行走另一套样式（margin 位移）：text-indent 对空行不移动光标，
+			// 详见 FIRST_LINE_INDENT_EMPTY_LINE_CLASS 的说明
+			const emptyDeco = Decoration.line({
+				class: `${FIRST_LINE_INDENT_LINE_CLASS} ${FIRST_LINE_INDENT_EMPTY_LINE_CLASS}`,
+			});
 			const builder = new RangeSetBuilder<Decoration>();
 			// starts 升序、visibleRanges 升序 → 单游标推进即可，无需去重
 			let cursor = 0;
@@ -178,7 +197,7 @@ const firstLineIndentPlugin = ViewPlugin.fromClass(
 				while (cursor < starts.length && starts[cursor]! < firstLine) cursor++;
 				for (let k = cursor; k < starts.length && starts[k]! <= lastLine; k++) {
 					const line = doc.line(starts[k]!);
-					builder.add(line.from, line.from, deco);
+					builder.add(line.from, line.from, line.text.trim() === '' ? emptyDeco : deco);
 				}
 			}
 			return builder.finish();

@@ -47,6 +47,7 @@ export interface RibbonManager {
 interface CommandsInternal {
 	commands?: Record<string, { id: string; name: string; icon?: string }>;
 	executeCommandById?: (id: string) => unknown;
+	findCommand?: (id: string) => unknown;
 }
 
 /** Obsidian workspace.leftRibbon.items 中的单个条目结构 */
@@ -89,7 +90,27 @@ export function registerRibbonManager(plugin: MDRazorPlugin): RibbonManager {
 			return;
 		}
 		try {
-			await commands.executeCommandById(commandId);
+			// executeCommandById 对「命令不存在」与「回调抛错」**都**返回 false
+			//（asar 实证：findCommand 是纯 id 查表 `this.commands[id]`，而
+			// executeCommand 内部 catch 掉回调异常后返回 false），只看返回值会把
+			// 两者混为一谈。故先用 findCommand 判定存在性：
+			//   不存在 → 明确提示「命令不存在」——这正是「命令被改名 / 插件被卸载」
+			//   的典型症状，也是本次修复前会**永久静默失效**的那一类（例：style-tuner
+			//   1.1.x 把命令 id `show-style-tuner-leaf` 改成 `show-view`）；
+			//   存在但返回 false → 才是真正的「执行命令失败」。
+			if (typeof commands.findCommand === 'function' && !commands.findCommand(commandId)) {
+				console.error('MDRazor: command not found', commandId);
+				new Notice(
+					tr('命令不存在（可能来自已改名或卸载的插件）：', 'Command not found (renamed or removed plugin?): ') +
+						commandId,
+				);
+				return;
+			}
+			const executed = await commands.executeCommandById(commandId);
+			if (executed === false) {
+				console.error('MDRazor: command failed to run', commandId);
+				new Notice(tr('执行命令失败', 'Failed to execute command'));
+			}
 		} catch (e) {
 			console.error('MDRazor: failed to execute ribbon command', commandId, e);
 			new Notice(tr('执行命令失败', 'Failed to execute command'));
@@ -296,7 +317,10 @@ export function registerRibbonManager(plugin: MDRazorPlugin): RibbonManager {
 		const seenCustom = new Set<string>();
 
 		for (const item of getLeftRibbonItems()) {
-			const customId = item.buttonEl?.getAttribute(CUSTOM_ATTR) ?? null;
+			// 已注销的条目（removeRibbonAction 会清空 buttonEl）不再出现在列表中：
+			// 否则关闭对应开关后，该条目仍会留在「隐藏命令」列表里
+			if (!item.buttonEl) continue;
+			const customId = item.buttonEl.getAttribute(CUSTOM_ATTR) ?? null;
 			if (customId && customById.has(customId)) {
 				const cmd = customById.get(customId)!;
 				const key = customKey(cmd.id);

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>首行缩进：空行光标位置机制验证</title>
+<style>
+	html, body { margin: 0; padding: 0; }
+	body { font: 16px/1.6 sans-serif; }
+	.cm-content {
+		width: 620px;
+		padding: 4px 0;
+		outline: none;
+	}
+	/* 复刻 CM6 / Obsidian 的 .cm-line 基样式（CM6 baseTheme + Obsidian 覆盖） */
+	.cm-line {
+		display: block;
+		padding: 0 2px 0 6px;
+		white-space: pre-wrap;
+		word-break: break-word;
+		overflow-wrap: anywhere;
+	}
+	/* ── 方案 A：现状 —— text-indent ── */
+	.indent-text { text-indent: 2em; }
+	/* ── 方案 B：inline-block ::before 占位 ── */
+	.indent-before::before {
+		content: '';
+		display: inline-block;
+		width: 2em;
+		height: 0;
+	}
+	/* ── 方案 C（对照用，未采用）：margin 移动整行盒 —— 内容盒对了，但行盒/背景也会被推走 ── */
+	.indent-margin { margin-inline-start: 2em; }
+	#out { font: 12px/1.5 monospace; white-space: pre; padding: 8px; background: #f6f6f6; }
+	.sep { height: 12px; }
+</style>
+</head>
+<body>
+<div class="cm-content" id="content" contenteditable="true">
+
+	<!-- 1. 空行（只有一个 <br>，CM6 的实际形状） + text-indent（现状） -->
+	<div class="cm-line indent-text" id="A-empty-br"><br /></div>
+	<!-- 2. 空行 + ::before 占位 -->
+	<div class="cm-line indent-before" id="B-empty-br"><br /></div>
+	<!-- 3. 真·空行（无 br） + text-indent -->
+	<div class="cm-line indent-text" id="C-empty-nobr"></div>
+	<!-- 4. 真·空行（无 br） + ::before 占位 -->
+	<div class="cm-line indent-before" id="D-empty-nobr"></div>
+	<!-- 5. 有文字 + text-indent（对照，已知答案：文字起点 = contentLeft + 2em） -->
+	<div class="cm-line indent-text" id="E-text">甲乙丙丁戊己庚辛壬癸</div>
+	<!-- 6. 有文字 + ::before 占位 -->
+	<div class="cm-line indent-before" id="F-text">甲乙丙丁戊己庚辛壬癸</div>
+	<!-- 7. 无缩进空行（基线） -->
+	<div class="cm-line" id="G-plain-empty"><br /></div>
+	<!-- 8. 长文本 + text-indent：验证换行后的第 2 行不被缩进 -->
+	<div class="cm-line indent-text" id="H-wrap">甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥</div>
+	<!-- 9. 长文本 + ::before：验证换行后的第 2 行不被缩进 -->
+	<div class="cm-line indent-before" id="I-wrap">甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥</div>
+	<!-- 10. 空行 + margin 位移（对照：内容盒到 38，但行盒也被推到 32） -->
+	<div class="cm-line indent-margin" id="J-empty-margin"><br /></div>
+	<!-- 11. 空行 + margin 位移，无 <br>（验证空行也保有高度） -->
+	<div class="cm-line indent-margin" id="K-empty-margin-nobr"></div>
+</div>
+<pre id="out">…</pre>
+<script>
+const lines = [...document.querySelectorAll('.cm-line')];
+const content = document.getElementById('content');
+
+/** 折叠光标的矩形（Chrome 对折叠 range 会给出零宽光标矩形；无焦点时可能返回空矩形） */
+function caretRectAtStart(line) {
+	const sel = window.getSelection();
+	const r = document.createRange();
+	r.setStart(line, 0);
+	r.collapse(true);
+	sel.removeAllRanges();
+	sel.addRange(r);
+	const rect = r.getBoundingClientRect();
+	return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+}
+
+/** 对照组：把折叠光标放进**文本节点内部** offset 0（已知该处应有非零 x） */
+function caretRectInText(line) {
+	const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+	const n = walker.nextNode();
+	if (!n) return null;
+	const sel = window.getSelection();
+	const r = document.createRange();
+	r.setStart(n, 0);
+	r.collapse(true);
+	sel.removeAllRanges();
+	sel.addRange(r);
+	const rect = r.getBoundingClientRect();
+	return { left: rect.left, width: rect.width, height: rect.height };
+}
+
+/**
+ * 零宽探测：在行首插入一个零宽空格文本节点（\u200b，advance width = 0，
+ * 不改变任何布局），量它所在 range 的矩形左边界 —— 它等于「内容起点」的 x。
+ * 量完立即移除。
+ */
+function probeContentStartX(line) {
+	const zw = document.createTextNode('\u200b');
+	line.insertBefore(zw, line.firstChild);
+	const r = document.createRange();
+	r.setStart(zw, 0);
+	r.setEnd(zw, 1);
+	const rect = r.getBoundingClientRect();
+	const out = { left: rect.left, width: rect.width };
+	line.removeChild(zw);
+	return out;
+}
+
+/** 该行第一段文本的起点（用于有文字的行做对照） */
+function firstTextLeft(line) {
+	const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+	const n = walker.nextNode();
+	if (!n) return null;
+	const r = document.createRange();
+	r.setStart(n, 0);
+	r.setEnd(n, 1);
+	return r.getBoundingClientRect().left;
+}
+
+/** 该行第 2 视觉行的文本起点（用于验证换行续行不被缩进） */
+function secondVisualRowLeft(line) {
+	const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+	const n = walker.nextNode();
+	if (!n || n.length < 30) return null;
+	const r = document.createRange();
+	r.setStart(n, 0);
+	r.setEnd(n, 1);
+	const firstTop = r.getBoundingClientRect().top;
+	for (let i = 1; i < n.length; i++) {
+		r.setStart(n, i);
+		r.setEnd(n, i + 1);
+		const rect = r.getBoundingClientRect();
+		if (rect.top > firstTop + 1) return rect.left;
+	}
+	return null;
+}
+
+content.focus();
+const sel = window.getSelection();
+if (!sel.rangeCount) {
+	const r0 = document.createRange();
+	r0.setStart(content, 0);
+	r0.collapse(true);
+	sel.addRange(r0);
+}
+
+const rows = [];
+for (const line of lines) {
+	const cs = getComputedStyle(line);
+	const box = line.getBoundingClientRect();
+	const contentLeft = box.left + parseFloat(cs.paddingLeft);
+	const beforeW = parseFloat(getComputedStyle(line, '::before').width) || 0;
+	const caret = caretRectAtStart(line);
+	const caretInText = caretRectInText(line);
+	const probe = probeContentStartX(line);
+	// 空行里唯一的子元素是 <br>：它的左边界 = 光标应落的位置（光标锚在行首子元素上）
+	const br = line.querySelector('br');
+	const brRect = br ? br.getBoundingClientRect() : null;
+	rows.push({
+		id: line.id,
+		textIndent: cs.textIndent,
+		beforeWidth: beforeW,
+		contentLeft: +contentLeft.toFixed(2),
+		lineHeight: +box.height.toFixed(2),
+		caretAtStart: +caret.left.toFixed(2),
+		caretInText: caretInText ? +caretInText.left.toFixed(2) : null,
+		brLeft: brRect ? +brRect.left.toFixed(2) : null,
+		brWidth: brRect ? +brRect.width.toFixed(2) : null,
+		probeStartX: +probe.left.toFixed(2),
+		firstTextLeft: (() => { const v = firstTextLeft(line); return v == null ? null : +v.toFixed(2); })(),
+		secondRowLeft: (() => { const v = secondVisualRowLeft(line); return v == null ? null : +v.toFixed(2); })(),
+	});
+}
+
+document.getElementById('out').textContent =
+	'测量结果（contentLeft=6 是行 padding；2em @16px = 32px，缩进后内容起点应为 38）\n' +
+	'probeStartX = 行首插零宽空格量到的「内容起点」x；brLeft = 空行里 <br> 的左边界（光标锚点）\n\n' +
+	rows.map((r) =>
+		`${r.id.padEnd(16)} indent=${String(r.textIndent).padEnd(5)} before=${String(r.beforeWidth).padEnd(3)} h=${String(r.lineHeight).padEnd(6)} brLeft=${String(r.brLeft).padEnd(6)} probeStart=${String(r.probeStartX).padEnd(6)} firstText=${String(r.firstTextLeft).padEnd(6)} secondRow=${r.secondRowLeft}`,
+	).join('\n');
+</script>
+</body>
+</html>
