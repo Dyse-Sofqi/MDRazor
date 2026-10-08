@@ -22,6 +22,13 @@
  *   2. Gitee 镜像（GITEE_TOKEN 存在时；可 --skip-gitee）：推 main → 建 release
  *      （令牌走 query 参数、payload 走临时文件——两条实证过的坑）→ 传附件 → 验收
  *
+ * git 通道回退（2026-10-08 补：2.7.0 发版时 github.com:443 被阻断）：
+ *   `github.com:443` 时段性阻断时 `git push` / `git ls-remote` 全挂，但
+ *   `api.github.com` 通常仍可用。此时预检改经 API 读远端 main，--push 改走
+ *   REST API（blobs → tree → commit → PATCH ref，见 pushViaApi）；commit 用
+ *   本地提交元数据重建（SHA 与本地逐字节相同），并以「tree / commit 与本地
+ *   一致」两道闸门把关，不过就停 —— 绝不发错东西。
+ *
  * 任何一步失败都会打印「已完成到哪一步」并非零退出；脚本幂等，可反复运行。
  * 本文件是开发/发版工具，不参与插件构建（esbuild 只打包 src/main.ts），
  * 不进 main.js、不是发布资产，与 Obsidian 社区插件审核无关。
@@ -193,9 +200,14 @@ async function preflight() {
 	ok('工作区干净');
 
 	// 远端 main == 本地 HEAD（发版必须基于已推送的提交）
+	// git 通道（github.com:443）时段性阻断时，回退到 api.github.com 读引用
 	const head = run('git', ['rev-parse', 'HEAD']).stdout.trim();
 	const lsRemote = run('git', ['ls-remote', 'origin', 'refs/heads/main']);
-	const remoteMain = lsRemote.stdout.trim().split(/\s+/)[0] ?? '';
+	let remoteMain = lsRemote.code === 0 ? (lsRemote.stdout.trim().split(/\s+/)[0] ?? '') : '';
+	if (!remoteMain) {
+		remoteMain = remoteBranchSha('main') ?? '';
+		if (remoteMain) ok(`git 通道不可用，经 API 读到远端 main = ${remoteMain.slice(0, 7)}`);
+	}
 	if (remoteMain !== head) {
 		if (DO_PUSH && !DRY) {
 			log('   远端 main 与本地不一致，--push 生效：推送 main…');
@@ -213,8 +225,15 @@ async function preflight() {
 				],
 				{ env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
 			);
-			if (pushed.code !== 0) fail(`推送 main 失败：${pushed.stderr || pushed.stdout}`);
-			ok('已推送 main');
+			if (pushed.code === 0) {
+				ok('已推送 main（git 通道）');
+			} else {
+				// github.com:443 被阻断 → 整条推送改走 REST API（blobs → tree → commit → PATCH ref）
+				const why = (pushed.stderr || pushed.stdout).trim().split('\n').pop() ?? '';
+				log(`   git push 失败（${why.slice(0, 120)}），改走 GitHub REST API…`);
+				pushViaApi('main');
+				ok('已推送 main（REST API：blobs → tree → commit → PATCH ref）');
+			}
 			mark('推送 main');
 		} else {
 			fail(
@@ -255,6 +274,109 @@ function ghJsonParse(args) {
 	} catch {
 		return null;
 	}
+}
+
+/* ── GitHub REST API 回退通道（github.com:443 时段性阻断时）───────────
+ * git 通道（push / ls-remote）走 github.com，一旦被阻断整条发版链路就瘫掉；
+ * 而 api.github.com 通常仍可用。故这里补两个纯 API 实现：
+ *   - remoteBranchSha()：读远端分支 sha（git ls-remote 的替代）；
+ *   - pushViaApi()：blobs → tree → commit → PATCH ref（git push 的替代）。
+ * 关键：commit 用**本地提交自己的元数据**（author/committer 含时区偏移、
+ * message 原文）重建，SHA 与本地逐字节相同；并以「API tree == 本地 tree」
+ * 「API commit == 本地 HEAD」两道闸门把关 —— 不一致就停，宁可失败不发错东西。 */
+
+/** gh api 调用（失败抛错；payload 走临时文件，避免中文/引号被 shell 拆坏） */
+function ghApi(method, path, payload) {
+	const args = ['api', '-X', method, `repos/${ghSlug}/${path}`];
+	if (payload !== undefined) {
+		const p = tmpFile(`api-${Math.random().toString(36).slice(2)}.json`, JSON.stringify(payload));
+		args.push('--input', p);
+	}
+	const r = run('gh', args);
+	if (r.code !== 0) {
+		throw new Error(`gh api ${method} ${path} 失败：${(r.stdout + r.stderr).trim().slice(0, 300)}`);
+	}
+	try {
+		return JSON.parse(r.stdout || '{}');
+	} catch {
+		throw new Error(`gh api ${method} ${path} 返回不可解析：${(r.stdout || '').slice(0, 200)}`);
+	}
+}
+
+/** 读远端分支 sha（api.github.com；git ls-remote 的替代），失败返回 null */
+function remoteBranchSha(branch) {
+	try {
+		return ghApi('GET', `git/ref/heads/${branch}`)?.object?.sha ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/** 经 REST API 把本地 HEAD 推到远端分支（git push 的替代） */
+function pushViaApi(branch) {
+	const g = (fmt) => run('git', ['log', '-1', `--format=${fmt}`]).stdout.trim();
+	const headSha = run('git', ['rev-parse', 'HEAD']).stdout.trim();
+	const parentSha =
+		remoteBranchSha(branch) ?? run('git', ['rev-parse', `origin/${branch}`]).stdout.trim();
+	if (!parentSha) throw new Error(`无法确定远端 ${branch} 的父提交`);
+
+	// 改动文件（父提交 → HEAD）；父提交对象不在本地时退化为「本地提交自身的改动」
+	let files = run('git', ['diff', '--name-only', parentSha, headSha])
+		.stdout.trim()
+		.split('\n')
+		.filter(Boolean);
+	if (!files.length) {
+		const prev = run('git', ['rev-parse', 'HEAD~1']).stdout.trim();
+		files = run('git', ['diff', '--name-only', prev, headSha])
+			.stdout.trim()
+			.split('\n')
+			.filter(Boolean);
+	}
+	if (!files.length) throw new Error('没有可上传的改动文件');
+
+	// 行尾：以仓库（索引）里的行尾为准（`i/` 列），只把 i/lf 的工作区 CRLF 归一。
+	// ⚠️ `--eol` 输出用**制表符**分隔，正则必须用 \s（按空格写会静默解析出 0 条）。
+	const eolMap = new Map();
+	for (const line of run('git', ['ls-files', '--eol', ...files]).stdout.split('\n')) {
+		const m = /^(i\/\S+)\s+w\/\S+\s+\S+\s+(.+)$/.exec(line);
+		if (m) eolMap.set(m[2], m[1]);
+	}
+
+	const entries = [];
+	for (const f of files) {
+		const bytes = readFileSync(join(ROOT, f));
+		const isBinary = bytes.includes(0);
+		const repoEol = eolMap.get(f) ?? 'i/lf';
+		let content = bytes;
+		if (!isBinary && repoEol === 'i/lf' && bytes.includes(13)) {
+			content = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+		}
+		const blob = ghApi('POST', 'git/blobs', { content: content.toString('base64'), encoding: 'base64' });
+		entries.push({ path: f, mode: '100644', type: 'blob', sha: blob.sha });
+	}
+
+	const parentTree = ghApi('GET', `git/commits/${parentSha}`)?.tree?.sha;
+	if (!parentTree) throw new Error(`读不到父提交 ${parentSha.slice(0, 7)} 的 tree`);
+	const tree = ghApi('POST', 'git/trees', { base_tree: parentTree, tree: entries });
+	const localTree = run('git', ['rev-parse', 'HEAD^{tree}']).stdout.trim();
+	if (tree.sha !== localTree) {
+		throw new Error(`tree 闸门未过（API ${tree.sha} ≠ 本地 ${localTree}）—— 行尾/文件集不一致，已停止，未推送`);
+	}
+
+	const commit = ghApi('POST', 'git/commits', {
+		message: run('git', ['log', '-1', '--format=%B']).stdout.replace(/\n+$/, ''),
+		tree: tree.sha,
+		parents: [parentSha],
+		author: { name: g('%an'), email: g('%ae'), date: g('%aI') },
+		committer: { name: g('%cn'), email: g('%ce'), date: g('%cI') },
+	});
+	if (commit.sha !== headSha) {
+		throw new Error(`commit 闸门未过（API ${commit.sha} ≠ 本地 ${headSha}）—— 提交元数据不一致，已停止，未推送`);
+	}
+
+	ghApi('PATCH', `git/refs/heads/${branch}`, { sha: commit.sha, force: false });
+	// 本地 origin/<branch> 同步到该提交（github.com 不通，无法 fetch）
+	run('git', ['update-ref', `refs/remotes/origin/${branch}`, commit.sha]);
 }
 
 /** 分页拉全量 release（列表接口可能命中缓存，仅用于「找草稿」这类修复性分支） */

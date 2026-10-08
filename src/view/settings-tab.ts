@@ -214,8 +214,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			.setName(tr('Callout 增强', 'Callout Enhancement'))
 			.setDesc(
 				tr(
-					'实时预览下单击 callout 不再退回纯文本（`>` 引用源码），保持渲染外观；点击 callout 右上角的「编辑这个区块」按钮时，在保留官方渲染外观的前提下就地编辑其标题与正文纯文本，完成后自动写回并重新渲染。编辑正文时粘贴多行文本会自动补全换行后的 `>`（已有的 `>` 前缀会被剥离，避免出现 `> >`）。仅实时预览模式生效',
-					'In Live Preview, clicking a callout no longer reverts it to plain text (the raw `>` source); the rendered appearance is kept. Clicking the callout\'s "Edit this block" button lets you edit its title and body as plain text inside the official rendered appearance, then writes the result back and re-renders. When pasting multi-line text into the body, the leading `>` of each new line is completed automatically (existing `>` prefixes are stripped so you never get `> >`). Applies to Live Preview only.',
+					'实时预览下单击 callout 不再退回纯文本（`>` 引用源码），保持渲染外观；可折叠 callout（`[!type]+` / `[!type]-`）还支持单击标题区域（图标 / 标题文字）切换折叠 / 展开，不遮挡右上角的「编辑这个区块」按钮，在标题上拖拽选择文本不会触发折叠；点击 callout 右上角的「编辑这个区块」按钮时，在保留官方渲染外观的前提下就地编辑其标题与正文纯文本，完成后自动写回并重新渲染。编辑正文时粘贴多行文本会自动补全换行后的 `>`（已有的 `>` 前缀会被剥离，避免出现 `> >`）。仅实时预览模式生效',
+					'In Live Preview, clicking a callout no longer reverts it to plain text (the raw `>` source); the rendered appearance is kept. Collapsible callouts (`[!type]+` / `[!type]-`) also fold/expand when their title area (icon or title text) is clicked, without covering the "Edit this block" button, and dragging to select title text does not trigger a fold. Clicking the callout\'s "Edit this block" button lets you edit its title and body as plain text inside the official rendered appearance, then writes the result back and re-renders. When pasting multi-line text into the body, the leading `>` of each new line is completed automatically (existing `>` prefixes are stripped so you never get `> >`). Applies to Live Preview only.',
 				),
 			)
 			.addToggle((toggle) =>

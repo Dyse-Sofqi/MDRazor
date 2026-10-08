@@ -4,6 +4,26 @@
 
 ---
 
+## 2.7.0 (2026-10-08)
+
+### Callout 增强：可折叠 callout 单击标题区域切换折叠/展开
+
+**需求：** 设置 → 通用 → Callout 增强（默认开启）下，可折叠 callout（`[!type]+` / `[!type]-`）在实时预览里单击**标题区域**（图标 / 标题文字）即切换折叠 / 展开；前提是不能遮挡「编辑这个区块」按钮。
+
+**实现位置：** `src/controller/general/callout-enhancer.ts`（`tryToggleCalloutFold` + `handleClick` 新分支 + `handleMouseDown` 记录 mousedown 坐标 + `lastMouseDownPos` / `TITLE_FOLD_SLOP_PX` / `CALLOUT_TITLE_SELECTOR` / `CALLOUT_FOLD_SELECTOR` 四个新常量）、`scripts/verify-callout-title-fold.mjs`（新增离线回归，34 项）；README 中英、设置项说明中英、CHANGELOG 中英同步。**styles.css 零改动**（见第 8 条）。
+
+1. **标题区原本是死区** — 两股力量把它夹死了：Obsidian 原生只给标题行内的折叠箭头（`.callout-fold`）挂折叠行为，标题其余位置单击不折叠；而本模块为「单击不退回纯文本」（2.6.5 需求 1）在捕获阶段把标题区的点击整体 `preventDefault + stopPropagation`。于是补的只能是「拦截后自己触发折叠」。
+2. **重放合成 click，而不是自己切类名 / 写状态** — Obsidian 把折叠状态存在哪（`.callout` 上的类、aria 属性、图标旋转）是内部实现，本机无 Obsidian 安装可解包实证（本次改动在无 Obsidian 的环境完成），不猜。做法：拦下真实点击后 `foldEl.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}))` —— 与「真实点击箭头」走**同一条代码路径**（事件目标、冒泡路径完全一致，唯一差别是 `isTrusted`），对这些内部细节零假设。而箭头点击的原生行为本模块本就放行（INTERACTIVE_SELECTOR 含 `.callout-fold`，2.6.5 第 4 条），该路径确定可用。`bubbles: true` 保证无论 Obsidian 的处理器挂在箭头本身、标题行还是更上层都可可达；`cancelable: true` 避免它 preventDefault 时抛「非可取消事件」告警。合成 click 重新经过本模块自己的捕获处理器时，目标命中 `.callout-fold` → `interactiveInside` 放行 → 不会二次重放（回归用例③锁定）。
+3. **「不遮挡编辑按钮」靠分支顺序，不靠条件判断** — 用户的前提要求落实到 `handleClick` 的语句顺序上：编辑按钮（原生 `.edit-block-button`）→ 触屏编辑按钮 → `interactiveInside` 放行 → **新分支** → 常规拦截。前两条分流在任何情况下都先于折叠分支执行，回归用例②用真实处理器断言「点编辑按钮不产生合成 click 且走编辑分支」。触屏按钮挂在 widget 上而非标题行内，天然不与标题区重叠；原生按钮虽悬浮在 widget 右上角，但点击目标命中按钮本身即被最前面的分流接走。
+4. **可折叠判定 = 标题行内有 `.callout-fold`** — Obsidian 只为可折叠 callout 渲染折叠箭头（不可折叠的标题行只有图标 + 标题文字），故「标题行内查询不到 `.callout-fold`」即不可折叠，直接放行常规「保持渲染」路径（回归用例⑤）。不额外解析源码折叠标记：浮动 callout 的源码映射本就可能失败（2.6.5 已知限制），DOM 判定不受影响；且箭头元素被片段 `display:none` 时 `dispatchEvent` 依然可达处理器。
+5. **拖拽选择不算单击** — 标题文本可拖选是 2.6.5 第 15 条起既有的交互，而「在标题内拖拽后抬起」浏览器会在最近公共祖先（`.callout-title`）上补发 `click` —— 不设门槛会把「选择文本」误判成「折叠」。`handleMouseDown` 记录视口坐标，click 分支要求位移 ≤ 5px（`TITLE_FOLD_SLOP_PX`）；超过则交回常规拦截路径：不切换、仍保持渲染、选择照常（回归用例④，含 2px 抖动与 40px 拖拽两端）。
+6. **就地编辑会话进行中不切换（复查时补的守卫）** — 编辑期间标题行内是标题输入框，但其**左侧图标**仍在标题行内：点图标会走到新分支，而 `is-collapsed` 加上去没有任何视觉反馈（正文已被编辑态隐藏），且「取消」走 `closeSession(false)` **不重建 widget**、Obsidian 的 `is-collapsed` 类不会随会话拆除移除 —— 取消编辑后 callout 会停在折叠态。故 `tryToggleCalloutFold` 首行 `if (session) return false;`：编辑期间标题区保持既有行为（常规「保持渲染」拦截）。此时可点的标题区必在**编辑中的那个 callout** 内——点别处已在 mousedown 阶段被 `onOutsidePointer`（document 捕获）提交并关闭会话，故该守卫不会误伤别的 callout。回归用例⑨用桩 view 跑通真实 `openEditor` 全流程后锁定：会话中点图标不切换、取消后恢复切换。
+7. **嵌套 callout 只切换最近一层** — 标题元素从 `target.closest('.callout-title')` 取（而非从 widget 侧正查），折叠箭头在同一标题行内 `querySelector`：点内层标题落内层箭头、点外层落外层，互不串扰（回归用例⑥）。`widget.contains(titleEl)` 防的是几何判定路径把别处的标题误认。
+8. **刻意不加光标提示（styles.css 零改动）** — 原生可折叠 callout 的标题没有指针光标（Obsidian 原生标题点击也不折叠），本可以给可折叠标题行加 `cursor: pointer` 做 affordance，但最终**刻意保持 Obsidian 默认外观**：不加光标、不为这一个手势加任何额外交互提示（用户明确要求）。可折叠的视觉线索原生已有（标题行内的折叠箭头），不为它改变宿主既有的鼠标反馈语义。故本次改动**不碰 styles.css**。
+9. **验证手法：最小 DOM 桩 + 真实处理器** — 无 Obsidian 环境，参照 verify-list-integration.mjs 的做法把 obsidian / @codemirror/view 打成桩模块（`EditorView.findFromDOM` 返回经 globalThis 注入的桩 view，含 posAtDOM / posAtCoords / state.doc），自建最小 DOM 桩复现实时预览 widget 的 DOM 结构与事件传播（捕获 → 目标 → 冒泡，`registerDomEvent` 的 capture 处理器、元素自身监听、挂在 document 上的 onOutsidePointer 都参与；Obsidian DOM 助手 createEl/createDiv/setText/addClass/setCssProps 等一并桩掉），把 `registerCalloutEnhancer` 注册的**真实** mousedown/click 处理器接上去跑 34 项断言：分支顺序（编辑按钮 / 触屏按钮 / 箭头 / 链接）、三个门（标题行内、有折叠箭头、非拖拽）、编辑会话守卫、嵌套两层、正文区与右侧空白不误触、普通文本行不过度抑制、mousedown 阶段箭头放行标题阻断。**待用户在真实 Obsidian 里复验的只剩一点：合成 click 触发原生折叠后 callout 是否保持渲染**（理论上真实箭头点击在原生 Obsidian 里本就不退纯文本，否则原生折叠在实时预览里就是坏的；本模块的拦截只可能更稳）。
+
+---
+
 ## 2.6.9 (2026-10-07)
 
 ### 实时预览：空行内代码「光标被隐藏区间盖住」导致字符倒序、跑到标记外（用户报告）

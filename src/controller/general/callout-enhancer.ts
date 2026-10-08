@@ -5,7 +5,9 @@
  *   1. 实时预览下，单击 callout 不使其退回纯文本（`>` 引用源码），保持渲染外观；
  *   2. 点击 callout 右上角的「编辑这个区块」按钮时，能在 callout 正常渲染的
  *      外观里直接编辑纯文本内容；
- *   3. 粘贴多行文本时，自动补全换行后的 `>` 并校验。
+ *   3. 粘贴多行文本时，自动补全换行后的 `>` 并校验；
+ *   4. 可折叠 callout（`[!type]+` / `[!type]-`）在实时预览下，单击**标题区域**
+ *      （图标 / 标题文字）即切换折叠 / 展开，且不遮挡「编辑这个区块」按钮。
  *
  * ── 机制（读真实 obsidian 1.13.7 的 app.js / app.css 确认，非猜测）──
  *
@@ -58,6 +60,30 @@
  * `>`/`> ` 前缀以免出现 `> >`、去掉行尾空白），再按光标位置插入；提交时每一行
  * 统一补 `>` 前缀（空行补 `>`），即「换行后自动补全 `>`」。另注册一个保守的
  * CM6 粘贴兜底：光标位于 callout 源码行首且粘贴多行时，同样按 `>` 前缀展开。
+ *
+ * ── 需求 4 的设计取舍 ──
+ *
+ * Obsidian 原生的折叠开关只认标题行内的折叠箭头（`.callout-fold`）：标题其余
+ * 位置（图标 / 标题文字）单击并不折叠。而本模块为「保持渲染」（需求 1）早已
+ * 把标题区的点击整体拦截 —— 不补处理，标题区就是一片死区。故在 click 捕获
+ * 分支补一条：命中**可折叠** callout 的标题行、且不是折叠箭头 / 链接等交互
+ * 元素（它们在 interactiveInside 已放行）时，拦下这次点击，并**在折叠箭头上
+ * 重放一次合成 click**。
+ *
+ * 为什么不自己切类名 / 写状态：Obsidian 把折叠状态存在哪（`.callout` 上的类、
+ * aria 属性、图标旋转）全是内部实现，重放点击与「真实点击箭头」走**同一条
+ * 代码路径**，对这些细节零假设；而箭头点击的原生行为本模块本就放行
+ * （INTERACTIVE_SELECTOR 含 `.callout-fold`，见 DEBUGLOG 2.6.5 第 4 条），
+ * 该路径确定可用。
+ *
+ * 三个边界：
+ *   - 「编辑这个区块」按钮（原生 `.edit-block-button` 与插件触屏按钮）在
+ *     handleClick 里排在本分支**之前**分流，永不被遮挡（用户明确要求）；
+ *   - 拖拽选择标题文本不算单击：mousedown 与 click 位移超过
+ *     TITLE_FOLD_SLOP_PX 时不拦截也不切换，交回常规「保持渲染」路径
+ *     （标题文本仍可拖选，见 handleMouseDown 注释）；
+ *   - 就地编辑会话进行中不切换（切换不可见，且「取消」不重建 widget 会残留
+ *     折叠态，见 tryToggleCalloutFold）。
  */
 
 import { Notice, Plugin, setIcon } from 'obsidian';
@@ -70,6 +96,19 @@ import { tr } from '../../i18n';
 const CALLOUT_WIDGET_SELECTOR = '.cm-embed-block.cm-callout';
 /** 「编辑这个区块」按钮（Obsidian 自身类名：.embed-actions > .embed-action.edit-block-button） */
 const EDIT_BLOCK_BUTTON_SELECTOR = '.edit-block-button';
+/** callout 标题行（Obsidian 自身类名） */
+const CALLOUT_TITLE_SELECTOR = '.callout-title';
+/**
+ * 可折叠 callout 标题行内的折叠箭头（Obsidian 自身类名）。
+ * Obsidian 只为可折叠 callout（`[!type]+` / `[!type]-`）渲染该元素，
+ * 故「标题行内有 `.callout-fold`」即可判定该 callout 可折叠。
+ */
+const CALLOUT_FOLD_SELECTOR = '.callout-fold';
+/**
+ * 单击判定阈值（px）：mousedown 与 click 的位移超过它视为「拖拽选择标题文本」，
+ * 不触发折叠切换（标题文本可拖选是本模块既有的交互，见 handleMouseDown 注释）。
+ */
+const TITLE_FOLD_SLOP_PX = 5;
 /** 本模块插入的编辑面板根节点类名 */
 const EDITOR_ROOT_CLASS = 'mdrazor-callout-editor';
 /**
@@ -122,6 +161,11 @@ const TOUCH_EDIT_BUTTON_CLASS = 'mdrazor-callout-touch-edit-button';
 let isEnabledRef: (() => boolean) | null = null;
 /** 「触屏编辑按钮」子开关读取器（registerCalloutEnhancer 传入） */
 let isTouchButtonEnabledRef: (() => boolean) | null = null;
+/**
+ * 最近一次 mousedown 的视口坐标（click 分支据此区分「单击标题」与
+ * 「拖拽选择标题文本」；位移超过 TITLE_FOLD_SLOP_PX 后者不触发折叠切换）。
+ */
+let lastMouseDownPos: { x: number; y: number } | null = null;
 
 /** callout 源码解析结果 */
 interface CalloutSource {
@@ -180,7 +224,8 @@ let session: CalloutSession | null = null;
  * 注册 Callout 增强（onload 调用一次）。
  *
  * 捕获阶段监听 mousedown / click：既阻止「单击 callout 退回纯文本」，
- * 也接管「编辑这个区块」按钮。CM6 粘贴扩展作为 `>` 补全的兜底路径。
+ * 也接管「编辑这个区块」按钮，并在可折叠 callout 的标题区域单击时切换
+ * 折叠/展开（见 tryToggleCalloutFold）。CM6 粘贴扩展作为 `>` 补全的兜底路径。
  * 另挂 MutationObserver 为 callout widget 注入触屏编辑按钮（见
  * TOUCH_EDIT_BUTTON_CLASS 注释——原生按钮仅悬停可见，触屏无法呼出）。
  *
@@ -344,10 +389,14 @@ function resolveCalloutWidget(target: HTMLElement, event: MouseEvent): HTMLEleme
  *
  * 例外：
  *   - 编辑面板内部 → 完全放行；
- *   - 其他交互元素（链接 / 折叠箭头 / 嵌入块 / 表单控件）→ 放行原生行为。
+ *   - 其他交互元素（链接 / 折叠箭头 / 嵌入块 / 表单控件）→ 放行原生行为；
+ *   - 可折叠 callout 的标题区域 → 同样阻断传播（单击切换折叠/展开由 click
+ *     分支的 tryToggleCalloutFold 处理，mousedown 这里只负责让 widget 不被撤掉）。
  */
 function handleMouseDown(event: MouseEvent): void {
 	if (!isEnabledRef?.()) return;
+	// 记录坐标：click 分支靠它区分「单击标题（切换折叠）」与「拖拽选择标题文本」
+	lastMouseDownPos = { x: event.clientX, y: event.clientY };
 	const target = eventTargetElement(event);
 	if (!target) return;
 	// 编辑面板自身（输入框、按钮）需要正常获得焦点与默认行为
@@ -365,6 +414,7 @@ function handleMouseDown(event: MouseEvent): void {
  * 捕获阶段 click：
  *   - 「编辑这个区块」按钮 → 打开就地编辑面板（并阻止 Obsidian 的整段选区派发）；
  *   - callout 内的交互元素 → 放行原生行为；
+ *   - 可折叠 callout 的标题区域（非交互元素）→ 切换折叠/展开（见 tryToggleCalloutFold）；
  *   - callout 其他位置（含其右侧同一行的空白区）→ 阻止默认，callout 保持渲染。
  */
 function handleClick(event: MouseEvent): void {
@@ -398,9 +448,73 @@ function handleClick(event: MouseEvent): void {
 	// 链接 / 折叠箭头等交互元素保持原生行为
 	if (interactiveInside(target, widget)) return;
 
+	// 可折叠 callout 的标题区域：单击切换折叠/展开（在折叠箭头上重放合成
+	// click，折叠状态切换完全交给 Obsidian 原生处理器，详见 tryToggleCalloutFold）
+	if (tryToggleCalloutFold(target, widget, event)) return;
+
 	// 阻止 Obsidian selectElement() 派发整段选区 → callout 保持渲染
 	event.preventDefault();
 	event.stopPropagation();
+}
+
+/**
+ * 可折叠 callout 的标题区域单击 → 切换折叠 / 展开。
+ *
+ * Obsidian 原生的折叠开关只认标题行内的折叠箭头（`.callout-fold`）：标题其余
+ * 位置（图标 / 标题文字）单击并不折叠，而本模块为「保持渲染」又早已把标题区
+ * 的点击整体拦截（见 handleClick 末两条）—— 不补处理它就是死区。
+ *
+ * 做法是**在折叠箭头上重放一次合成 click**，而不是自己切类名 / 写状态：
+ * Obsidian 把折叠状态存在哪（`.callout` 上的类、aria 属性、图标旋转）全是
+ * 内部实现，重放点击与「真实点击箭头」走同一条代码路径，零假设；且箭头点击
+ * 的原生行为本模块本就放行（INTERACTIVE_SELECTOR 含 `.callout-fold`），该
+ * 路径确定可用。合成事件 `bubbles: true`：无论 Obsidian 的处理器挂在箭头
+ * 本身、标题行还是更上层，都与真实点击箭头等价可达；`cancelable: true`：
+ * 处理器若 preventDefault 不会触发「非可取消事件」告警。
+ *
+ * 约束（对应用户要求「不能遮挡编辑这个区块按钮」与「标题文本可拖选」）：
+ *   - 「编辑这个区块」按钮（原生 `.edit-block-button` 与插件触屏按钮）在
+ *     handleClick 里排在本函数之前分流，永不会被本分支吞掉；
+ *   - 折叠箭头自身的点击在 interactiveInside 已放行走原生，不会走到这里
+ *     （否则合成点击会与原生切换叠加成两次）；
+ *   - 拖拽选择标题文本不算单击：mousedown 与 click 位移超过
+ *     TITLE_FOLD_SLOP_PX 时返回 false，交回 handleClick 的常规拦截
+ *     （保持渲染 + 允许拖选），不切换折叠；
+ *   - 就地编辑会话进行中不切换（此时标题行内是标题输入框，点图标等位置
+ *     切换折叠不可见，且「取消」不重建 widget、折叠类会残留）。
+ *
+ * @returns 是否已处理本次点击（true = 调用方应直接 return）
+ */
+function tryToggleCalloutFold(target: HTMLElement, widget: HTMLElement, event: MouseEvent): boolean {
+	// 编辑会话进行中：可点的标题区必在**编辑中的那个 callout** 内（点别处已
+	// 在 mousedown 阶段被 onOutsidePointer 提交并关闭会话），此时切换折叠
+	// 没有视觉反馈，且 closeSession(false)（取消）不重建 widget，Obsidian
+	// 的 is-collapsed 类会残留在 `.callout` 上 —— 取消编辑后 callout 停在
+	// 折叠态。故编辑期间标题区保持既有行为（常规「保持渲染」拦截）。
+	if (session) return false;
+	const titleEl = target.closest<HTMLElement>(CALLOUT_TITLE_SELECTOR);
+	// widget.contains 限定范围：嵌套 callout 只切换被点的最近一层
+	if (!titleEl || !widget.contains(titleEl)) return false;
+	// 标题行内没有折叠箭头 → 该 callout 不可折叠（Obsidian 只为可折叠
+	// callout 渲染 .callout-fold），不属于本分支
+	const foldEl = titleEl.querySelector<HTMLElement>(CALLOUT_FOLD_SELECTOR);
+	if (!foldEl) return false;
+	// 拖拽选择（mousedown → mouseup 有明显位移）不当单击：不拦截、不切换，
+	// 让 handleClick 走常规的「保持渲染」路径，标题文本照常可拖选
+	if (
+		lastMouseDownPos &&
+		(Math.abs(event.clientX - lastMouseDownPos.x) > TITLE_FOLD_SLOP_PX ||
+			Math.abs(event.clientY - lastMouseDownPos.y) > TITLE_FOLD_SLOP_PX)
+	) {
+		return false;
+	}
+	// 先拦下这次真实点击（阻止 Obsidian hookClickHandler → selectElement()
+	// 把 callout 退回纯文本），再在折叠箭头上重放一次合成 click ——
+	// 折叠/展开完全由 Obsidian 自己的处理器完成
+	event.preventDefault();
+	event.stopPropagation();
+	foldEl.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+	return true;
 }
 
 /** 取事件目标元素（文本节点时回退父元素） */
