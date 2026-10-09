@@ -45,7 +45,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	private typewriterTopPaddingSetting?: Setting;
 	private typewriterDeadZoneJumpSetting?: Setting;
 
-	/** 首行缩进子设置项引用（开关关闭时隐藏缩进宽度滑块） */
+	/** 首行缩进开关与子设置项引用（命令一键切换后同步显示；开关关闭时隐藏缩进宽度滑块） */
+	private firstLineIndentToggle?: import('obsidian').ToggleComponent;
 	private firstLineIndentSizeSetting?: Setting;
 
 	/** 当前激活的标签页索引（会话内记忆，设置面板重开时保留） */
@@ -69,6 +70,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 		this.typewriterOpacitySetting = undefined;
 		this.typewriterTopPaddingSetting = undefined;
 		this.typewriterDeadZoneJumpSetting = undefined;
+		this.firstLineIndentToggle = undefined;
 		this.firstLineIndentSizeSetting = undefined;
 		this.lazyListEl = undefined;
 
@@ -157,7 +159,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 					'When enabled, the first line of every body paragraph is indented by the width set below (1–2 Chinese characters). Applies to Live Preview and Reading view only (in source mode the indent would push the raw Markdown right, so it is skipped). Paragraph boundaries follow Obsidian\'s "Strict line breaks" setting (Settings → Editor): when off (the default) a single Enter is a hard line break, so every body line counts as its own paragraph and is indented; when on, a single Enter is a soft break and only the first line of the whole paragraph is indented. Headings, tables, lists, blockquotes and callouts, code blocks, math blocks, comments, HTML blocks, frontmatter, footnote and link-reference definitions, standalone block IDs, and image-only or embed-only paragraphs are never indented. CodeMirror has no paragraph element (a paragraph is just a run of .cm-line divs), so plain CSS cannot tell a paragraph start from a continuation line — the plugin classifies the Markdown block structure instead.',
 				),
 			)
-			.addToggle((toggle) =>
+			.addToggle((toggle) => {
+				this.firstLineIndentToggle = toggle;
 				toggle
 					.setValue(this.plugin.settings.firstLineIndentEnabled)
 					.onChange(async (value) => {
@@ -167,8 +170,8 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						applyFirstLineIndentClass(this.plugin.app);
 						await this.plugin.saveSettings();
 						this.applyFirstLineIndentChildVisibility();
-					}),
-			);
+					});
+			});
 
 		this.firstLineIndentSizeSetting = new Setting(panel)
 			.setName(tr('首行缩进宽度', 'First-Line Indent Width'))
@@ -357,7 +360,24 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
-			
+
+		new Setting(panel)
+			.setName(tr('开启/关闭首行缩进', 'Toggle First-Line Indent'))
+			.setDesc(
+				tr(
+					'开启后在编辑器右键菜单中添加「开启/关闭首行缩进」菜单项：点击即切换通用设置里的「首行缩进」开关（与设置面板开关双向同步，立即生效，无需重载插件）。命令「开启/关闭首行缩进」随插件注册、不受此开关影响，关闭菜单项后仍可通过命令面板或绑定快捷键触发',
+					'Adds a "Toggle First-Line Indent" item to the editor context menu when enabled: clicking it flips the "First-line indent" toggle in General settings (two-way synced with the settings panel, effective immediately without reloading the plugin). The "Toggle First-Line Indent" command is always registered and stays available from the command palette or a hotkey when this toggle is off.',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.contextMenuFirstLineIndent)
+					.onChange(async (value) => {
+						this.plugin.settings.contextMenuFirstLineIndent = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
 			const contextCmdEl = panel.createDiv({ cls: 'mdrazor-ribbon-customization' });
 			renderCommandSurfaceSettings(contextCmdEl, this.plugin, 'contextMenu');
 	}
@@ -547,6 +567,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		let thresholdToggle: import('obsidian').ToggleComponent;
 		let scrollSyncToggle: import('obsidian').ToggleComponent;
+		let scrollPinToggle: import('obsidian').ToggleComponent;
 
 		new Setting(panel)
 			.setName(tr('选项聚焦', 'Focus List Item'))
@@ -558,6 +579,7 @@ export class MDRazorSettingTab extends PluginSettingTab {
 						this.plugin.settings.listFocusOption = value;
 						(thresholdToggle.toggleEl as HTMLInputElement).disabled = !value;
 						(scrollSyncToggle.toggleEl as HTMLInputElement).disabled = !value;
+						(scrollPinToggle.toggleEl as HTMLInputElement).disabled = !value;
 						await this.plugin.saveSettings();
 					}),
 			);
@@ -588,16 +610,40 @@ export class MDRazorSettingTab extends PluginSettingTab {
 
 		new Setting(panel)
 			.setName(tr('滚轴同步', 'Scroll Sync'))
-			.setDesc(tr('选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 25% 处，避免长列表伸缩使光标跑出视图外', 'When Focus List Item triggers a fold/unfold, the cursor line is scrolled to 25% of the viewport so the cursor stays in view while long lists expand or collapse.'))
+			.setDesc(tr('选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 25% 处，避免长列表伸缩使光标跑出视图外。与「滚轴固定」互斥（同时开启时以滚轴固定为准）', 'When Focus List Item triggers a fold/unfold, the cursor line is scrolled to 25% of the viewport so the cursor stays in view while long lists expand or collapse. Mutually exclusive with Pin Cursor (Pin Cursor wins if both are on).'))
 			.addToggle((toggle) => {
 				scrollSyncToggle = toggle;
 				toggle
 					.setValue(this.plugin.settings.focusScrollSync)
 					.onChange(async (value) => {
 						this.plugin.settings.focusScrollSync = value;
+						// 互斥：开启滚轴同步时关闭滚轴固定
+						if (value) {
+							this.plugin.settings.focusScrollPin = false;
+							scrollPinToggle.setValue(false);
+						}
 						await this.plugin.saveSettings();
 					});
 				(scrollSyncToggle.toggleEl as HTMLInputElement).disabled = !this.plugin.settings.listFocusOption;
+			});
+
+		new Setting(panel)
+			.setName(tr('滚轴固定', 'Pin Cursor'))
+			.setDesc(tr('选项聚焦触发折叠/展开时，把光标行固定在触发前的屏幕位置，使折叠/展开围绕光标所在行进行，页面不大幅跳跃、光标不落出视口。与「滚轴同步」互斥（同时开启时以本项为准）', 'When Focus List Item triggers a fold/unfold, the cursor line is pinned to its on-screen position from just before the trigger, so folding/unfolding happens around the cursor line without the page jumping or the cursor leaving the viewport. Mutually exclusive with Scroll Sync (this option wins if both are on).'))
+			.addToggle((toggle) => {
+				scrollPinToggle = toggle;
+				toggle
+					.setValue(this.plugin.settings.focusScrollPin)
+					.onChange(async (value) => {
+						this.plugin.settings.focusScrollPin = value;
+						// 互斥：开启滚轴固定时关闭滚轴同步
+						if (value) {
+							this.plugin.settings.focusScrollSync = false;
+							scrollSyncToggle.setValue(false);
+						}
+						await this.plugin.saveSettings();
+					});
+				(scrollPinToggle.toggleEl as HTMLInputElement).disabled = !this.plugin.settings.listFocusOption;
 			});
 
 		new Setting(panel)
@@ -1131,6 +1177,15 @@ export class MDRazorSettingTab extends PluginSettingTab {
 	syncTypewriterFromSettings(): void {
 		this.typewriterToggle?.setValue(this.plugin.settings.typewriterMode);
 		this.applyTypewriterChildVisibility();
+	}
+
+	/**
+	 * 从当前设置值刷新首行缩进开关与子设置项显隐。
+	 * 由命令「开启/关闭首行缩进」一键切换后调用，使设置界面与设置对象保持一致。
+	 */
+	syncFirstLineIndentFromSettings(): void {
+		this.firstLineIndentToggle?.setValue(this.plugin.settings.firstLineIndentEnabled);
+		this.applyFirstLineIndentChildVisibility();
 	}
 
 	/**

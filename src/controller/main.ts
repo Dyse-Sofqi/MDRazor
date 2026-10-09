@@ -66,6 +66,7 @@ import {
 	applyFirstLineIndentReading,
 	removeFirstLineIndentReading,
 } from './general/first-line-indent-reading';
+import { registerFirstLineIndentToggle } from './general/first-line-indent-toggle';
 import { registerMeasureGuard } from './general/measure-guard';
 import { createClickSyncExtension } from './general/click-sync';
 
@@ -193,6 +194,18 @@ export default class MDRazorPlugin extends Plugin {
 		// 注册通用功能：首行缩进的阅读视图逐行缩进（非严格换行下单回车是 <p> 内的
 		// <br>，拿不到 text-indent，只能由 DOM 后处理补占位元素；见该模块注释）
 		registerFirstLineIndentReading(this, () => this.settings.firstLineIndentEnabled);
+
+		// 注册「开启/关闭首行缩进」命令 + 编辑器右键菜单项（切换设置开关，
+		// 与设置面板开关双向同步；菜单项显示由「右键菜单」模块的开关控制）
+		registerFirstLineIndentToggle(
+			this,
+			this.settings,
+			async () => {
+				await this.saveSettings();
+				this.settingTab?.syncFirstLineIndentFromSettings();
+			},
+			() => this.settings.contextMenuFirstLineIndent,
+		);
 
 		// 注册编辑器测量守护（始终开启）：样式注入/晚到字体触发重排时
 		// 强制 requestMeasure 刷新 CM6 行高表，根治「点击行上半部落到上一行」

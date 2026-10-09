@@ -9,6 +9,13 @@
  * 折叠使用 CM6 的 foldEffect/unfoldEffect（不移动光标）。
  * foldService 注册可折叠范围以供 gutter 交互。
  *
+ * 折叠/展开会改变上方内容的渲染高度，光标虽在文档位置不动、屏幕上却会
+ * 上下漂移。两种补偿策略（互斥，见 focus-scroll.ts 的 resolveFocusScrollMode）：
+ *   - 「滚轴同步」：把光标行滚到视口 25% 处；
+ *   - 「滚轴固定」：把光标行固定在触发前的屏幕位置 —— 折叠/展开围绕光标
+ *     所在行进行，页面不大幅跳跃、光标不落出视口。
+ * 两者都只在折叠/展开确实发生变化时随同一次 dispatch 派发滚动效果。
+ *
  * 折叠状态感知：除本插件记录的折叠外，applyFolds 还读取编辑器实际折叠状态
  * （foldedRanges），焦点块内被外部功能（如「展开/折叠同级列表或标题」命令、
  * 手动折叠）折叠、但按聚焦计算应展开的列表项会被一并展开，避免外部折叠
@@ -23,6 +30,7 @@ import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { EditorState, Prec, StateEffect } from '@codemirror/state';
 import { syntaxTree, foldEffect, unfoldEffect, foldService, foldedRanges } from '@codemirror/language';
 import { listEnhancerConfig } from '../../model/shared';
+import { resolveFocusScrollMode, computePinMargin, type FocusScrollMode } from './focus-scroll';
 
 // 鼠标按下标志：鼠标未弹起时不触发折叠，避免拖选过程中闪烁
 let isPointerDown = false;
@@ -561,10 +569,34 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				}
 			}
 
-			// 滚轴同步：仅当折叠/展开确实发生变化时，把光标所在行滚至视口 25% 处
-			const scrollPos = listEnhancerConfig.focusScrollSync ? cursorPos : null;
-			this.applyFolds(cmView, newRanges, blockLineNumbers, scrollPos);
+			// 滚动策略：滚轴固定 / 滚轴同步（互斥，固定优先）或不动（none）
+			const scrollMode = resolveFocusScrollMode(listEnhancerConfig);
+			this.applyFolds(cmView, newRanges, blockLineNumbers, scrollMode, cursorPos);
 			this.currentRanges = newRanges;
+		}
+
+		/**
+		 * 测量光标行当前在滚动视口内的上边距（像素），供「滚轴固定」作
+		 * scrollIntoView 的 yMargin —— 折叠/展开后光标回到同一屏幕位置。
+		 *
+		 * 必须在派发折叠效果*之前*调用（此时布局仍是触发前的）。返回 null
+		 * 表示位置未渲染 / 布局不可读，调用方跳过滚动效果（折叠照常）。
+		 * coordsAtPos 在 update() 期间会抛错，故此处 try/catch 兜底。
+		 */
+		private cursorPinMargin(
+			view: EditorView,
+			pos: number,
+			viewportHeight: number,
+		): number | null {
+			let coords: { top: number; bottom: number } | null;
+			try {
+				coords = view.coordsAtPos(pos);
+			} catch {
+				return null;
+			}
+			if (!coords) return null;
+			const scrollTop = view.scrollDOM.getBoundingClientRect().top;
+			return computePinMargin(coords.top, coords.bottom, scrollTop, viewportHeight);
 		}
 
 		/**
@@ -582,7 +614,8 @@ const focusViewPlugin = ViewPlugin.fromClass(
 			view: EditorView,
 			targetRanges: Array<{ from: number; to: number }>,
 			blockLineNumbers: Set<number> = new Set(),
-			scrollPos: number | null = null,
+			scrollMode: FocusScrollMode = 'none',
+			scrollPos: number = -1,
 		): void {
 			const effects: Array<StateEffect<unknown>> = [];
 
@@ -623,14 +656,27 @@ const focusViewPlugin = ViewPlugin.fromClass(
 				effects.push(foldEffect.of(r));
 			}
 
-			// 滚轴同步：折叠/展开确实变化时，追加滚动效果，使光标行对齐视口
-			// 25% 处（与折叠效果同一次 dispatch，避免二次 update 循环）
-			if (scrollPos !== null && effects.length > 0) {
+			// 折叠/展开确实变化时才追加滚动效果（与折叠效果同一次 dispatch，
+			// 避免二次 update 循环）。注意：pin 的偏移必须在派发前测量 ——
+			// 此刻 view 仍是触发前的布局。
+			if (effects.length > 0 && scrollMode !== 'none' && scrollPos >= 0) {
 				const viewportHeight = view.scrollDOM.clientHeight;
-				effects.push(EditorView.scrollIntoView(scrollPos, {
-					y: 'start',
-					yMargin: viewportHeight * 0.25,
-				}));
+				if (scrollMode === 'sync') {
+					// 滚轴同步：光标行滚至视口 25% 处
+					effects.push(EditorView.scrollIntoView(scrollPos, {
+						y: 'start',
+						yMargin: viewportHeight * 0.25,
+					}));
+				} else {
+					// 滚轴固定：光标行停在触发前的屏幕位置
+					const yMargin = this.cursorPinMargin(view, scrollPos, viewportHeight);
+					if (yMargin !== null) {
+						effects.push(EditorView.scrollIntoView(scrollPos, {
+							y: 'start',
+							yMargin,
+						}));
+					}
+				}
 			}
 
 			if (effects.length > 0) {

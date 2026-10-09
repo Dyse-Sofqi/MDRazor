@@ -127,7 +127,9 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
   - **二级子项最大展开数** — 选项聚焦的子设置（滑块 1-9 + 开关）。开启后，一级项的第二级子项数量 ≤ 设定值时该一级项展开。仅影响一级项，其后代仍受选项聚焦影响。选项聚焦关闭时此设置自动禁用。
 
-- **滚轴同步** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 25% 处，避免长列表伸缩使光标跑出视图外。选项聚焦关闭时此开关自动禁用。
+- **滚轴同步** — 选项聚焦的子开关（默认关闭）。选项聚焦触发折叠/展开时，自动将光标所在行滚动至视口 25% 处，避免长列表伸缩使光标跑出视图外。与「滚轴固定」互斥（同时开启时以滚轴固定为准）。选项聚焦关闭时此开关自动禁用。
+
+- **滚轴固定** — 选项聚焦的子开关（默认开启）。选项聚焦触发折叠/展开时，把光标行固定在**触发前的屏幕位置**，使折叠/展开围绕光标所在行进行：页面不大幅跳跃，光标也不落出视口外（光标原本已在视口外时会被拉回可见范围）。与「滚轴同步」互斥（同时开启时以本项为准）。选项聚焦关闭时此开关自动禁用。
 
 - **上下键默认不跳过被折叠的列表/标题项** — 按下/上键时，若目标行是被折叠的列表项或标题内容，主动展开该折叠块并进入目标行（保持目标列），而非像 CodeMirror 原生那样整块跳过。光标连续导航不被折叠块阻断。**上键同级回跳（任意层级）**：按 ↑ 时若光标所在行是列表项、且上一行（或其续行）所属列表项的层级比当前更低（更深——如位于前一同级项子树末尾的深层项），光标直接跳转到上一个与当前层级相同的列表项所在行（被折叠挡住时同样展开进入），而非落入上一行所属的更深子树。适用于全部层级：二级遇三/四级及以上跳上一个二级，三级遇四级及以上跳上一个三级，依此类推；扫描跳过续行、遇空行/段落/标题等块边界即止，不跨列表块跳转。
 
@@ -184,6 +186,8 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 - **批量删除空行** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。有选中文本时删除选中范围内的所有空行，无选中时删除当前文档的所有空行；经编辑器替换执行，可 Ctrl/Cmd+Z 撤销。**Markdown 感知**：标题、分割线、表格、列表、引用块、代码块前后的空行，以及代码块内部、两个独立表格之间的空行会被保留（连续空行折叠为一个），仅删除段落之间、文档首尾、列表项与列表项之间、表格行与行之间的空行——避免破坏 表格/列表 等结构（粘贴复制的网页内容常带表格行间空行，删除后可正常渲染）。命令「批量删除空行」随插件注册、不受此开关影响，关闭菜单项后仍可通过命令面板或绑定快捷键触发。
 
+- **开启/关闭首行缩进** — 开启后，Markdown 编辑器右键菜单中显示同名菜单项（默认开启）。点击即切换「通用」模块里的**首行缩进**开关（与设置面板开关双向同步，立即生效、无需重载插件）。命令 `mdrazor-toggle-first-line-indent` 随插件注册、不受此开关影响，关闭菜单项后仍可通过命令面板或绑定快捷键触发。
+
 - **自定义命令** — 将任意命令添加为编辑器右键菜单项（图标 + 名称），点击执行；支持删除与拖拽排序。
 - **隐藏命令** — 捕获 Obsidian 原生 / 插件注册的自定义右键菜单项，用 eye / eye-off 切换显示隐藏，支持拖拽排序；菜单项按 section 以可折叠小标题分组展示。
 
@@ -206,11 +210,11 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 
 - **通用** — 3 个开关 + 1 个滑块：鼠标/滚轮移动时行高亮、当前行高亮、首行缩进（含缩进宽度滑块，1~2 个中文字符；「MD文档光标和滚轴位置持久化」与「清理本地持久化数据」的设置入口亦在本模块）
 - **隐藏样式** — 13 个开关：加粗、斜体、高亮、删除线、行内代码、转义符号、标题符号、双链符号、HTML 颜色标签、HTML 下划线符号、HTML 行标签、空格可视化、符号边界提示
-- **列表增强** — 12 个开关 + 1 个滑块：列一体化、勾选框一体化、退格提升层级、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
+- **列表增强** — 13 个开关 + 1 个滑块：列一体化、勾选框一体化、退格提升层级、光标行列表符号折叠、回车软换行、选项聚焦（含二级子项最大展开数、滚轴同步、滚轴固定）、上下键默认不跳过被折叠的列表/标题项、目录聚焦、显示目录文件数量（含仅显示直接子项数量）
 - **标签页** — 9 个开关 + 1 个滑块：默认新标签页打开、垂直标签页、展示/隐藏切换标签页视图按钮、新标签页打开双链、新标签页打开书签、目录展开关联标签页、打字机模式（含死区外的不透明度、允许文档头部留存空白区域、死区下沿跳转上沿）
 - **状态栏** — 4 个开关：工作区切换、自动更新工作区布局、侧边栏伸缩按钮、隐藏样式启闭按钮
 - **左功能区** — 1 个开关：清理失联图片（启用后 ribbon 显示垃圾桶图标，扫描未引用图片）
-- **右键菜单** — 2 个开关：展开/折叠同级列表或标题、批量删除空行（在编辑器右键菜单中添加同名菜单项；命令始终注册不受开关影响）
+- **右键菜单** — 3 个开关：展开/折叠同级列表或标题、批量删除空行、开启/关闭首行缩进（在编辑器右键菜单中添加同名菜单项；命令始终注册不受开关影响）
 - **懒加载** — 1 个总开关 + 每插件延迟设置：启用懒加载、立即检查弹窗、社区插件延迟列表（逐插件延迟秒数；插件启停交给第三方插件设置管理，停用插件延迟配置休眠保留，重新启用自动恢复）
 - **标签页切换** — 上述八大模块以标签页形式展示，避免设置列表过长；激活标签页在插件生命周期内记忆
 
@@ -289,7 +293,7 @@ Hide Markdown mark symbols: marks stay invisible by default — including while 
 - **Backspace Level Promotion** (on by default) — at the right boundary of the integrated marker (`- |` or `- [ ] |`, exactly where List Integration parks the cursor), Backspace no longer deletes the marker wholesale but unwinds progressively, one step per press: ① task items lose their checkbox first (`- [ ] |` → `- |`; ordered tasks keep `1. `); ② the item is then promoted level by level — the whole line's indent is replaced with the parent indent each press, content and subtree carried along (items with content promote too; a following former sibling becomes its child, matching Obsidian's native Shift+Tab line-level semantics); ③ with no shallower list line above (treated as top level) the list format is removed outright — leading indent and marker deleted, content kept. Requires List Integration; checkbox stripping requires Checkbox Integration.
 - **Fold via list bullet on the active line** — restores hover arrow and click-to-fold on the line the cursor occupies (Obsidian disables this on active lines).
 - **Enter Soft Break** — Enter inside a list item inserts a soft line break (newline + continuation indentation) instead of a new item; pressing Enter again on the blank continuation line creates the next list item. New items inherit the checkbox: after a soft break inside a task item, the created item starts with a checkbox too (always unchecked, matching Obsidian's native behavior). Inheritance follows Obsidian's native task-line rule — **any single character** between brackets counts (`[ ]`, `[x]`, Minimal's `[-]`, Tasks' `[/]`, …), and a space must follow `]` (space-less spellings never render a checkbox natively).
-- **Focus list item** — moving into an item folds everything outside the focus chain (current item, ancestors, descendants); sub-settings: max second-level children to expand (slider 1–9 + toggle) and scroll sync (scrolls the focused row to 25% of the viewport after folding).
+- **Focus list item** — moving into an item folds everything outside the focus chain (current item, ancestors, descendants); sub-settings: max second-level children to expand (slider 1–9 + toggle), **scroll sync** (off by default; scrolls the focused row to 25% of the viewport after folding) and **pin cursor** (on by default; keeps the cursor row at its on-screen position from just before the fold, so folding/unfolding happens around the cursor row without the page jumping or the cursor leaving the viewport). The two are mutually exclusive — pin cursor wins if both are on.
 - **Arrow keys don't skip folded items** — ↓/↑ expand a folded list/headline block and enter it, keeping the column; plus an ↑ sibling jump-back at any depth when the previous line's item is deeper.
 - **Expand/collapse sibling lists or headings (command)** — folds or unfolds the current row and every same-level list item/heading document-wide; reports the affected count. Bindable in Hotkeys; optional context-menu item.
 - **Folder focus** — clicking a folder name in the file explorer expands only it and its ancestor chain, collapsing unrelated branches; clicking blank space expands all top-level folders. Sub-feature of the same toggle.
@@ -317,6 +321,7 @@ Hide Markdown mark symbols: marks stay invisible by default — including while 
 
 - **Expand/collapse sibling lists or headings** — the same logic as the command, as a right-menu item (default on; the command/hotkey always work).
 - **Batch delete empty lines** — removes all empty lines in the selection or document, Markdown-aware: blank lines around headings/rules/tables/lists/quotes and inside code blocks are preserved (runs collapsed to one), so table and list structures survive pasted web content. Undoable via Ctrl/Cmd+Z.
+- **Toggle first-line indent** — a menu item that flips the **First-line indent** toggle in General settings (two-way synced with the settings panel, effective immediately without reloading). The command `mdrazor-toggle-first-line-indent` is always registered and stays available from the command palette or a hotkey when the menu item is off.
 - **Custom / hidden commands** — add commands as menu items (icon + name); capture native/plugin menu entries with eye/eye-off, grouped by section with collapsible headers.
 
 #### 🚀 Lazy Loading
@@ -329,7 +334,7 @@ Hide Markdown mark symbols: marks stay invisible by default — including while 
 
 ### Settings
 
-Configure in Obsidian → Settings → Community plugins → MDRazor. The eight modules appear as tabs (active tab remembered for the plugin's lifetime): General (3 toggles + 1 slider), Hidden Styling (13), List Enhancement (12 toggles + 1 slider), Tabs (9 toggles + 1 slider), Status Bar (4), Left Ribbon (1), Context Menu (2), Lazy Loading (1 master + per-plugin delays).
+Configure in Obsidian → Settings → Community plugins → MDRazor. The eight modules appear as tabs (active tab remembered for the plugin's lifetime): General (3 toggles + 1 slider), Hidden Styling (13), List Enhancement (13 toggles + 1 slider), Tabs (9 toggles + 1 slider), Status Bar (4), Left Ribbon (1), Context Menu (3), Lazy Loading (1 master + per-plugin delays).
 
 ### Data storage
 

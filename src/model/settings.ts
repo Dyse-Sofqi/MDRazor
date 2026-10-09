@@ -90,6 +90,10 @@ export interface MDRazorSettings {
 	listFocusSecondThresholdEnabled: boolean;
 	/** 滚轴同步：选项聚焦折叠/展开后，光标所在行滚动至视口 25% 处 */
 	focusScrollSync: boolean;
+	/** 滚轴固定：选项聚焦折叠/展开时，把光标行固定在触发前的屏幕位置，
+	 *  使折叠/展开围绕光标所在行进行 —— 页面不大幅跳跃、光标不落出视口。
+	 *  与「滚轴同步」互斥（同时为真时以本项为准） */
+	focusScrollPin: boolean;
 	/** 上下键默认不跳过被折叠的列表/标题项：↓/↑ 遇到折叠块时主动展开并进入 */
 	arrowKeyEnterFolded: boolean;
 	dirFocusOption: boolean;
@@ -121,6 +125,8 @@ export interface MDRazorSettings {
 	contextMenuSiblingFold: boolean;
 	/** 在编辑器右键菜单中显示「批量删除空行」菜单项（命令始终注册，不受此开关影响） */
 	contextMenuDeleteEmptyLines: boolean;
+	/** 在编辑器右键菜单中显示「开启/关闭首行缩进」菜单项（命令始终注册，不受此开关影响） */
+	contextMenuFirstLineIndent: boolean;
 
 	// ── 打字机模式 (controller/typewriter/) ──
 	/** 打字机模式：编辑时光标行保持在页面中部区域（范围居中），死区外行淡化 */
@@ -227,7 +233,9 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	listFocusOption: true,
 	listFocusSecondThreshold: 3,
 	listFocusSecondThresholdEnabled: false,
-	focusScrollSync: true,
+	// 滚轴固定默认开启、滚轴同步默认关闭（两者互斥）
+	focusScrollSync: false,
+	focusScrollPin: true,
 	arrowKeyEnterFolded: true,
 	dirFocusOption: true,
 	showDirFileCount: true,
@@ -249,6 +257,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 
 	contextMenuSiblingFold: true,
 	contextMenuDeleteEmptyLines: true,
+	contextMenuFirstLineIndent: true,
 
 	typewriterMode: false,
 	typewriterOpacity: 50,

@@ -216,9 +216,25 @@ export async function loadPluginSettings(plugin: Plugin): Promise<MDRazorSetting
 			}
 			raw.lazyLoadPlugins = normalized;
 		}
-		return Object.assign({}, DEFAULT_SETTINGS, raw);
+		return normalizeMerged(Object.assign({}, DEFAULT_SETTINGS, raw));
 	}
 	return { ...DEFAULT_SETTINGS };
+}
+
+/**
+ * 合并结果归一（就地修改并返回）。
+ *
+ * 2.7.2：新增「滚轴固定」（默认开启）后，旧版本默认开启的「滚轴同步」可能与
+ * 它同时为真（旧数据 sync:true + 新默认值 pin:true，Object.assign 合并后两者
+ * 都真）。二者互斥，此处以「滚轴固定」为准关闭「滚轴同步」，与运行时
+ * （focus-scroll.ts 的 resolveFocusScrollMode）和设置面板的优先级保持一致。
+ * 归一结果不立即落盘，下次保存时自然写回。
+ */
+function normalizeMerged(settings: MDRazorSettings): MDRazorSettings {
+	if (settings.focusScrollPin && settings.focusScrollSync) {
+		settings.focusScrollSync = false;
+	}
+	return settings;
 }
 
 /**

@@ -4,6 +4,35 @@
 
 ---
 
+## 2.7.2 (2026-10-10)
+
+### 「首行缩进」启闭命令 + 编辑器右键菜单项
+
+**背景：** 通用设置里的「首行缩进」原先只能进设置面板切换。用户要求给它一个命令（可绑快捷键）并加进正文（编辑器）右键菜单。
+
+**实现位置：** `src/controller/general/first-line-indent-toggle.ts`（新增，命令 + 菜单项共用一个切换函数）、`src/model/settings.ts`（新增 `contextMenuFirstLineIndent`，默认 `true`）、`src/view/settings-tab.ts`（「右键菜单」区新增开关 + `firstLineIndentToggle` 引用 + `syncFirstLineIndentFromSettings()`）、`src/controller/main.ts`（注册，save 回调 = `saveSettings()` + 同步设置面板）；回归 `scripts/verify-first-line-indent-toggle.mjs`（`npm run verify:indent-toggle`，21 项）。
+
+1. **命令必须用 `callback` 而不是 `checkCallback`** —— 开关是全局设置，阅读视图下也要能用；而阅读视图里没有 `MarkdownView`，`checkCallback` 若要求「当前有 Markdown 编辑器」，命令会从阅读视图的命令面板里**消失**。回归里留了反例守卫（断言 `checkCallback === undefined`）。
+2. **菜单项标题必须固定**（不随状态改写成「开启…」/「关闭…」）—— 菜单项标题是「右键菜单 → 隐藏命令」列表的**记录键**（`context:<图标>:<标题>`，见 `command-surface` 的 `recordContextMenuItem`）。标题随状态变化会把同一个菜单项按状态记成两条记录，隐藏状态跟着分裂。
+3. **命令 id 单独导出锁死** —— `FIRST_LINE_INDENT_COMMAND_ID = 'mdrazor-toggle-first-line-indent'`，与「功能区 / 状态栏 / 右键菜单」自定义命令的既有教训一致：id 是外部可绑定的稳定契约，改名等于把所有绑定它的按钮变成静默失效。
+4. **菜单项显示由「右键菜单」模块的开关实时控制** —— 每次弹出菜单时读 `settings.contextMenuFirstLineIndent`（不缓存在注册时刻），关掉开关后菜单项立即消失、无需重载插件；命令本身始终注册、不受开关影响。
+
+### 列表增强新增「滚轴固定」：折叠/展开围绕光标所在行
+
+**背景：** 选项聚焦触发折叠/展开会改变上方内容的渲染高度 —— 光标的**文档位置不动**，屏幕上却会上下漂移（上方折叠 → 光标上移；上方展开 → 光标下移）。原先只有「滚轴同步」一种补偿（把光标行滚到视口 25% 处），但它会让光标跳到固定高度、页面仍然明显移动。新增「滚轴固定」：把光标行固定在**触发前的屏幕位置**，折叠/展开于是围绕光标所在行进行。
+
+**实现位置：** `src/controller/list-enhancer/focus-scroll.ts`（纯函数层，新增）、`src/controller/list-enhancer/focus-options.ts`（`recomputeFolds` / `applyFolds` / 新增 `cursorPinMargin`）、`src/view/settings-tab.ts`（新开关 + 互斥）、`src/controller/settings-storage.ts`（加载归一）、`src/model/settings.ts`（新字段 + 默认值）；回归 `scripts/verify-focus-scroll.mjs`（`npm run verify:focus-scroll`，16 项）。
+
+1. **用 `EditorView.scrollIntoView(pos, { y: 'start', yMargin })` 实现「固定」，不做手动 `scrollTop` 加减** —— CM6 源码实证（`@codemirror/view` 6.38.6 的 `scrollRectIntoView`）：`y == "start"` 时 `targetTop = rect.top - yMargin`、`moveY = targetTop - bounding.top`，滚动后光标行的 `rect.top` 恰好落在 `bounding.top + yMargin` —— 也就是**离视口顶 `yMargin` 像素**。于是「固定」只需把光标当前在视口内的上边距当作 `yMargin` 喂进去。这条路径与折叠效果在**同一次 dispatch** 内完成（滚动在布局更新之后计算，用的是折叠后的新布局），不产生第二次 update、也不会与 CM6 的测量周期打架。
+2. **偏移必须在派发折叠效果之前测量** —— `cursorPinMargin()` 在构建 effects 时调用，此时 `view` 仍是**触发前**的布局（`coordsAtPos` 返回的是旧位置）；而 `scrollIntoView` 效果本身在事务应用后才解析，那时已是新布局。两者配合才得到「回到原位」的效果。若反过来在 dispatch 之后测再调 `scrollTop`，就要面对 CM6 测量是否已刷新的不确定性（`coordsAtPos` 会 `readMeasured()`，但同步 dispatch 后布局读数与浏览器重排的时机并不等价），也更容易引入二次滚动闪烁。
+3. **`coordsAtPos` 在 update 进行中会抛错** —— `readMeasured()` 在 `updateState == Updating` 时 `throw new Error("Reading the editor layout isn't allowed during an update")`。本模块本来就只在 `queueMicrotask` / `requestAnimationFrame` 里调用（`applyFolds` 的既有约束），再加 `try/catch` 兜底：读不到就跳过滚动效果、折叠照常。
+4. **偏移必须夹取到 `[0, 视口高 − 行高]`** —— 直接把原始偏移当 `yMargin`，会在光标原本就在视口外时（键盘移动后视口尚未跟上等）把它顶得更远，正是本功能要杜绝的「光标落出界面外」。夹取后：视口上方 → 贴顶（0）；视口下方 → 贴底（`视口高 − 行高`，整行仍可见）；行高大于视口（极窄视口 / 大字号）退化为 0，不出现负值。这两条边界在 `verify-focus-scroll.mjs` 里锁死，并配一条「不做夹取必然顶出视口」的反例守卫。
+5. **互斥要在三处保持一致** —— 「滚轴固定」与「滚轴同步」不能同时开启（可以同时关闭）。三处规则必须同向：① 运行时 `resolveFocusScrollMode()`（固定优先）；② 设置面板 onChange（开一个自动关另一个并 `setValue(false)` 同步 UI）；③ 加载归一 `normalizeMerged()`（旧数据里「滚轴同步」默认开启、升级后新默认「滚轴固定」也为真 → 两者同时为真，以固定为准关闭同步）。任一处反向，用户就会看到两种策略互相打架或升级后行为不一致。
+6. **默认值调整的影响面** —— `focusScrollSync` 默认由 `true` 改为 `false`、`focusScrollPin` 默认 `true`。`DEFAULT_SETTINGS` 只影响新装 / 缺键场景；旧用户数据里已存的 `focusScrollSync: true` 由第 5 条的加载归一兜住，不需要专门的字段级迁移。归一结果不立即落盘，下次保存自然写回（幂等）。
+7. **纯函数层拆分的理由** —— `resolveFocusScrollMode` 与 `computePinMargin` 不依赖 CM6 / DOM，单独放 `focus-scroll.ts`，回归脚本可直接 esbuild 打包后在 Node 里跑（无需像 `verify-list-integration.mjs` 那样桩掉 CM6），与 `first-line-indent-rules.ts` / `caret-reveal.ts` / `callout-parse.ts` 的既有分层一致。
+
+---
+
 ## 2.7.1 (2026-10-08)
 
 ### 左功能区「清理失联图片」开关：关闭后按钮未真正注销（用户报告）
