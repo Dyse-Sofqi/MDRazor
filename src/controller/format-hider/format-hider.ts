@@ -9,8 +9,23 @@
  * 本模块导出：
  *   - `formattingConfig` — 模块级可变配置，由 controller/main.ts 在设置变更时写入，
  *     ViewPlugin 在每一帧更新时读取。
+ *   - `buildDecorations(view)` — 收集 + 写入装饰集；被本模块的 ViewPlugin 与
+ *     cursor-boundary-hint 的 ViewPlugin **共用**。
  *   - `createFormatHiderExtension()` — 工厂函数，返回一个 `Prec.high`
  *     CM6 扩展，为格式化标记提供 replace 装饰。
+ *
+ * ── 性能（改动前的主要瓶颈）──
+ *
+ * 「收集」是整篇工作（一次全树遍历 + 一次排除区段扫描 + 最多三次全文
+ * 正则配对），而 `buildDecorations` 在**每一次 ViewUpdate** 都会被调用 ——
+ * 选区变化（拖选时每个 mousemove）、滚动引起的视口变化、跳转全都算，
+ * 且两个 ViewPlugin 各调一次。改动前因此每帧跑两遍整篇工作。
+ *
+ * 现在：收集结果按 (文档对象, 语法树, 开关快照) 缓存（三者皆不可变，
+ * 纯光标移动/滚动时身份不变），第二个调用者直接命中缓存；全文文本
+ * `toString()` 按文档对象缓存；HTML 标签扫描先用同源正则预检全文，
+ * 没有该标签就整趟跳过。行内代码密集 + 带 HTML 标签的文档另有
+ * 「排除区间 ∩ 标签匹配」的算法修复（见 html-tag-scan.ts 的复杂度约定）。
  */
 
 import {
@@ -24,6 +39,11 @@ import { Prec, RangeSetBuilder, type Text } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 import { revealCaretRanges } from './caret-reveal';
+import {
+	collectPairedHtmlTags,
+	collectSpanExclusions,
+	type DocRange,
+} from './html-tag-scan';
 
 /**
  * 模块级可变配置对象。
@@ -50,17 +70,6 @@ interface DecorationEntry {
 	};
 }
 
-/** 文档中的一段连续区间。 */
-interface DocRange {
-	from: number;
-	to: number;
-}
-
-/** 单条 HTML 标签匹配（区间 + 是否为闭标签）。 */
-interface HtmlTagMatch extends DocRange {
-	isClose: boolean;
-}
-
 /**
  * 最近一次 buildDecorations 收集的隐藏区间（含 mark 与 replace 装饰）。
  *
@@ -77,149 +86,114 @@ export function getHiddenRanges(): readonly DocRange[] {
 	return currentHiddenRanges;
 }
 
+/* ─────────────────────────── 整篇工作缓存 ───────────────────────────
+ *
+ * 为什么需要：本模块的「收集」阶段是**整篇**的 —— 一次全语法树遍历、
+ * 一次排除区段扫描（围栏行扫描 + 第二次全树遍历）、最多三次全文
+ * `doc.toString()` 与三次全文正则配对。它原先在**每一次 ViewUpdate**
+ * 都被完整执行一遍（选区变化、滚动导致的视口变化、跳转都算），而且被
+ * 两个 ViewPlugin 各调一次（format-hider 自身与 cursor-boundary-hint）。
+ *
+ * 关键事实：收集结果只取决于 (doc, 语法树, 开关状态) 三者 ——
+ * CM6 的 `Text` 与 `Tree` 都是不可变对象，纯光标移动 / 滚动时二者
+ * 身份不变。故按这三者缓存，把每次更新的成本从「整篇」降到「只做光标
+ * 可见性修正 + 写一次 RangeSetBuilder」。
+ *
+ * 缓存按 EditorView 分桶（WeakMap）：多标签页 / 分屏同时打开多个文档时
+ * 各自独立，不会互相踩掉；视图销毁后条目可被回收。
+ * ------------------------------------------------------------------ */
+
+/** 单个视图的整篇收集结果缓存 */
+interface EntriesCache {
+	doc: Text;
+	tree: ReturnType<typeof syntaxTree>;
+	/** 影响收集结果的开关快照（见 configKey） */
+	configKey: string;
+	/** 已按 from 升序的条目（光标可见性修正前的原始集） */
+	entries: DecorationEntry[];
+	/** 「光标未遮盖任何标记」时的成品装饰集与其隐藏区间 */
+	built: boolean;
+	deco: DecorationSet;
+	hiddenRanges: DocRange[];
+}
+
+const entriesCache = new WeakMap<EditorView, EntriesCache>();
+
+/** 全文文本缓存：`Text` 不可变，同一文档对象只需 toString 一次 */
+const docTextCache = new WeakMap<Text, string>();
+
 /**
- * 收集 span 标签隐藏的排除区段：围栏代码块、行内代码、数学公式。
+ * 取全文文本（按文档对象缓存）。
  *
- * 在这些区域内 `<span>` 是字面文本（如代码示例），不是真实 HTML 标签，
- * 隐藏它们会错误地删除可见内容。任何误判都只会让标签保持可见，不会崩溃
- * （正确性优先）。
- *
- * 策略（多重保险，不依赖任何单一具体节点名）：
- *   1. 围栏代码块 —— 行扫描 ``` / ~~~（确定性）
- *   2. 行内代码 / 数学 —— 语法树中匹配对应元素节点，覆盖整段范围
- *   3. 行内代码标记 —— `formatting-code`+`inline-code` 标记按行配对，
- *      兜底覆盖元素节点命名差异（标记必然存在，见 buildDecorations 中
- *      对行内代码的处理逻辑）
+ * HTML 标签类隐藏（`<font>` / `<u>` / `<span>`）只能靠正则扫描全文，
+ * 需要先拿到整篇字符串。原先每帧重建、且三个开关各 toString 一次；
+ * 这里按文档对象缓存，文档不变就复用同一个字符串。
  */
-function collectSpanExclusions(
-	doc: Text,
+function documentText(doc: Text): string {
+	let text = docTextCache.get(doc);
+	if (text === undefined) {
+		text = doc.toString();
+		docTextCache.set(doc, text);
+	}
+	return text;
+}
+
+/**
+ * 影响「收集」阶段的开关快照。
+ *
+ * 只包含参与 buildDecorations 收集逻辑的开关 —— 设置变更会经
+ * repaintAllEditors 派发空事务，此时快照不同即触发重算。
+ */
+function configKey(): string {
+	const c = formattingConfig;
+	return [
+		c.hideBoldFormatting,
+		c.hideItalicFormatting,
+		c.hideHighlightFormatting,
+		c.hideStrikethroughFormatting,
+		c.hideCodeFormatting,
+		c.hideEscapeFormatting,
+		c.hideHeadingFormatting,
+		c.hideWikiLinkFormatting,
+		c.hideHtmlColorTagFormatting,
+		c.hideHtmlUnderlineFormatting,
+		c.hideHtmlSpanFormatting,
+	].map((on) => (on ? '1' : '0')).join('');
+}
+
+/**
+ * 全文预检正则：用于在全文不含任何该标签时跳过整趟扫描与配对。
+ *
+ * 扫描时用 `toGlobal()` 从同一个正则派生出带 `g` 的版本 —— 预检与扫描
+ * 同源，不会出现「预检通过但扫描正则已改」的漂移。必须保留 `i` 标志，
+ * 否则会漏掉 `<U>` 这类写法（预检的作用是「肯定没有才跳过」，宁可多扫
+ * 不可漏扫）。
+ */
+const COLOR_TAG_RE = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/;
+const UNDERLINE_TAG_RE = /<\/?u\s*>/i;
+const SPAN_TAG_RE = /<span(?:\s[^>]*)?>|<\/span\s*>/i;
+
+/** 由预检正则派生扫描用正则（补上 g 标志；已有则原样返回） */
+function toGlobal(re: RegExp): RegExp {
+	return re.flags.includes('g') ? re : new RegExp(re.source, re.flags + 'g');
+}
+
+/**
+ * 收集阶段（整篇）：遍历语法树 + 正则扫描 HTML 标签，产出全部待隐藏条目。
+ *
+ * 这是本模块唯一的「整篇」成本所在（一次全树遍历、一次排除区段扫描、
+ * 最多三次全文正则配对），由 buildDecorations 按
+ * (文档对象, 语法树, 开关快照) 缓存 —— 纯光标移动 / 滚动 / 跳转时不重算。
+ *
+ * @param view 当前的 CodeMirror EditorView
+ * @param tree 与 view.state 对应的语法树
+ * @returns    按 from 升序的条目数组
+ */
+function collectEntries(
+	view: EditorView,
 	tree: ReturnType<typeof syntaxTree>,
-): DocRange[] {
-	const ranges: DocRange[] = [];
-
-	// ── 1. 围栏代码块：行扫描（确定性，不依赖节点名）──
-	let inFence = false;
-	let fenceFrom = 0;
-	for (let i = 1; i <= doc.lines; i++) {
-		const line = doc.line(i);
-		if (/^\s*(?:```+|~~~+)/.test(line.text)) {
-			if (!inFence) {
-				inFence = true;
-				fenceFrom = line.from;
-			} else {
-				ranges.push({ from: fenceFrom, to: line.to });
-				inFence = false;
-			}
-		}
-	}
-	// 未闭合的围栏 —— 延伸到文档末尾
-	if (inFence) {
-		ranges.push({ from: fenceFrom, to: doc.line(doc.lines).to });
-	}
-
-	// ── 2 + 3. 语法树：元素节点 + 行内代码标记 ──
-	const inlineMarkers: DocRange[] = [];
-	tree.iterate({
-		enter(node) {
-			const typeName = node.type.name;
-
-			// 行内代码标记（单个 ` 等）：先收集，随后配对为完整元素范围
-			if (typeName.includes('formatting-code') && typeName.includes('inline-code')) {
-				inlineMarkers.push({ from: node.from, to: node.to });
-				return undefined;
-			}
-
-			// 代码块 / 行内代码元素 / 数学元素 —— 覆盖整段范围
-			if (
-				typeName.includes('inline-code') ||
-				typeName.includes('codeblock') ||
-				typeName.includes('FencedCode') ||
-				typeName.includes('CodeText') ||
-				typeName.includes('hmd-code') ||
-				typeName.includes('math')
-			) {
-				ranges.push({ from: node.from, to: node.to });
-				return false; // 不再深入子节点，避免重复收集
-			}
-			return undefined;
-		},
-	});
-
-	// 行内代码标记按位置配对，得出完整元素范围（open ` 到 close `）
-	inlineMarkers.sort((a, b) => a.from - b.from);
-	for (let i = 0; i + 1 < inlineMarkers.length; i += 2) {
-		const open = inlineMarkers[i]!;
-		const close = inlineMarkers[i + 1]!;
-		if (open.to <= close.from) {
-			ranges.push({ from: open.from, to: close.to });
-		}
-	}
-
-	return ranges;
-}
-
-/**
- * 配对 HTML 标签对：仅返回能配成对的标签区间，不成对的单边标签不返回。
- *
- * 扫描全文，按出现顺序将开标签与闭标签一一配对，保留配成对的部分，
- * 多余的（多出的开标签或闭标签）保持可见 —— 例如 `<u>` 后缺失 `</u>`，
- * 或孤立的 `</u>`，不再被单独隐藏。
- *
- * @param docStr      全文
- * @param tagPattern  匹配开/闭标签的正则（须含 g 标志）
- * @param exclusions  需跳过的区段（如代码区内的字面标签）；默认不跳过
- * @returns           应隐藏的标签区间列表（仅成对部分）
- */
-function collectPairedHtmlTags(
-	docStr: string,
-	tagPattern: RegExp,
-	exclusions: readonly DocRange[] = [],
-): HtmlTagMatch[] {
-	const opens: HtmlTagMatch[] = [];
-	const closes: HtmlTagMatch[] = [];
-
-	tagPattern.lastIndex = 0;
-	let m: RegExpExecArray | null;
-	while ((m = tagPattern.exec(docStr)) !== null) {
-		const from = m.index;
-		const to = from + m[0].length;
-		// 排除区段内的标签是字面文本（如代码示例），跳过（误判仅保留可见，不崩溃）
-		const inExcluded = exclusions.some((r) => from < r.to && to > r.from);
-		if (inExcluded) continue;
-		(m[0].charAt(1) === '/' ? closes : opens).push({ from, to, isClose: m[0].charAt(1) === '/' });
-	}
-
-	// 开/闭标签按出现顺序一一配对；无法配成对的多余标签不隐藏
-	const paired: HtmlTagMatch[] = [];
-	const pairCount = Math.min(opens.length, closes.length);
-	for (let i = 0; i < pairCount; i++) {
-		paired.push(opens[i]!, closes[i]!);
-	}
-	return paired;
-}
-
-/**
- * 构建一个 `DecorationSet`，替换（隐藏）当前视口中所有已启用的
- * 格式化标记。
- *
- * 流程：收集全部 Decoration → 按 from 排序 → 一次性写入同一个
- *        RangeSetBuilder。
- *
- * @param view  当前的 CodeMirror EditorView
- * @returns     覆盖所有待隐藏标记的 DecorationSet
- */
-export function buildDecorations(view: EditorView): DecorationSet {
-	// 仅实时预览模式生效，源码模式跳过。
-	const cmContainer = view.dom.closest('.markdown-source-view');
-	if (!cmContainer || !cmContainer.classList.contains('is-live-preview')) {
-		currentHiddenRanges = [];
-		return Decoration.none;
-	}
-
-	/* ---- Phase 1: 收集全部 decoration 到 entries 数组 ---- */
-
-	let entries: DecorationEntry[] = [];
-	const tree = syntaxTree(view.state);
+): DecorationEntry[] {
+	const entries: DecorationEntry[] = [];
 
 	tree.iterate({
 		enter(node) {
@@ -363,29 +337,32 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
 	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
+	// 预检：全文不含任何该标签时正则必然无匹配，直接跳过扫描与配对。
 	if (formattingConfig.hideHtmlColorTagFormatting) {
-		const docStr = view.state.doc.toString();
-		const colorTagRe = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
-		for (const { from, to } of collectPairedHtmlTags(docStr, colorTagRe)) {
-			entries.push({
-				from,
-				to,
-				spec: { hideAsMark: true },
-			});
+		const docStr = documentText(view.state.doc);
+		if (COLOR_TAG_RE.test(docStr)) {
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(COLOR_TAG_RE))) {
+				entries.push({
+					from,
+					to,
+					spec: { hideAsMark: true },
+				});
+			}
 		}
 	}
 
 	// ── HTML 下划线标签（<u>、</u>）──
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
-		const docStr = view.state.doc.toString();
-		const underlineTagRe = /<\/?u\s*>/gi;
-		for (const { from, to } of collectPairedHtmlTags(docStr, underlineTagRe)) {
-			entries.push({
-				from,
-				to,
-				spec: { hideAsMark: true },
-			});
+		const docStr = documentText(view.state.doc);
+		if (UNDERLINE_TAG_RE.test(docStr)) {
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(UNDERLINE_TAG_RE))) {
+				entries.push({
+					from,
+					to,
+					spec: { hideAsMark: true },
+				});
+			}
 		}
 	}
 
@@ -393,50 +370,62 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	// 与 <u> 一样不由 syntax tree 解析，需正则扫描。span 标签可能携带
 	// style 等任意属性，故开标签匹配 <span> 或 <span 属性...>。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
+	//
+	// 排除区段（围栏 / 行内代码 / 数学）只在**确有 span 标签**时才需要计算：
+	// 全文不含 `<span` / `</span` 时正则必然无匹配，此时省掉整趟围栏行扫描
+	// 与第二次全树遍历 —— 实测这是本模块原先最大的单项开销（12k 行文档
+	// 单次 3.6ms、21k 行 7.2ms，而绝大多数文档根本没有 span 标签）。
 	if (formattingConfig.hideHtmlSpanFormatting) {
-		const docStr = view.state.doc.toString();
-		const exclusions = collectSpanExclusions(view.state.doc, tree);
-		const spanTagRe = /<span(?:\s[^>]*)?>|<\/span\s*>/gi;
-		for (const { from, to } of collectPairedHtmlTags(docStr, spanTagRe, exclusions)) {
-			entries.push({
-				from,
-				to,
-				spec: { hideAsMark: true },
-			});
+		const docStr = documentText(view.state.doc);
+		if (SPAN_TAG_RE.test(docStr)) {
+			const exclusions = collectSpanExclusions(view.state.doc, tree);
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(SPAN_TAG_RE), exclusions)) {
+				entries.push({
+					from,
+					to,
+					spec: { hideAsMark: true },
+				});
+			}
 		}
 	}
-
-	/* ---- Phase 1.5: 光标可见性保护 ---- */
-
-	// 折叠光标被隐藏区间盖住（区间内部）或夹住（两条相邻区间之间）时，
-	// 放开盖住 / 夹住光标的装饰 —— 这些位置 DOM 里没有文本可承载光标，
-	// Chromium 会把 DOM 光标规范化到占位元素之后、而 CM6 状态光标停在
-	// 原位，两者分叉后每个键入字符都插到同一位置：字符落到标记之外并
-	// 逐键倒序（实测 doc="``" pos=1 键入 123 得到 "``321"、光标停在 1，
-	// 符号边界提示持续显示 `|`；行首键入反引号时 Obsidian 自动配对插入
-	// 一对并把光标放在中间，是最常见的入口）。放开后与 Obsidian 原生
-	// 同态（原生在光标与标记相交时走 reveal 分支），光标落回真实文本、
-	// 落点确定；首个字符插入后标记与光标不再重叠，隐藏行为立即照旧。
-	// 判定与放开规则见 caret-reveal.ts（纯函数，离线回归 verify:caret）。
-	const mainSel = view.state.selection.main;
-	entries = revealCaretRanges(entries, mainSel.empty ? mainSel.head : null);
 
 	/* ---- Phase 2: 按 from 排序 ---- */
 
 	entries.sort((a, b) => a.from - b.from);
+	return entries;
+}
 
-	/* ---- Phase 3: 一次性写入同一个 RangeSetBuilder ---- */
-
+/**
+ * 写入阶段：把条目一次性写进同一个 RangeSetBuilder。
+ *
+ * @param view        当前的 CodeMirror EditorView
+ * @param entries     已按 from 升序的条目
+ * @param hiddenRanges 输出参数：实际写入的隐藏区间（供空格可视化读取）
+ * @returns           覆盖所有待隐藏标记的 DecorationSet
+ */
+function writeDecorations(
+	view: EditorView,
+	entries: readonly DecorationEntry[],
+	hiddenRanges: DocRange[],
+): DecorationSet {
 	const builder = new RangeSetBuilder<Decoration>();
-	const hiddenRanges: DocRange[] = [];
+	const doc = view.state.doc;
+	// 行窗口缓存：entries 按 from 升序，命中同一行时复用上次的 lineAt 结果。
+	// CM6 的 Text 没有行缓存，逐条 lineAt 会反复从 rope 根部下降。
+	let lineFrom = -1;
+	let lineTo = -1;
 	for (const { from, to, spec } of entries) {
 		// CM6 禁止 replace 装饰跨越换行符。Obsidian 的解析器在数学符号
 		// （$..$）与加粗（**..**）等标记共存于一行时会生成异常的语法树
 		// 节点，其标记范围可能跨越 \n。若直接写入 replace 装饰，ViewPlugin
 		// 初始化会抛异常，导致整个编辑器（乃至文件）无法打开。
 		// 防御：跳过任何跨越行边界的范围 —— 宁可保留标记可见，不可崩溃。
-		const line = view.state.doc.lineAt(from);
-		if (to > line.to) continue;
+		if (from < lineFrom || from > lineTo) {
+			const line = doc.lineAt(from);
+			lineFrom = line.from;
+			lineTo = line.to;
+		}
+		if (to > lineTo) continue;
 		hiddenRanges.push({ from, to });
 
 		// HTML 标签用 mark 隐藏（CSS 使标签文本不可见），避免 replace 装饰
@@ -453,9 +442,83 @@ export function buildDecorations(view: EditorView): DecorationSet {
 
 		builder.add(from, to, Decoration.replace(spec));
 	}
-
-	currentHiddenRanges = hiddenRanges;
 	return builder.finish();
+}
+
+/**
+ * 构建一个 `DecorationSet`，替换（隐藏）当前视口中所有已启用的
+ * 格式化标记。
+ *
+ * 流程：取（必要时重算并缓存）整篇条目 → 光标可见性修正 → 一次性写入
+ *       同一个 RangeSetBuilder。
+ *
+ * 每次 ViewUpdate 都会被调用（选区变化、滚动引起的视口变化、跳转都算），
+ * 且本函数被两个 ViewPlugin 共用（format-hider 自身与 cursor-boundary-hint），
+ * 故整篇收集按 (doc, tree, 开关快照) 缓存：文档与语法树都没变时只做
+ * 「光标可见性修正 + 写 RangeSetBuilder」这一步。缓存按视图分桶，多窗口
+ * 并存互不影响；第二个调用者直接命中缓存，不再重复整篇遍历。
+ *
+ * @param view  当前的 CodeMirror EditorView
+ * @returns     覆盖所有待隐藏标记的 DecorationSet
+ */
+export function buildDecorations(view: EditorView): DecorationSet {
+	// 仅实时预览模式生效，源码模式跳过。
+	const cmContainer = view.dom.closest('.markdown-source-view');
+	if (!cmContainer || !cmContainer.classList.contains('is-live-preview')) {
+		currentHiddenRanges = [];
+		return Decoration.none;
+	}
+
+	const doc = view.state.doc;
+	const tree = syntaxTree(view.state);
+	const key = configKey();
+
+	let cache = entriesCache.get(view);
+	if (!cache || cache.doc !== doc || cache.tree !== tree || cache.configKey !== key) {
+		cache = {
+			doc,
+			tree,
+			configKey: key,
+			entries: collectEntries(view, tree),
+			built: false,
+			deco: Decoration.none,
+			hiddenRanges: [],
+		};
+		entriesCache.set(view, cache);
+	}
+
+	/* ---- Phase 1.5: 光标可见性保护 ---- */
+
+	// 折叠光标被隐藏区间盖住（区间内部）或夹住（两条相邻区间之间）时，
+	// 放开盖住 / 夹住光标的装饰 —— 这些位置 DOM 里没有文本可承载光标，
+	// Chromium 会把 DOM 光标规范化到占位元素之后、而 CM6 状态光标停在
+	// 原位，两者分叉后每个键入字符都插到同一位置：字符落到标记之外并
+	// 逐键倒序（实测 doc="``" pos=1 键入 123 得到 "``321"、光标停在 1，
+	// 符号边界提示持续显示 `|`；行首键入反引号时 Obsidian 自动配对插入
+	// 一对并把光标放在中间，是最常见的入口）。放开后与 Obsidian 原生
+	// 同态（原生在光标与标记相交时走 reveal 分支），光标落回真实文本、
+	// 落点确定；首个字符插入后标记与光标不再重叠，隐藏行为立即照旧。
+	// 判定与放开规则见 caret-reveal.ts（纯函数，离线回归 verify:caret）。
+	// 未遮盖时 revealCaretRanges 原样返回入参（同一数组引用），据此可安全
+	// 复用上一次的成品 —— 光标未落在标记上时结果只取决于缓存键三者。
+	const mainSel = view.state.selection.main;
+	const revealed = revealCaretRanges(cache.entries, mainSel.empty ? mainSel.head : null);
+
+	if (revealed === cache.entries) {
+		if (!cache.built) {
+			cache.hiddenRanges = [];
+			cache.deco = writeDecorations(view, revealed, cache.hiddenRanges);
+			cache.built = true;
+		}
+		currentHiddenRanges = cache.hiddenRanges;
+		return cache.deco;
+	}
+
+	// 光标被标记遮盖（罕见）：放开相关区间后重建一次，不写回缓存
+	const hiddenRanges: DocRange[] = [];
+	const deco = writeDecorations(view, revealed, hiddenRanges);
+	currentHiddenRanges = hiddenRanges;
+	return deco;
 }
 
 /**

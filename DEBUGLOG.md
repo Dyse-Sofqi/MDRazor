@@ -4,6 +4,50 @@
 
 ---
 
+## 2.7.3 (2026-10-15)
+
+### 「文档不大却很卡」：隐藏样式的整篇扫描在每次视图更新重跑两遍（用户报告）
+
+**现象：** 用户报告 8 万字左右的文档，**选中 / 滚轮滑动 / 跳转**卡得很严重；文档特点是有不少行内代码、引用与引用框。作者自查「十几万字的书没有问题」，且已排除其他插件与主题变量。
+
+**排查起点（先证伪再定位）：** 把「按文档大小成正比」的成本逐一量化，用真实文件（`D:\_Workspace\learning-records` 里的长篇小说）与真实 CM6 `Text` 跑基准，结论是**这类成本解释不了症状**：
+
+| 文档 | 字符数 | 行数 | 行内标记 | 每帧成本（改动前） |
+| --- | --- | --- | --- | --- |
+| 《理想国》 | 220,692 | 12,095 | 0 | ~8.6ms |
+| 天龙八部 | 1,270,345 | 21,082 | 0 | ~17.9ms |
+| SpringBoot笔记（前 8 万字） | 80,000 | 2,458 | 2,064 反引号 | ~2.6ms |
+
+按「整篇成本」模型，**127 万字的纯文本小说应该最卡**，而作者实测它「没有问题」。说明真正的成本**不与文档大小成正比**，而与其**标记数量**成正比 —— 作者的两份对照文档恰好是 `0 反引号 / 0 引用行 / 0 引用框` 的纯文本（实测统计），所以他的对照实验对这条路径**完全不敏感**。这是「测不出来」的根因。
+
+**实现位置：** `src/controller/format-hider/html-tag-scan.ts`（新增，纯函数层）、`src/controller/format-hider/format-hider.ts`（缓存 + 预检 + 行窗口）；回归 `scripts/verify-format-hider-scan.mjs`（`npm run verify:format-hider-scan`）。
+
+1. **成本一：整篇工作在每次 `ViewUpdate` 重跑，且跑两遍。** `buildDecorations()` 的收集阶段是整篇的：一次 `syntaxTree(view.state).iterate()`（无视口裁剪、无剪枝）、`collectSpanExclusions()` 里的一次围栏行扫描 + 第二次全树遍历、最多三次 `doc.toString()` + 三次全文正则配对。而 `buildDecorations` 在**每一次 `ViewUpdate`** 都被调用 —— CM6 源码实证：`EditorView.update()` 里 `if (!update.empty) this.updatePlugins(update)`，而 `ViewUpdate.empty` 为 `flags == 0 && transactions.length == 0`；拖选的 selectionSet、滚动引起的视口变化（`UpdateFlag.Viewport`）、跳转都会置位，故三者全部触发。且它被**两个** ViewPlugin 调用：format-hider 自身（`format-hider.ts` 的 `ViewPlugin.fromClass`）与 `cursor-boundary-hint.ts`（`import { buildDecorations } from './format-hider'`，在自己 `update()` 里再调一次）。
+
+2. **成本二（主犯）：「排除区间 ∩ 标签匹配」是 O(匹配数 × 排除数)。** `collectPairedHtmlTags` 的 `exclusions.some((r) => from < r.to && to > r.from)` 对**每条**标签匹配遍历整个排除数组。排除数组由 `collectSpanExclusions` 产生，规模 ≈ 2 × 行内代码数（标记配对区间 + 元素节点区间）。行内代码多 + 有 HTML 标签（`<span>` 等，从网页/Word 粘贴的文档极常见）时两者相乘。实测（`verify-format-hider-scan.mjs` ④，排除区间与标签刻意不相交以杜绝 `.some()` 提前退出）：
+
+   | 规模 | 排除区间 | 旧实现 | 新实现 |
+   | --- | --- | --- | --- |
+   | 500 段 | 1000 | 0.75ms | 0.37ms |
+   | 4000 段（8×） | 8000 | 44.61ms | 0.81ms |
+   | **增长倍数** | | **59.3×**（平方特征） | **2.2×** |
+
+   8 万字、1244 个 `<span>`、4976 条排除区间时单次 24.9ms；每帧两遍即近百毫秒。修复：排除区间按 `from` 升序规范化（已有序时只做一次 O(n) 检查），匹配顺序天然升序 → **单游标只前进不回退**，整体 O(匹配数 + 排除数)。
+
+3. **成本三：三个标签开关各自 `toString()`，且没有标签也要跑完整趟。** 围栏行扫描用 `doc.line(i)` 逐行取文本 —— CM6 的 `Text` **没有行缓存**（`lineInner` 每次从 rope 根部下降，`@codemirror/state` dist 实证），12k 行 3.6ms、21k 行 7.2ms。修复：全文文本按文档对象缓存（`WeakMap<Text, string>`），每个标签扫描先用**同源正则**（`toGlobal()` 从预检正则派生，保留 `i` 标志，避免漏掉 `<U>`）预检全文，没有该标签就整趟跳过 —— 围栏行扫描与第二次全树遍历一并省掉。这是原先最大的单项开销。
+
+4. **为什么缓存是安全的 —— 三个不可变键。** 收集结果只取决于 `(view.state.doc, syntaxTree(view.state), 11 个开关)`：CM6 的 `Text` 与 `Tree` 都是不可变对象，纯光标移动 / 滚动时**身份不变**（同一手法已在本项目 `first-line-indent.ts` 的 `cachedDoc` 用过）；开关变更会经 `repaintAllEditors()` 派发空事务（`view.dispatch({})` 产生的 `ViewUpdate.empty` 为 false，见 2.7.0 的 DEBUGLOG 记录），届时开关快照不同即重算。缓存按 `WeakMap<EditorView, EntriesCache>` 分桶：多标签页/分屏各自独立，不会互相踩掉；视图销毁后条目可回收。**注意**：用 `doc.toString()` 的全局单槽缓存会在这条路径上退化（两个编辑器交替更新 → 每次都不命中），故用 `WeakMap<Text, string>` 而非单槽。
+
+5. **`syntaxTree` 身份会随后台解析进度变化，这正好是我们要的。** CM6 的语法树可能只覆盖已解析部分，且解析在空闲时继续推进（树对象身份随之改变）。以「树身份」为缓存键：解析推进 → 键变化 → 重算，装饰不会停在「只覆盖视口那一段」的旧树上。与改动前的行为一致（原实现也是遍历当下存在的树），无回归。
+
+6. **复用同一个 `DecorationSet` 对象不会让 CM6 跳过重绘。** 光标未落在隐藏标记上时返回缓存的成品对象。CM6 判定是否需要重绘走 `DocView.update()` → `findChangedDeco(prevDeco, deco, update.changes)` → `RangeSet.compare(...)`，是**按内容**比较而非按对象身份，故复用不会漏更新；反过来，同一对象还让 `RangeSet.compare` 在相同 span 上更快短路。`ViewPlugin` 的 `decorations` 返回同一对象也是 CM6 内部惯例（如 `highlightWhitespace` 复用 `this.decorations`）。
+
+7. **纯函数层的拆分理由。** `collectFenceRanges` / `collectSpanExclusions` / `collectPairedHtmlTags` 只依赖 `Text` 与 `Tree` 两个纯数据接口，不碰 DOM、不碰 EditorView，故抽到 `html-tag-scan.ts`：回归脚本可 esbuild 打包后在 Node 里直接跑，并对**旧实现**做**差分测试**（把旧代码原样抄进脚本当参照，断言新旧输出逐条相同）—— 优化这类「改错也不报错」的扫描逻辑，差分测试比人工比对可靠得多。`format-hider.ts` 本体依赖 `@codemirror/view` 的运行时（`ViewPlugin`/`Decoration`），在 Node 里无法加载，这是拆分的边界依据。
+
+8. **本次未改、但已确认为同一类问题的路径（留待后续）**：`src/model/shared.ts` 的 `buildAtomicRanges()` 也在每次 update 做全树遍历，且有两处 O(n²) 循环（每个勾选框遍历全部列表标记区间、每条列表标记区间 `ranges.some(...)`）；`focus-options.ts` 的 `computeFoldIndices()` 在循环里调 `subtreeEndIndex()`（线性）→ O(列表项数²)；`callout-enhancer.ts` 的 `resolveCalloutWidget()` 在**每次编辑器内 mousedown** 都对 `.cm-content` 跑 `querySelectorAll('.cm-embed-block.cm-callout')` 并逐个 `getBoundingClientRect()`（强制同步布局），且其 `MutationObserver` 挂在 `workspace.containerEl` 的 `subtree` 上、对每个新增元素跑一次 `querySelectorAll`。这些路径的成本都随「列表项数 / 引用框数」增长，纯文本对照文档里同样**恒为零**，故未在本版一并改动。
+
+---
+
 ## 2.7.2 (2026-10-10)
 
 ### 「首行缩进」启闭命令 + 编辑器右键菜单项
