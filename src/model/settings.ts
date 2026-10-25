@@ -23,6 +23,13 @@ export interface MDRazorSettings {
 	/** 行内代码增强：双击编辑器中的行内代码时，自动复制其完整内容
 	 *  （不含反引号）到剪贴板，弹出「已复制」提示；光标与选区保持原生行为 */
 	inlineCodeEnhancer: boolean;
+	/** 代码块语言标签：实时预览下代码块右上角的原生语言标签支持中文等
+	 *  非 ASCII 语言名。原生标签的提取正则只认 ASCII 字符集：``` 后掺入
+	 *  中文时提取结果在首个非 ASCII 字符处截断（py中文 → py），纯中文则
+	 *  整个提取为空、退化为复制图标；本插件按 Unicode 重新提取围栏信息串
+	 *  的首个词元填入原生标签（外观与点击复制行为同纯英文名），纯 ASCII
+	 *  词元保持原生显示（含 js → JavaScript 的模式名映射） */
+	codeBlockLangLabel: boolean;
 	/** Callout 增强：实时预览下单击 callout 不使其退回纯文本（`>` 引用源码），
 	 *  保持渲染外观；「编辑这个区块」按钮在保持渲染的前提下进入纯文本编辑，
 	 *  且粘贴多行文本时自动为后续行补全 `>` 前缀并校验 */
@@ -202,6 +209,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	currentLineHighlight: false,
 
 	inlineCodeEnhancer: true,
+	codeBlockLangLabel: true,
 	calloutEnhancer: true,
 	calloutTouchEditButton: true,
 

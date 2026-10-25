@@ -53,6 +53,7 @@ import type { StartupTimingRecorder } from './lazy-load/startup-check';
 import { registerMouseLineHighlight, applyMouseLineHighlightClass, removeMouseLineHighlightClass } from './general/mouse-line-highlight';
 import { registerCurrentLineHighlight, applyCurrentLineHighlightClass, removeCurrentLineHighlightClass } from './general/current-line-highlight';
 import { registerInlineCodeEnhancer } from './general/inline-code-enhancer';
+import { codeBlockLangLabelConfig, registerCodeBlockLangLabel } from './general/code-block-lang-label';
 import { registerCalloutEnhancer, refreshTouchEditButtons } from './general/callout-enhancer';
 import {
 	firstLineIndentConfig,
@@ -174,6 +175,10 @@ export default class MDRazorPlugin extends Plugin {
 
 		// 注册通用功能：行内代码增强（单击行内代码 → 全选内容并复制，点击时即时探测开关）
 		registerInlineCodeEnhancer(this, () => this.settings.inlineCodeEnhancer);
+
+		// 注册通用功能：代码块语言标签中文支持（实时预览右上角语言标签支持
+		// 中文等非 ASCII 语言名；扩展注册 + 初始开关值，此后由 syncConfig 驱动）
+		registerCodeBlockLangLabel(this, () => this.settings.codeBlockLangLabel);
 
 		// 注册通用功能：Callout 增强（实时预览下单击 callout 不退回纯文本；
 		// 「编辑这个区块」按钮在保留官方外观的前提下就地编辑纯文本；粘贴多行自动补 `>`；
@@ -490,6 +495,9 @@ export default class MDRazorPlugin extends Plugin {
 		Object.assign(listEnhancerConfig, this.settings);
 		// 首行缩进的开关还要同步给 CM6 扩展（它在 update() 里读这个配置对象）
 		firstLineIndentConfig.enabled = this.settings.firstLineIndentEnabled;
+		// 代码块语言标签同理：update() 对比上次已知值，翻转即全量补/还原
+		// （saveSettings 自带 repaintAllEditors 派发空事务，触发这次重扫）
+		codeBlockLangLabelConfig.enabled = this.settings.codeBlockLangLabel;
 		// 「挂在 DOM 上的运行态」（body 开关类 / CSS 变量）：统一走
 		// applyRuntimeClasses（幂等 + 逐项异常隔离 + 覆盖所有窗口的 document）
 		this.applyRuntimeClasses();

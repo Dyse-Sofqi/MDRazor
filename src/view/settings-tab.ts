@@ -214,6 +214,23 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(panel)
+			.setName(tr('代码块语言标签', 'Code Block Language Label'))
+			.setDesc(
+				tr(
+					'开启后，实时预览下代码块右上角的原生语言标签支持中文等非 ASCII 语言名。原生标签按 ASCII 字符集提取语言：``` 后掺入中文时提取结果在首个非 ASCII 字符处截断（如 py中文 只显示 py），纯中文则整个提取为空、退化为复制图标；本插件按 Unicode 重新提取围栏信息串的首个词元并填入原生标签，中英混杂、纯中文均完整显示，外观与点击复制行为和纯英文名一致。纯 ASCII 词元保持原生显示（含 js → JavaScript 之类的模式名映射），``` 后无语言名时仍显示复制图标。仅实时预览生效（阅读模式没有语言标签）',
+					'When enabled, the native language label at the top-right of code blocks in Live Preview supports Chinese and other non-ASCII language names. The native label extracts the language with an ASCII-only charset: a name containing Chinese truncates at the first non-ASCII character (py中文 shows as just py), and a pure-Chinese name extracts as empty and degrades into a bare copy icon. This plugin re-extracts the first token of the fence info string with Unicode support and fills it into the native label, so mixed and pure-Chinese names display in full, with the same appearance and click-to-copy behavior as pure-English names. Pure-ASCII tokens keep their native display (including mode-name mappings like js → JavaScript), and blocks without a language keep the copy icon. Applies to Live Preview only (Reading view has no language label).',
+				),
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.codeBlockLangLabel)
+					.onChange(async (value) => {
+						this.plugin.settings.codeBlockLangLabel = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(panel)
 			.setName(tr('Callout 增强', 'Callout Enhancement'))
 			.setDesc(
 				tr(

@@ -4,6 +4,40 @@
 
 ---
 
+## 2.7.4 (2026-10-26)
+
+### 代码块语言标签的中文支持：原生按 ASCII 提取围栏语言（用户报告 + 二轮反馈）
+
+**现象：** ① 实时预览下代码块右上角：``` 后跟英文名显示语言名，跟纯中文只剩复制图标；② 二轮反馈：中英混杂（```py中文）只显示英文前缀（py）。
+
+**反混淆定位（obsidian.asar，rg 逐段抽出）：** 右上角元素是 Z5 widget——`createSpan({ cls: "code-block-flair", text: lang })`，`lang` 为空时 `setIcon(span, "lucide-copy")`，点击复制代码块内容；widget 挂在围栏起始行行末（原生 replace 装饰 N5 把 ``` 信息串整段隐藏，隐藏区段不产生 DOM），仅 HyperMD-codeblock-begin 行且光标不在块内时创建。语言提取：列表行先按 `dR = /^([>\s]*)(([*+-] |(\d+)([.)] ))(?:\[(.)\] )?)?/` 剥前缀，再跑 `B5 = /^\s*(~~~+|```+)[ \t]*([\w\/+#-]*)[^\n`]*$/` 取第 2 组；非空时还可能经 `CodeMirror.findModeByName` 换成规范名（js → JavaScript）。`canRenderLang`（mermaid / query / 注册的 postprocessor）走完整渲染路径、不产生 flair。**缺陷即字符集 `[\w/+#-]` 为纯 ASCII**：中文开头 → 第 2 组零宽匹配为空 → 图标；ASCII 开头掺中文 → 在首个字符集外字符处截断 → py。
+
+**为什么纯 CSS 不可行：** 两种缺陷场景下中文都不在渲染后的 DOM——flair span 文本为空或被截断、无携带语言名的属性，围栏行被 replace 装饰隐藏；`content: attr()` 无属性可读，按类名枚举拿不到任意中文名。只能由 JS 把名字填回 span。
+
+**实现位置：** `src/controller/general/code-block-lang-scan.ts`（新增，纯函数层）、`src/controller/general/code-block-lang-label.ts`（新增，CM6 ViewPlugin）；回归 `scripts/verify-code-block-lang.mjs`（`npm run verify:code-block-lang`）。
+
+1. **补丁 span 而非自建装饰。** flair span 在两种缺陷场景下都已在 DOM 中（图标分支或截断文本），就地 `textContent = token` 最小干预：原生 .code-block-flair 文本样式与点击复制监听原样保留，svg 图标随 textContent 写入自然移除。还原走 Obsidian 公开 API `setIcon(el, "lucide-copy")`，与原生同源。
+
+2. **`data-mz-code-lang` 标记的必要性。** 补丁后 span 与原生英文标签外表完全相同，无法从外观区分归属；后续重扫要靠标记识别「本插件补过的」——行文本变了要更新、词元消失要还原、开关关闭要整体还原。标记值存当前词元，重扫时可短路「已最新」。
+
+3. **判据演进（二轮反馈的教训）。** 第一版守卫是「span 已有文本就不碰」，漏掉截断场景——原生的截断显示（py中文 → py）也是非空文本。修正为**双提取对照**：`token`（Unicode 放宽词元）≠ `nativeToken`（原生 B5 第 2 组忠实复刻）即补全；`token === nativeToken`（纯 ASCII 词元原生已完整）一律不碰，保住 js → JavaScript 的模式名映射。判据必须是「语义对照」而非「外观判断」。
+
+4. **忠实性边界（差分回归断言）。** `nativeToken` 非空 ⟹ `token` 以其开头（同一条流水线的放宽，不偏移）；`nativeToken` 为空 ⟹ `token` 为空或首字符在原生字符集之外——差异只允许落在「原生本来显示图标」的场景，不改变任何原生行为。列表前缀的无条件剥离与原生「列表行才剥离」等价：dR 的标记分支要求「标记符 + 空格」，能剥掉标记的行必然是列表行；无标记时只剥空白，与 B5 自带的 `^\s*` 等价。`>` 不剥：引用行走嵌入渲染路径不产生 flair，剥了反而造成「> \`\`\`中文 有标签、> \`\`\`python 无标签」的不一致。
+
+5. **触发路径：零轮询增量 + docChanged 重扫兜底。** MutationObserver 挂 `view.scrollDOM`（childList + subtree）：flair widget 由 Obsidian 按需创建/销毁（光标进出代码块、行进入视口、编辑都重建 DOM），新增节点里出现 flair 即补，光标移动/滚动本身零开销。ViewUpdate 钩子在 `docChanged` 或开关翻转时全量重扫：兜 CM6 widget `eq`（按 lang, code 比较）复用 DOM 的过期补丁——撤销只改信息串行时 lang/code 皆不变、旧 DOM 连补丁一起复用、观察器静默。文档位置 `posAtDOM` 每次现取、从不缓存（编辑与撤销都会让旧位置失效），定位失败（离屏/视图重建中）一律放行不扩散。性能取向沿用 2.7.3 教训不做每帧全扫：重扫是一次 querySelectorAll、仅按键/开关翻转触发，CM6 视口虚拟化下 DOM 量级很小。
+
+6. **开关即时生效走既有链路。** syncConfig 写模块级配置对象 + saveSettings 自带 repaintAllEditors 派发空事务 → ViewPlugin 的 update() 对比 lastEnabled 翻转即全量补/还原，不需要手写 apply/refresh（手写反而要自己遍历 popout 的 leaf）。
+
+**避坑：**
+
+- 跨窗口节点判定用 Obsidian 的 `Node.instanceOf`：popout 窗口的 Element 过不了本窗口 `instanceof`。
+- `PluginValue` 从 `@codemirror/view` 导入——`@codemirror/state` 没有这个导出（tsc 报 TS2305）。
+- 抄录 app.js 正则时字符类内的 `\/` 是混淆器留下的多余转义，eslint `no-useless-escape` 报错；`\/` 与 `/` 在字符类内等价，去掉不改变语义（脚本内照抄可保留，eslint 配置不覆盖 scripts/）。
+- 围栏正则里围栏与词元之间是 `[ \t]*`（照抄 B5），不要顺手写成 `\s`：行文本虽无换行，但 `\f\v\u00a0` 会被多吃，与原生语义对不齐。
+- 读 asar 用 `rg -a -o 'pattern.{0,N}'` 定点抽取（asar 内容是明文拼接），比解包快得多；Git Bash 会把含 `/` 的正则参数当路径转换，用不含斜杠边界的形式或换引号策略绕开。
+
+---
+
 ## 2.7.3 (2026-10-15)
 
 ### 「文档不大却很卡」：隐藏样式的整篇扫描在每次视图更新重跑两遍（用户报告）
