@@ -74,6 +74,9 @@ export interface MDRazorSettings {
 	// ── 隐藏 HTML 行标签（span）──
 	hideHtmlSpanFormatting: boolean;
 
+	// ── 隐藏其他 HTML 标签 ──
+	hideOtherHtmlTagFormatting: boolean;
+
 	// ── 光标边界提示 ──
 	symbolBoundaryHint: boolean;
 
@@ -232,6 +235,7 @@ export const DEFAULT_SETTINGS: MDRazorSettings = {
 	hideHtmlColorTagFormatting: true,
 	hideHtmlUnderlineFormatting: true,
 	hideHtmlSpanFormatting: true,
+	hideOtherHtmlTagFormatting: true,
 	symbolBoundaryHint: true,
 	listIntegration: true,
 	checkboxIntegration: true,

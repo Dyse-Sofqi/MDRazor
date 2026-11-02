@@ -41,6 +41,7 @@ import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 import { revealCaretRanges } from './caret-reveal';
 import {
 	collectPairedHtmlTags,
+	collectPairedOtherHtmlTags,
 	collectSpanExclusions,
 	type DocRange,
 } from './html-tag-scan';
@@ -158,6 +159,7 @@ function configKey(): string {
 		c.hideHtmlColorTagFormatting,
 		c.hideHtmlUnderlineFormatting,
 		c.hideHtmlSpanFormatting,
+		c.hideOtherHtmlTagFormatting,
 	].map((on) => (on ? '1' : '0')).join('');
 }
 
@@ -172,6 +174,7 @@ function configKey(): string {
 const COLOR_TAG_RE = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/;
 const UNDERLINE_TAG_RE = /<\/?u\s*>/i;
 const SPAN_TAG_RE = /<span(?:\s[^>]*)?>|<\/span\s*>/i;
+const OTHER_TAG_PRECHECK_RE = /<\/(?!(?:font|u|span)\b)[a-zA-Z]/i;
 
 /** 由预检正则派生扫描用正则（补上 g 标志；已有则原样返回） */
 function toGlobal(re: RegExp): RegExp {
@@ -375,11 +378,35 @@ function collectEntries(
 	// 全文不含 `<span` / `</span` 时正则必然无匹配，此时省掉整趟围栏行扫描
 	// 与第二次全树遍历 —— 实测这是本模块原先最大的单项开销（12k 行文档
 	// 单次 3.6ms、21k 行 7.2ms，而绝大多数文档根本没有 span 标签）。
+	let cachedExclusions: DocRange[] | null = null;
+	const getExclusions = (): readonly DocRange[] => {
+		if (cachedExclusions === null) {
+			cachedExclusions = collectSpanExclusions(view.state.doc, tree);
+		}
+		return cachedExclusions;
+	};
+
 	if (formattingConfig.hideHtmlSpanFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (SPAN_TAG_RE.test(docStr)) {
-			const exclusions = collectSpanExclusions(view.state.doc, tree);
+			const exclusions = getExclusions();
 			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(SPAN_TAG_RE), exclusions)) {
+				entries.push({
+					from,
+					to,
+					spec: { hideAsMark: true },
+				});
+			}
+		}
+	}
+
+	// ── 其他 HTML 标签（如 <b>、<i>、<s>、<sub>、<sup>、<mark>、<kbd>、<p>、<div> 等）──
+	// 成对出现时隐藏，单边或未闭合标签保持可见。排除 font、u、span（由各自独立开关控制）。
+	if (formattingConfig.hideOtherHtmlTagFormatting) {
+		const docStr = documentText(view.state.doc);
+		if (OTHER_TAG_PRECHECK_RE.test(docStr)) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedOtherHtmlTags(docStr, exclusions)) {
 				entries.push({
 					from,
 					to,

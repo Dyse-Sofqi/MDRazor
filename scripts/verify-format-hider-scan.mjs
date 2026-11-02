@@ -38,7 +38,7 @@ await esbuild.build({
 	logLevel: 'warning',
 });
 
-const { collectFenceRanges, collectPairedHtmlTags } = await import(pathToFileURL(outfile).href);
+const { collectFenceRanges, collectPairedHtmlTags, collectPairedOtherHtmlTags } = await import(pathToFileURL(outfile).href);
 
 // ── 参照实现（改写前的原样抄录，仅用于差分对照）─────────────────────────
 
@@ -288,6 +288,58 @@ console.log('④ 线性度（固定标签数，放大排除区间数）');
 	// 旧实现是平方增长：规模 8× 时耗时应涨到数十倍。新实现应显著更平缓。
 	check('新实现增长倍数 < 旧实现的一半', newLarge / newSmall < (oldLarge / oldSmall) / 2, true);
 	check('大夹具下新实现 < 10ms', newLarge < 10, true);
+}
+
+/* ═══ ⑤ collectPairedOtherHtmlTags 配对与排除语义 ═══ */
+
+console.log('⑤ collectPairedOtherHtmlTags 配对与排除语义');
+{
+	const d1 = '<b>粗体</b><i>斜体</i>';
+	check('多类型标签各自配对成对隐藏', collectPairedOtherHtmlTags(d1), [
+		{ from: 0, to: 3, isClose: false },
+		{ from: 5, to: 9, isClose: true },
+		{ from: 9, to: 12, isClose: false },
+		{ from: 14, to: 18, isClose: true },
+	]);
+
+	const d2 = '<b><i>嵌套</i></b>';
+	check('嵌套标签正确成对隐藏', collectPairedOtherHtmlTags(d2), [
+		{ from: 0, to: 3, isClose: false },
+		{ from: 3, to: 6, isClose: false },
+		{ from: 8, to: 12, isClose: true },
+		{ from: 12, to: 16, isClose: true },
+	]);
+
+	const d3 = '<b>未闭合 <mark>高亮</mark>';
+	check('未闭合标签不隐藏，成对标签正常隐藏', collectPairedOtherHtmlTags(d3), [
+		{ from: 7, to: 13, isClose: false },
+		{ from: 15, to: 22, isClose: true },
+	]);
+
+	const d4 = '<font color="#fff">颜色</font><u>下划线</u><span>行</span><kbd>键</kbd>';
+	check('默认忽略 font、u、span 标签', collectPairedOtherHtmlTags(d4), [
+		{ from: 52, to: 57, isClose: false },
+		{ from: 58, to: 64, isClose: true },
+	]);
+
+	const d5 = '<br>换行<hr><img src="a.png" /><div class="box">盒子</div>';
+	check('void 标签与自闭合标签跳过，div 标签正常配对', collectPairedOtherHtmlTags(d5), [
+		{ from: 29, to: 46, isClose: false },
+		{ from: 48, to: 54, isClose: true },
+	]);
+
+	const d6 = '<KBD>按键</kbd>';
+	check('大小写不敏感匹配', collectPairedOtherHtmlTags(d6), [
+		{ from: 0, to: 5, isClose: false },
+		{ from: 7, to: 13, isClose: true },
+	]);
+
+	const d7 = '`<b>字面代码</b>` <p>段落</p>';
+	const exclusions = [{ from: 0, to: 12 }]; // 代码区间
+	check('排除区间内的标签跳过', collectPairedOtherHtmlTags(d7, exclusions), [
+		{ from: 14, to: 17, isClose: false },
+		{ from: 19, to: 23, isClose: true },
+	]);
 }
 
 console.log(
