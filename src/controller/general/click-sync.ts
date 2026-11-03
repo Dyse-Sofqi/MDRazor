@@ -185,6 +185,11 @@ function handleMouseDown(event: MouseEvent, view: EditorView): void {
 	if (target.closest('.collapse-indicator, .list-collapse-indicator, .cm-foldToggle')) {
 		return;
 	}
+	// 不可编辑的内联/块级 widget（如 .cm-html-embed、[contenteditable="false"]）：
+	// CM6 posAtDOM 对此类不可编辑节点无法精确定位，会退化返回 widget 起点，跳过
+	if (target.closest('.cm-html-embed, .cm-embed-block, [contenteditable="false"]')) {
+		return;
+	}
 	const lineEl = target.closest<HTMLElement>('.cm-line');
 	if (!lineEl) {
 		return; // gutter/空白/widget-only 点击不治
