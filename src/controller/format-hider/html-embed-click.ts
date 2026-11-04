@@ -91,27 +91,36 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	let textNode: Node | null = null;
 	let offset = 0;
 
-	if (doc.caretPositionFromPoint) {
-		const cp = doc.caretPositionFromPoint(clickX, clickY);
-		if (cp && cp.offsetNode && embedEl.contains(cp.offsetNode)) {
-			textNode = cp.offsetNode;
-			offset = cp.offset;
+	// 辅助：从指定坐标获取文字节点
+	const getCaretAt = (x: number, y: number): { node: Node; offset: number } | null => {
+		if (doc.caretPositionFromPoint) {
+			const cp = doc.caretPositionFromPoint(x, y);
+			if (cp && cp.offsetNode && embedEl.contains(cp.offsetNode)) {
+				return { node: cp.offsetNode, offset: cp.offset };
+			}
 		}
-	}
+		if ((doc as unknown as { caretRangeFromPoint?: (x: number, y: number) => Range | null }).caretRangeFromPoint) {
+			const cr = (doc as unknown as { caretRangeFromPoint: (x: number, y: number) => Range | null }).caretRangeFromPoint(x, y);
+			if (cr && cr.startContainer && embedEl.contains(cr.startContainer)) {
+				return { node: cr.startContainer, offset: cr.startOffset };
+			}
+		}
+		return null;
+	};
 
-	if (!textNode && (doc as unknown as { caretRangeFromPoint?: (x: number, y: number) => Range | null }).caretRangeFromPoint) {
-		const cr = (doc as unknown as { caretRangeFromPoint: (x: number, y: number) => Range | null }).caretRangeFromPoint(clickX, clickY);
-		if (cr && cr.startContainer && embedEl.contains(cr.startContainer)) {
-			textNode = cr.startContainer;
-			offset = cr.startOffset;
-		}
+	const caret = getCaretAt(clickX, clickY);
+	if (caret) {
+		textNode = caret.node;
+		offset = caret.offset;
 	}
 
 	// 累加计算该位置在 embed 文本内容中的相对偏移
 	let textOffsetInEmbed = 0;
 	let found = false;
 	const walker = doc.createTreeWalker(embedEl, NodeFilter.SHOW_TEXT);
+	let lastTextNode: Node | null = null;
 	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+		lastTextNode = n;
 		if (n === textNode) {
 			const len = n.nodeValue ? n.nodeValue.length : 0;
 			textOffsetInEmbed += Math.max(0, Math.min(offset, len));
@@ -121,12 +130,38 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 		textOffsetInEmbed += n.nodeValue ? n.nodeValue.length : 0;
 	}
 
-	// 若未精准命中特定文本节点，回退为文本中心点或行首
-	if (!found) {
-		textOffsetInEmbed = 0;
+	// 计算该成对 HTML 在文档中的对应闭标签
+	const closeTagRe = new RegExp('</' + tagName + '\\s*>', 'i');
+	const docRest = docText.slice(widgetStart);
+	const closeTagMatch = docRest.match(closeTagRe);
+
+	// 若点击落在末尾文字节点的右半边或 embed 右边缘外侧，精确定位到闭标签后方（</tag>|），以弹出边界提示
+	let targetPos: number;
+	let isAtEnd = false;
+
+	if (lastTextNode && lastTextNode.nodeValue) {
+		const lastLen = lastTextNode.nodeValue.length;
+		const range = doc.createRange();
+		range.setStart(lastTextNode, Math.max(0, lastLen - 1));
+		range.setEnd(lastTextNode, lastLen);
+		const lastCharRect = range.getBoundingClientRect();
+		const midX = (lastCharRect.left + lastCharRect.right) / 2;
+
+		// 如果用户点击在最后一个字符的右半部分，或者在最后一个字符右侧
+		if (clickX >= midX) {
+			isAtEnd = true;
+		}
 	}
 
-	const targetPos = widgetStart + openTagLen + textOffsetInEmbed;
+	if (isAtEnd && closeTagMatch && closeTagMatch.index !== undefined) {
+		targetPos = widgetStart + closeTagMatch.index + closeTagMatch[0].length;
+	} else if (found) {
+		targetPos = widgetStart + openTagLen + textOffsetInEmbed;
+	} else {
+		// 未命中内部文字节点时的后备
+		targetPos = widgetStart + openTagLen;
+	}
+
 	if (targetPos < 0 || targetPos > view.state.doc.length) {
 		return false;
 	}
