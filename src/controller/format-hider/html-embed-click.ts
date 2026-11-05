@@ -87,47 +87,39 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	const clickY = event.clientY;
 	const doc = embedEl.ownerDocument;
 
-	// 确定用户点击的文字节点及节点内偏移
-	let textNode: Node | null = null;
-	let offset = 0;
-
-	// 辅助：从指定坐标获取文字节点
-	const getCaretAt = (x: number, y: number): { node: Node; offset: number } | null => {
-		if (doc.caretPositionFromPoint) {
-			const cp = doc.caretPositionFromPoint(x, y);
-			if (cp && cp.offsetNode && embedEl.contains(cp.offsetNode)) {
-				return { node: cp.offsetNode, offset: cp.offset };
-			}
-		}
-		if ((doc as unknown as { caretRangeFromPoint?: (x: number, y: number) => Range | null }).caretRangeFromPoint) {
-			const cr = (doc as unknown as { caretRangeFromPoint: (x: number, y: number) => Range | null }).caretRangeFromPoint(x, y);
-			if (cr && cr.startContainer && embedEl.contains(cr.startContainer)) {
-				return { node: cr.startContainer, offset: cr.startOffset };
-			}
-		}
-		return null;
-	};
-
-	const caret = getCaretAt(clickX, clickY);
-	if (caret) {
-		textNode = caret.node;
-		offset = caret.offset;
+	// 收集 embed 内所有文本节点与逐字符的几何包围盒
+	const walker = doc.createTreeWalker(embedEl, NodeFilter.SHOW_TEXT);
+	const textNodes: Node[] = [];
+	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+		textNodes.push(n);
 	}
 
-	// 累加计算该位置在 embed 文本内容中的相对偏移
-	let textOffsetInEmbed = 0;
-	let found = false;
-	const walker = doc.createTreeWalker(embedEl, NodeFilter.SHOW_TEXT);
-	let lastTextNode: Node | null = null;
-	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-		lastTextNode = n;
-		if (n === textNode) {
-			const len = n.nodeValue ? n.nodeValue.length : 0;
-			textOffsetInEmbed += Math.max(0, Math.min(offset, len));
-			found = true;
-			break;
+	interface CharMetric {
+		char: string;
+		offsetInEmbed: number;
+		left: number;
+		right: number;
+		midX: number;
+	}
+
+	const charMetrics: CharMetric[] = [];
+	let cumulativeOffset = 0;
+	for (const tn of textNodes) {
+		const val = tn.nodeValue || '';
+		for (let i = 0; i < val.length; i++) {
+			const r = doc.createRange();
+			r.setStart(tn, i);
+			r.setEnd(tn, i + 1);
+			const box = r.getBoundingClientRect();
+			charMetrics.push({
+				char: val[i]!,
+				offsetInEmbed: cumulativeOffset + i,
+				left: box.left,
+				right: box.right,
+				midX: (box.left + box.right) / 2,
+			});
 		}
-		textOffsetInEmbed += n.nodeValue ? n.nodeValue.length : 0;
+		cumulativeOffset += val.length;
 	}
 
 	// 计算该成对 HTML 在文档中的对应闭标签
@@ -135,31 +127,33 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	const docRest = docText.slice(widgetStart);
 	const closeTagMatch = docRest.match(closeTagRe);
 
-	// 若点击落在末尾文字节点的右半边或 embed 右边缘外侧，精确定位到闭标签后方（</tag>|），以弹出边界提示
 	let targetPos: number;
+	let textOffsetInEmbed = 0;
 	let isAtEnd = false;
 
-	if (lastTextNode && lastTextNode.nodeValue) {
-		const lastLen = lastTextNode.nodeValue.length;
-		const range = doc.createRange();
-		range.setStart(lastTextNode, Math.max(0, lastLen - 1));
-		range.setEnd(lastTextNode, lastLen);
-		const lastCharRect = range.getBoundingClientRect();
-		const midX = (lastCharRect.left + lastCharRect.right) / 2;
-
-		// 如果用户点击在最后一个字符的右半部分，或者在最后一个字符右侧
-		if (clickX >= midX) {
-			isAtEnd = true;
+	if (charMetrics.length === 0) {
+		targetPos = widgetStart + openTagLen;
+	} else if (clickX >= charMetrics[charMetrics.length - 1]!.midX) {
+		isAtEnd = true;
+	} else if (clickX <= charMetrics[0]!.midX) {
+		textOffsetInEmbed = 0;
+	} else {
+		for (let i = 0; i < charMetrics.length; i++) {
+			const m = charMetrics[i]!;
+			if (clickX >= m.left && clickX <= m.right) {
+				textOffsetInEmbed = clickX >= m.midX ? m.offsetInEmbed + 1 : m.offsetInEmbed;
+				break;
+			} else if (i < charMetrics.length - 1 && clickX > m.right && clickX < charMetrics[i + 1]!.left) {
+				textOffsetInEmbed = m.offsetInEmbed + 1;
+				break;
+			}
 		}
 	}
 
 	if (isAtEnd && closeTagMatch && closeTagMatch.index !== undefined) {
 		targetPos = widgetStart + closeTagMatch.index + closeTagMatch[0].length;
-	} else if (found) {
-		targetPos = widgetStart + openTagLen + textOffsetInEmbed;
 	} else {
-		// 未命中内部文字节点时的后备
-		targetPos = widgetStart + openTagLen;
+		targetPos = widgetStart + openTagLen + textOffsetInEmbed;
 	}
 
 	if (targetPos < 0 || targetPos > view.state.doc.length) {
