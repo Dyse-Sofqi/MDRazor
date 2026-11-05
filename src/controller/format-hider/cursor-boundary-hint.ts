@@ -24,6 +24,7 @@ import {
 	TooltipView,
 	Direction,
 	showTooltip,
+	Rect,
 } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import { formattingConfig, buildDecorations } from './format-hider';
@@ -101,10 +102,35 @@ function buildBoundaryTooltip(
 		strictSide: true,
 		// create 每次都是新闭包：TooltipViewManager 以 create 的函数标识判断
 		// 能否复用 tooltipView，新闭包即触发重建，重建就会重新 mount 量一次偏移
-		create: (): TooltipView => {
+		create: (view: EditorView): TooltipView => {
 			const tooltipView: TooltipView = {
 				dom,
 				offset: { x: 0, y: 0 },
+				getCoords: (targetPos: number): Rect => {
+					const direct =
+						view.coordsAtPos(targetPos) ||
+						view.coordsAtPos(targetPos, -1) ||
+						view.coordsAtPos(targetPos, 1);
+					if (direct) return direct;
+
+					// 当 targetPos 落在 display: none 的 HTML 标签内或其末尾时，
+					// 直接 coordsAtPos 可能返回 null。向两侧搜索最近的可见文本坐标。
+					for (let d = 1; d <= 30; d++) {
+						if (targetPos - d >= 0) {
+							const prev =
+								view.coordsAtPos(targetPos - d, -1) ||
+								view.coordsAtPos(targetPos - d, 1);
+							if (prev) return prev;
+						}
+						if (targetPos + d <= view.state.doc.length) {
+							const next =
+								view.coordsAtPos(targetPos + d, 1) ||
+								view.coordsAtPos(targetPos + d, -1);
+							if (next) return next;
+						}
+					}
+					return { left: 0, right: 0, top: -10000, bottom: -10000 };
+				},
 				mount: (editorView) => {
 					tooltipView.offset = {
 						x: barAlignOffset(editorView, dom, bar),
