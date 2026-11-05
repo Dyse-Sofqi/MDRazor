@@ -55,7 +55,47 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 		return false;
 	}
 
-	const embedEl = target.closest<HTMLElement>('.cm-html-embed');
+	const clickX = event.clientX;
+	const clickY = event.clientY;
+
+	// 优先直接匹配点击在 embed 内部的元素
+	let embedEl = target.closest<HTMLElement>('.cm-html-embed');
+
+	// 若点击在 cm-line 边缘空白处（如行末折行后句号右侧，或者同一行的空白处），
+	// event.target 可能是 .cm-line，而原生 selectElement 会将整行或整个 embed 粗暴全选。
+	// 此时检查点击点是否处于某个成对 HTML embed 最后一个片段（行末）的右侧空白区。
+	if (!embedEl) {
+		const lineEl = target.closest<HTMLElement>('.cm-line');
+		if (lineEl && view.contentDOM.contains(lineEl)) {
+			const lineEmbeds = Array.from(lineEl.querySelectorAll<HTMLElement>('.cm-html-embed'));
+			for (const candidate of lineEmbeds) {
+				if (candidate.classList.contains('cm-embed-block')) continue;
+				// 检查 candidate 是否是该行末尾的内联 HTML
+				const nextSibling = candidate.nextElementSibling;
+				const isAtLineEnd =
+					!nextSibling ||
+					(nextSibling.classList.contains('cm-widgetBuffer') && !nextSibling.nextElementSibling);
+				if (isAtLineEnd) {
+					const range = candidate.ownerDocument.createRange();
+					range.selectNode(candidate);
+					const rects = Array.from(range.getClientRects());
+					if (rects.length > 0) {
+						const lastRect = rects[rects.length - 1]!;
+						// 如果点击在最后一行片段的右侧空白处（垂直方向在该行范围内，水平方向在右边）
+						if (
+							clickY >= lastRect.top - 4 &&
+							clickY <= lastRect.bottom + 4 &&
+							clickX >= lastRect.left
+						) {
+							embedEl = candidate;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+
 	if (!embedEl || !view.contentDOM.contains(embedEl)) {
 		return false;
 	}
@@ -83,8 +123,6 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	}
 
 	const openTagLen = openTagMatch[0].length;
-	const clickX = event.clientX;
-	const clickY = event.clientY;
 	const doc = embedEl.ownerDocument;
 
 	// 收集 embed 内所有文本节点与逐字符的几何包围盒
@@ -100,6 +138,8 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 		left: number;
 		right: number;
 		midX: number;
+		top: number;
+		bottom: number;
 	}
 
 	const charMetrics: CharMetric[] = [];
@@ -117,6 +157,8 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 				left: box.left,
 				right: box.right,
 				midX: (box.left + box.right) / 2,
+				top: box.top,
+				bottom: box.bottom,
 			});
 		}
 		cumulativeOffset += val.length;
@@ -133,19 +175,38 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 
 	if (charMetrics.length === 0) {
 		targetPos = widgetStart + openTagLen;
-	} else if (clickX >= charMetrics[charMetrics.length - 1]!.midX) {
-		isAtEnd = true;
-	} else if (clickX <= charMetrics[0]!.midX) {
-		textOffsetInEmbed = 0;
 	} else {
-		for (let i = 0; i < charMetrics.length; i++) {
-			const m = charMetrics[i]!;
-			if (clickX >= m.left && clickX <= m.right) {
-				textOffsetInEmbed = clickX >= m.midX ? m.offsetInEmbed + 1 : m.offsetInEmbed;
-				break;
-			} else if (i < charMetrics.length - 1 && clickX > m.right && clickX < charMetrics[i + 1]!.left) {
-				textOffsetInEmbed = m.offsetInEmbed + 1;
-				break;
+		// 优先筛选出与点击垂直坐标同行的字符（支持跨行/折行的内联 HTML）
+		const rowMetrics = charMetrics.filter(
+			(m) => clickY >= m.top - 3 && clickY <= m.bottom + 3,
+		);
+		const activeMetrics = rowMetrics.length > 0 ? rowMetrics : charMetrics;
+		const lastMetric = activeMetrics[activeMetrics.length - 1]!;
+		const firstMetric = activeMetrics[0]!;
+
+		if (clickX >= lastMetric.midX) {
+			// 若处于整段 embed 的最末字符之后，吸附至闭标签之后
+			if (lastMetric.offsetInEmbed === charMetrics.length - 1) {
+				isAtEnd = true;
+			} else {
+				textOffsetInEmbed = lastMetric.offsetInEmbed + 1;
+			}
+		} else if (clickX <= firstMetric.midX) {
+			textOffsetInEmbed = firstMetric.offsetInEmbed;
+		} else {
+			for (let i = 0; i < activeMetrics.length; i++) {
+				const m = activeMetrics[i]!;
+				if (clickX >= m.left && clickX <= m.right) {
+					textOffsetInEmbed = clickX >= m.midX ? m.offsetInEmbed + 1 : m.offsetInEmbed;
+					break;
+				} else if (
+					i < activeMetrics.length - 1 &&
+					clickX > m.right &&
+					clickX < activeMetrics[i + 1]!.left
+				) {
+					textOffsetInEmbed = m.offsetInEmbed + 1;
+					break;
+				}
 			}
 		}
 	}
