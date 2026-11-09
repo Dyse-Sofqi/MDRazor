@@ -26,6 +26,94 @@ import { EditorView, ViewPlugin } from '@codemirror/view';
 import { EditorSelection, type Extension } from '@codemirror/state';
 import { formattingConfig } from './format-hider';
 
+/**
+ * 拖选跟踪上下文：
+ * 当用户在 HTML embed 或行末闭标签后方按下并拖拽鼠标时，
+ * 接管 document 级 mousemove 与 mouseup 事件，精确更新选区。
+ */
+interface HtmlDragState {
+	view: EditorView;
+	anchorPos: number;
+	startX: number;
+	startY: number;
+	isDragging: boolean;
+}
+
+let currentDragState: HtmlDragState | null = null;
+let dragListenersBound = false;
+
+function ensureHtmlDragListeners(): void {
+	if (dragListenersBound) return;
+	dragListenersBound = true;
+
+			window.addEventListener(
+				'mousemove',
+				(e: MouseEvent) => {
+					if (!currentDragState || e.buttons === 0) {
+						currentDragState = null;
+						return;
+					}
+
+					const dx = Math.abs(e.clientX - currentDragState.startX);
+					const dy = Math.abs(e.clientY - currentDragState.startY);
+					if (!currentDragState.isDragging && (dx > 3 || dy > 3)) {
+						currentDragState.isDragging = true;
+					}
+
+					if (!currentDragState.isDragging) return;
+
+					const { view, anchorPos } = currentDragState;
+					if (!view.dom.isConnected) {
+						currentDragState = null;
+						return;
+					}
+
+					const headPos = resolveDocPosFromPoint(view, e.clientX, e.clientY);
+					if (headPos !== null && headPos >= 0 && headPos <= view.state.doc.length) {
+						view.dispatch({
+							selection: EditorSelection.range(anchorPos, headPos),
+							scrollIntoView: false,
+							userEvent: 'select.pointer',
+						});
+					}
+				},
+				true,
+			);
+
+			window.addEventListener(
+				'click',
+				(e: MouseEvent) => {
+					if (currentDragState?.isDragging) {
+						e.stopPropagation();
+						e.preventDefault();
+					}
+				},
+				true,
+			);
+
+	window.addEventListener(
+		'mouseup',
+		() => {
+			// 延迟一帧清空，保证在 click 事件中仍能感知拖拽状态以阻止 click 触发 selectElement
+			window.requestAnimationFrame(() => {
+				currentDragState = null;
+			});
+		},
+		true,
+	);
+}
+
+function startDragTracking(view: EditorView, anchorPos: number, startX: number, startY: number): void {
+	ensureHtmlDragListeners();
+	currentDragState = {
+		view,
+		anchorPos,
+		startX,
+		startY,
+		isDragging: false,
+	};
+}
+
 /** 检查特定标签名是否当前启用了隐藏 */
 function isTagTypeHidden(tagName: string): boolean {
 	const tag = tagName.toLowerCase();
@@ -33,6 +121,178 @@ function isTagTypeHidden(tagName: string): boolean {
 	if (tag === 'u') return formattingConfig.hideHtmlUnderlineFormatting;
 	if (tag === 'span') return formattingConfig.hideHtmlSpanFormatting;
 	return formattingConfig.hideOtherHtmlTagFormatting;
+}
+
+/**
+ * 将屏幕坐标 (clientX, clientY) 解析为文档位置。
+ * 能够正确处理包含 .cm-html-embed 的内联区域及折行末尾。
+ */
+function resolveDocPosFromPoint(view: EditorView, clientX: number, clientY: number): number | null {
+	const doc = view.dom.ownerDocument;
+	const target = doc.elementFromPoint(clientX, clientY) as HTMLElement | null;
+	if (!target || !view.contentDOM.contains(target)) {
+		return null;
+	}
+
+	// 1. 若命中某 .cm-html-embed
+	const embed = target.closest<HTMLElement>('.cm-html-embed');
+	if (embed && !embed.classList.contains('cm-embed-block')) {
+		return calculatePosInEmbed(view, embed, clientX, clientY);
+	}
+
+	// 2. 检查是否在 cm-line 范围
+	const lineEl = target.closest<HTMLElement>('.cm-line');
+	if (lineEl && lineEl.closest('.cm-content') === view.contentDOM) {
+		const lineStart = view.posAtDOM(lineEl, 0);
+		if (lineStart >= 0 && lineStart < view.state.doc.length) {
+			const line = view.state.doc.lineAt(lineStart);
+
+			// 检查该行末尾是否有成对 HTML 标签
+			const closeMatch = line.text.match(/<\/[a-zA-Z][a-zA-Z0-9-]*\s*>$/);
+			if (closeMatch && closeMatch.index !== undefined) {
+				// 查找最后一个可见内容节点
+				const isHiddenTagNode = (node: Node): boolean => {
+					if (node.nodeType !== Node.ELEMENT_NODE) return false;
+					const el = node as HTMLElement;
+					return (
+						el.classList.contains('mdrazor-html-tag-hidden') ||
+						el.querySelector('.mdrazor-html-tag-hidden') !== null
+					);
+				};
+				const children = Array.from(lineEl.childNodes);
+				let lastVisibleChild: Node | null = null;
+				for (let i = children.length - 1; i >= 0; i--) {
+					const c = children[i]!;
+					if (isHiddenTagNode(c)) continue;
+					if (c.nodeType === Node.ELEMENT_NODE) {
+						const el = c as HTMLElement;
+						const r = el.getBoundingClientRect();
+						if (r.width > 0 && r.height > 0) {
+							lastVisibleChild = c;
+							break;
+						}
+					} else if (c.nodeType === Node.TEXT_NODE) {
+						if (c.nodeValue && c.nodeValue.length > 0) {
+							lastVisibleChild = c;
+							break;
+						}
+					}
+				}
+
+				if (lastVisibleChild) {
+					const range = lineEl.ownerDocument.createRange();
+					range.selectNodeContents(lastVisibleChild);
+					const rects = Array.from(range.getClientRects());
+					if (rects.length > 0) {
+						const lastRect = rects[rects.length - 1]!;
+						if (
+							(clientY >= lastRect.top - 4 &&
+								clientY <= lastRect.bottom + 4 &&
+								clientX >= lastRect.right - 2) ||
+							clientY > lastRect.bottom + 4
+						) {
+							return line.to;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 原生退化方案
+	return view.posAtCoords({ x: clientX, y: clientY }, false);
+}
+
+/**
+ * 计算 (clientX, clientY) 在特定 .cm-html-embed 内的精确文档位置
+ */
+function calculatePosInEmbed(view: EditorView, embedEl: HTMLElement, clientX: number, clientY: number): number {
+	const widgetStart = view.posAtDOM(embedEl, 0);
+	const docText = view.state.doc.toString();
+	if (widgetStart < 0 || widgetStart >= docText.length) {
+		return widgetStart;
+	}
+
+	const openTagMatch = docText.slice(widgetStart).match(/^<([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/);
+	if (!openTagMatch) return widgetStart;
+
+	const tagName = openTagMatch[1]!;
+	const openTagLen = openTagMatch[0].length;
+	const doc = embedEl.ownerDocument;
+
+	const walker = doc.createTreeWalker(embedEl, NodeFilter.SHOW_TEXT);
+	const textNodes: Node[] = [];
+	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+		textNodes.push(n);
+	}
+
+	interface CharMetric {
+		char: string;
+		offsetInEmbed: number;
+		left: number;
+		right: number;
+		midX: number;
+		top: number;
+		bottom: number;
+	}
+
+	const charMetrics: CharMetric[] = [];
+	let cumulativeOffset = 0;
+	for (const tn of textNodes) {
+		const val = tn.nodeValue || '';
+		for (let i = 0; i < val.length; i++) {
+			const r = doc.createRange();
+			r.setStart(tn, i);
+			r.setEnd(tn, i + 1);
+			const box = r.getBoundingClientRect();
+			charMetrics.push({
+				char: val[i]!,
+				offsetInEmbed: cumulativeOffset + i,
+				left: box.left,
+				right: box.right,
+				midX: (box.left + box.right) / 2,
+				top: box.top,
+				bottom: box.bottom,
+			});
+		}
+		cumulativeOffset += val.length;
+	}
+
+	const closeTagRe = new RegExp('</' + tagName + '\\s*>', 'i');
+	const docRest = docText.slice(widgetStart);
+	const closeTagMatch = docRest.match(closeTagRe);
+
+	if (charMetrics.length === 0) {
+		return widgetStart + openTagLen;
+	}
+
+	const rowMetrics = charMetrics.filter((m) => clientY >= m.top - 3 && clientY <= m.bottom + 3);
+	const activeMetrics = rowMetrics.length > 0 ? rowMetrics : charMetrics;
+	const lastMetric = activeMetrics[activeMetrics.length - 1]!;
+	const firstMetric = activeMetrics[0]!;
+
+	if (clientX >= lastMetric.midX) {
+		if (lastMetric.offsetInEmbed === charMetrics.length - 1 && closeTagMatch && closeTagMatch.index !== undefined) {
+			return widgetStart + closeTagMatch.index + closeTagMatch[0].length;
+		}
+		return widgetStart + openTagLen + lastMetric.offsetInEmbed + 1;
+	} else if (clientX <= firstMetric.midX) {
+		if (firstMetric.offsetInEmbed === 0) {
+			return widgetStart;
+		}
+		return widgetStart + openTagLen + firstMetric.offsetInEmbed;
+	} else {
+		for (let i = 0; i < activeMetrics.length; i++) {
+			const m = activeMetrics[i]!;
+			if (clientX >= m.left && clientX <= m.right) {
+				return widgetStart + openTagLen + (clientX >= m.midX ? m.offsetInEmbed + 1 : m.offsetInEmbed);
+			} else if (i < activeMetrics.length - 1 && clientX > m.right && clientX < activeMetrics[i + 1]!.left) {
+				return widgetStart + openTagLen + m.offsetInEmbed + 1;
+			}
+		}
+	}
+
+	return widgetStart + openTagLen;
 }
 
 /**
@@ -162,14 +422,14 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 						) {
 							const targetPos = line.to;
 							event.stopPropagation();
-							event.preventDefault();
 							view.dispatch({
 								selection: EditorSelection.cursor(targetPos, 1),
 								scrollIntoView: false,
 								userEvent: 'select.pointer',
 							});
 							view.focus();
-							return true;
+							startDragTracking(view, targetPos, clickX, clickY);
+							return false;
 						}
 					}
 				}
@@ -203,100 +463,13 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 		return false; // 当前未开启该标签隐藏，放行给 Obsidian 原生处理
 	}
 
-	const openTagLen = openTagMatch[0].length;
-	const doc = embedEl.ownerDocument;
-
-	// 收集 embed 内所有文本节点与逐字符的几何包围盒
-	const walker = doc.createTreeWalker(embedEl, NodeFilter.SHOW_TEXT);
-	const textNodes: Node[] = [];
-	for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-		textNodes.push(n);
-	}
-
-	interface CharMetric {
-		char: string;
-		offsetInEmbed: number;
-		left: number;
-		right: number;
-		midX: number;
-		top: number;
-		bottom: number;
-	}
-
-	const charMetrics: CharMetric[] = [];
-	let cumulativeOffset = 0;
-	for (const tn of textNodes) {
-		const val = tn.nodeValue || '';
-		for (let i = 0; i < val.length; i++) {
-			const r = doc.createRange();
-			r.setStart(tn, i);
-			r.setEnd(tn, i + 1);
-			const box = r.getBoundingClientRect();
-			charMetrics.push({
-				char: val[i]!,
-				offsetInEmbed: cumulativeOffset + i,
-				left: box.left,
-				right: box.right,
-				midX: (box.left + box.right) / 2,
-				top: box.top,
-				bottom: box.bottom,
-			});
-		}
-		cumulativeOffset += val.length;
-	}
-
 	// 计算该成对 HTML 在文档中的对应闭标签
 	const closeTagRe = new RegExp('</' + tagName + '\\s*>', 'i');
 	const docRest = docText.slice(widgetStart);
 	const closeTagMatch = docRest.match(closeTagRe);
 
-	let targetPos: number;
-	let textOffsetInEmbed = 0;
-	let isAtEnd = false;
-
-	if (charMetrics.length === 0) {
-		targetPos = widgetStart + openTagLen;
-	} else {
-		// 优先筛选出与点击垂直坐标同行的字符（支持跨行/折行的内联 HTML）
-		const rowMetrics = charMetrics.filter(
-			(m) => clickY >= m.top - 3 && clickY <= m.bottom + 3,
-		);
-		const activeMetrics = rowMetrics.length > 0 ? rowMetrics : charMetrics;
-		const lastMetric = activeMetrics[activeMetrics.length - 1]!;
-		const firstMetric = activeMetrics[0]!;
-
-		if (clickX >= lastMetric.midX) {
-			// 若处于整段 embed 的最末字符之后，吸附至闭标签之后
-			if (lastMetric.offsetInEmbed === charMetrics.length - 1) {
-				isAtEnd = true;
-			} else {
-				textOffsetInEmbed = lastMetric.offsetInEmbed + 1;
-			}
-		} else if (clickX <= firstMetric.midX) {
-			textOffsetInEmbed = firstMetric.offsetInEmbed;
-		} else {
-			for (let i = 0; i < activeMetrics.length; i++) {
-				const m = activeMetrics[i]!;
-				if (clickX >= m.left && clickX <= m.right) {
-					textOffsetInEmbed = clickX >= m.midX ? m.offsetInEmbed + 1 : m.offsetInEmbed;
-					break;
-				} else if (
-					i < activeMetrics.length - 1 &&
-					clickX > m.right &&
-					clickX < activeMetrics[i + 1]!.left
-				) {
-					textOffsetInEmbed = m.offsetInEmbed + 1;
-					break;
-				}
-			}
-		}
-	}
-
-	if (isAtEnd && closeTagMatch && closeTagMatch.index !== undefined) {
-		targetPos = widgetStart + closeTagMatch.index + closeTagMatch[0].length;
-	} else {
-		targetPos = widgetStart + openTagLen + textOffsetInEmbed;
-	}
+	const targetPos = calculatePosInEmbed(view, embedEl, clickX, clickY);
+	const isAtEnd = !!(closeTagMatch && closeTagMatch.index !== undefined && targetPos === widgetStart + closeTagMatch.index + closeTagMatch[0].length);
 
 	if (targetPos < 0 || targetPos > view.state.doc.length) {
 		return false;
@@ -312,7 +485,8 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	});
 	view.focus();
 
-	return true;
+	startDragTracking(view, targetPos, clickX, clickY);
+	return false;
 }
 
 /**
