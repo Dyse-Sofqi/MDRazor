@@ -106,28 +106,59 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 					const closeMatch = lineText.match(/<\/[a-zA-Z][a-zA-Z0-9-]*\s*>$/);
 					if (closeMatch && closeMatch.index !== undefined) {
 						const lineRect = lineEl.getBoundingClientRect();
-						let rightmostX = lineRect.left;
-						for (const child of Array.from(lineEl.childNodes)) {
-							if (child.nodeType === Node.ELEMENT_NODE) {
-								const el = child as HTMLElement;
-								if (el.classList.contains('mdrazor-html-tag-hidden')) continue;
+
+						// 辅助函数：判断节点是否属于隐藏的 HTML 标签标记
+						const isHiddenTagNode = (node: Node): boolean => {
+							if (node.nodeType !== Node.ELEMENT_NODE) return false;
+							const el = node as HTMLElement;
+							return (
+								el.classList.contains('mdrazor-html-tag-hidden') ||
+								el.querySelector('.mdrazor-html-tag-hidden') !== null
+							);
+						};
+
+						// 从后往前查找行内最后一个可见的内容节点（跳过末尾所有隐藏的 HTML 标签）
+						let lastVisibleChild: Node | null = null;
+						const children = Array.from(lineEl.childNodes);
+						for (let i = children.length - 1; i >= 0; i--) {
+							const c = children[i]!;
+							if (isHiddenTagNode(c)) continue;
+							if (c.nodeType === Node.ELEMENT_NODE) {
+								const el = c as HTMLElement;
 								const r = el.getBoundingClientRect();
 								if (r.width > 0 && r.height > 0) {
-									rightmostX = Math.max(rightmostX, r.right);
+									lastVisibleChild = c;
+									break;
 								}
-							} else if (child.nodeType === Node.TEXT_NODE) {
-								const range = lineEl.ownerDocument.createRange();
-								range.selectNodeContents(child);
-								for (const r of Array.from(range.getClientRects())) {
-									rightmostX = Math.max(rightmostX, r.right);
+							} else if (c.nodeType === Node.TEXT_NODE) {
+								if (c.nodeValue && c.nodeValue.length > 0) {
+									lastVisibleChild = c;
+									break;
 								}
 							}
 						}
 
+						let lastRect: DOMRect | null = null;
+						if (lastVisibleChild) {
+							const range = lineEl.ownerDocument.createRange();
+							range.selectNodeContents(lastVisibleChild);
+							const rects = Array.from(range.getClientRects());
+							if (rects.length > 0) {
+								lastRect = rects[rects.length - 1]!;
+							}
+						}
+
+						const isClickPastLastContent =
+							lastRect !== null &&
+							((clickY >= lastRect.top - 4 &&
+								clickY <= lastRect.bottom + 4 &&
+								clickX >= lastRect.right - 2) ||
+								clickY > lastRect.bottom + 4);
+
 						if (
 							clickY >= lineRect.top - 4 &&
 							clickY <= lineRect.bottom + 4 &&
-							clickX >= rightmostX - 5
+							isClickPastLastContent
 						) {
 							const targetPos = line.to;
 							event.stopPropagation();
