@@ -42,6 +42,10 @@
 export interface CaretRange {
 	from: number;
 	to: number;
+	spec?: {
+		hideAsMark?: boolean;
+		[key: string]: unknown;
+	};
 }
 
 /**
@@ -55,10 +59,24 @@ export function isCaretObscured(ranges: readonly CaretRange[], caret: number | n
 	if (caret === null) return false;
 	let endsAt = false;
 	let startsAt = false;
+	let endsAtMark = false;
+	let startsAtMark = false;
 	for (const r of ranges) {
 		if (r.from < caret && caret < r.to) return true; // 区间内部
-		if (r.to === caret) endsAt = true;
-		if (r.from === caret) startsAt = true;
+		if (r.to === caret) {
+			endsAt = true;
+			if (r.spec?.hideAsMark) endsAtMark = true;
+		}
+		if (r.from === caret) {
+			startsAt = true;
+			if (r.spec?.hideAsMark) startsAtMark = true;
+		}
+	}
+	// 若两端恰好都是 HTML mark 隐藏标签（如 </xxx><xxx>），
+	// 它们是两个独立富文本块之间的合法边界，中间通过提示气泡展示，
+	// 不属于空 Markdown 格式单元的夹缝，不应错误展开裸标签。
+	if (endsAtMark && startsAtMark) {
+		return false;
 	}
 	return endsAt && startsAt; // 两条区间之间的夹缝
 }

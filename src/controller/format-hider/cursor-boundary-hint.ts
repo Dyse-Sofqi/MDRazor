@@ -24,6 +24,7 @@ import {
 	TooltipView,
 	Direction,
 	showTooltip,
+	Rect,
 } from '@codemirror/view';
 import { StateEffect, StateField } from '@codemirror/state';
 import { formattingConfig, buildDecorations } from './format-hider';
@@ -74,6 +75,78 @@ function barAlignOffset(
 	return -(rect.left + rect.width / 2 - box.left);
 }
 
+/**
+ * 针对未激活行渲染为 cm-html-embed widget 的成对 HTML 标签，
+ * 当其内容较长发生自动折行（Line Wrapping）时，CodeMirror 6 内部因原子 Widget
+ * 机制会将整段文本映射在第一行末尾（coordsAtPos 返回第一行最右端坐标），
+ * 导致光标处于闭标签附近时，提示弹框被错误定位到上一行末尾。
+ *
+ * 本函数通过遍历 DOM 树中当前可见的 cm-html-embed，若目标位置处于该 HTML 的
+ * 内容区间或闭标签处，直接读取 DOM 内真实文本字符的几何包围盒，
+ * 确保在折行多行场景下能 100% 精准定位到文字真实的末尾（如折行后的第二行“。”右侧）。
+ */
+function resolveHtmlEmbedCoords(view: EditorView, targetPos: number): Rect | null {
+	const embeds = Array.from(view.contentDOM.querySelectorAll<HTMLElement>('.cm-html-embed'));
+	for (const embed of embeds) {
+		if (embed.classList.contains('cm-embed-block')) continue;
+		const start = view.posAtDOM(embed, 0);
+		if (start < 0) continue;
+		const docStr = view.state.doc.sliceString(start);
+		const openMatch = docStr.match(/^<([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/);
+		if (!openMatch) continue;
+		const tagName = openMatch[1]!;
+		const openLen = openMatch[0].length;
+		const closeRe = new RegExp('</' + tagName + '\\s*>', 'i');
+		const closeMatch = docStr.match(closeRe);
+		if (!closeMatch || closeMatch.index === undefined) continue;
+
+		const contentStart = start + openLen;
+		const embedEnd = start + closeMatch.index + closeMatch[0].length;
+
+		if (targetPos >= contentStart && targetPos <= embedEnd) {
+			const walker = embed.ownerDocument.createTreeWalker(embed, NodeFilter.SHOW_TEXT);
+			const textNodes: Node[] = [];
+			for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n);
+
+			let currentOffset = contentStart;
+			for (const tn of textNodes) {
+				const val = tn.nodeValue || '';
+				const nodeEnd = currentOffset + val.length;
+				if (targetPos >= currentOffset && targetPos <= nodeEnd) {
+					const charIdx = targetPos - currentOffset;
+					const r = embed.ownerDocument.createRange();
+					if (charIdx === 0) {
+						r.setStart(tn, 0);
+						r.setEnd(tn, Math.min(1, val.length));
+						const b = r.getBoundingClientRect();
+						return { left: b.left, right: b.left, top: b.top, bottom: b.bottom };
+					} else {
+						r.setStart(tn, charIdx - 1);
+						r.setEnd(tn, charIdx);
+						const b = r.getBoundingClientRect();
+						return { left: b.right, right: b.right, top: b.top, bottom: b.bottom };
+					}
+				}
+				currentOffset = nodeEnd;
+			}
+
+			// 落在闭标签内部或末尾 (contentEnd < targetPos <= embedEnd)
+			if (textNodes.length > 0) {
+				const lastNode = textNodes[textNodes.length - 1]!;
+				const val = lastNode.nodeValue || '';
+				if (val.length > 0) {
+					const r = embed.ownerDocument.createRange();
+					r.setStart(lastNode, val.length - 1);
+					r.setEnd(lastNode, val.length);
+					const b = r.getBoundingClientRect();
+					return { left: b.right, right: b.right, top: b.top, bottom: b.bottom };
+				}
+			}
+		}
+	}
+	return null;
+}
+
 function buildBoundaryTooltip(
 	left: string,
 	right: string,
@@ -101,10 +174,48 @@ function buildBoundaryTooltip(
 		strictSide: true,
 		// create 每次都是新闭包：TooltipViewManager 以 create 的函数标识判断
 		// 能否复用 tooltipView，新闭包即触发重建，重建就会重新 mount 量一次偏移
-		create: (): TooltipView => {
+		create: (view: EditorView): TooltipView => {
 			const tooltipView: TooltipView = {
 				dom,
 				offset: { x: 0, y: 0 },
+				getCoords: (targetPos: number): Rect => {
+					const embedCoords = resolveHtmlEmbedCoords(view, targetPos);
+					if (embedCoords) return embedCoords;
+
+					const direct =
+						view.coordsAtPos(targetPos) ||
+						view.coordsAtPos(targetPos, -1) ||
+						view.coordsAtPos(targetPos, 1);
+					if (direct) return direct;
+
+					// 当 targetPos 落在 display: none 的 HTML 标签内或其末尾时（如 </font> 的起点 766 到末尾 773），
+					// view.coordsAtPos(targetPos) 返回 null。
+					// 必须【严格限制在同一行】内搜索有效坐标！
+					// 若向前越界跨到了下一行（如 targetPos + 1 = 774 跨入下一行开头），
+					// 会导致原本位于当前行末尾的弹框被错误定位到下一行首个字符（左下角），甚至溢出左边屏幕。
+					const line = view.state.doc.lineAt(targetPos);
+
+					// 1. 优先在当前行内向前（向左）搜索最近的有效坐标（如 766 处“。”的坐标）
+					for (let d = 1; d <= 30; d++) {
+						if (targetPos - d >= line.from) {
+							const prev =
+								view.coordsAtPos(targetPos - d, -1) ||
+								view.coordsAtPos(targetPos - d, 1);
+							if (prev) return prev;
+						}
+					}
+
+					// 2. 其次在当前行内向后（向右）搜索最近的有效坐标
+					for (let d = 1; d <= 30; d++) {
+						if (targetPos + d <= line.to) {
+							const next =
+								view.coordsAtPos(targetPos + d, 1) ||
+								view.coordsAtPos(targetPos + d, -1);
+							if (next) return next;
+						}
+					}
+					return { left: 0, right: 0, top: -10000, bottom: -10000 };
+				},
 				mount: (editorView) => {
 					tooltipView.offset = {
 						x: barAlignOffset(editorView, dom, bar),
@@ -284,6 +395,12 @@ export function createCursorBoundaryHintExtension() {
 							effects: setBoundaryHint.of(
 								buildBoundaryTooltip(info.left, info.right, pos),
 							),
+						});
+						// Tooltip DOM 插入后立即调度一次测量，确保 CM6 tooltipPlugin
+						// 准确定位，避免首帧留在 Outside (-10000px)
+						view.requestMeasure();
+						window.requestAnimationFrame(() => {
+							view.requestMeasure();
 						});
 					});
 				}

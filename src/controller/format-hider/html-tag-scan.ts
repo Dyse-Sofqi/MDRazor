@@ -5,6 +5,7 @@
  *   - `collectFenceRanges`     围栏代码块区间（`<span>` 在代码块内是字面文本）
  *   - `collectSpanExclusions`  围栏 + 行内代码 + 数学的排除区段
  *   - `collectPairedHtmlTags`  按出现顺序配对开/闭标签（正则扫描全文）
+ *   - `collectPairedOtherHtmlTags` 按标签名分别配对其他 HTML 标签
  *
  * ── 为什么单独成模块 ──
  *
@@ -40,6 +41,32 @@ export interface DocRange {
 export interface HtmlTagMatch extends DocRange {
 	isClose: boolean;
 }
+
+/**
+ * 常见 HTML void（自闭合且规范上无闭标签）元素集合。
+ * 此类标签本身无闭标签，绝不应参与成对隐藏。
+ */
+const HTML_VOID_TAGS = new Set([
+	'area',
+	'base',
+	'br',
+	'col',
+	'embed',
+	'hr',
+	'img',
+	'input',
+	'link',
+	'meta',
+	'param',
+	'source',
+	'track',
+	'wbr',
+]);
+
+/** 默认被独立开关托管的 HTML 标签（不纳入「其他 HTML 标签」处理） */
+const DEFAULT_IGNORED_TAGS = new Set(['font', 'u', 'span']);
+
+const ANY_HTML_TAG_RE = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/g;
 
 /** 围栏代码块起始行（``` / ~~~，允许行首空白） */
 const FENCE_RE = /^\s*(?:```+|~~~+)/;
@@ -195,6 +222,63 @@ export function collectPairedHtmlTags(
 		paired.push(opens[i]!, closes[i]!);
 	}
 	return paired;
+}
+
+/**
+ * 收集除指定排除标签外的其他成对 HTML 标签（按标签名分组配对）。
+ *
+ * 扫描全文中的 HTML 开/闭标签，按标签名（小写）分组后，将每组内的
+ * 开标签与闭标签按出现顺序一一配对。无法配成对的多余标签保持可见。
+ *
+ * @param docStr      全文
+ * @param exclusions  需跳过的区段（如代码块、行内代码、数学公式）；已按 from 升序
+ * @param ignoredTags 忽略的标签名集合（如 'font', 'u', 'span'，转小写匹配）
+ * @returns           应隐藏的标签区间列表（已按 from 升序）
+ */
+export function collectPairedOtherHtmlTags(
+	docStr: string,
+	exclusions: readonly DocRange[] = [],
+	ignoredTags: ReadonlySet<string> = DEFAULT_IGNORED_TAGS,
+): HtmlTagMatch[] {
+	if (exclusions.length > 1 && !isSortedByFrom(exclusions)) {
+		exclusions = [...exclusions].sort((a, b) => a.from - b.from);
+	}
+
+	const tagGroups = new Map<string, { opens: HtmlTagMatch[]; closes: HtmlTagMatch[] }>();
+
+	ANY_HTML_TAG_RE.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	let cursor = 0;
+	while ((m = ANY_HTML_TAG_RE.exec(docStr)) !== null) {
+		const text = m[0];
+		// 跳过自闭合标签（如 <hr />、<img ... />）
+		if (/\/\s*>$/.test(text)) continue;
+
+		const tagName = m[1]!.toLowerCase();
+		if (ignoredTags.has(tagName) || HTML_VOID_TAGS.has(tagName)) continue;
+
+		const from = m.index;
+		const to = from + text.length;
+		while (cursor < exclusions.length && exclusions[cursor]!.to <= from) cursor++;
+		if (overlapsFrom(exclusions, cursor, from, to)) continue;
+
+		const isClose = text.charAt(1) === '/';
+		let group = tagGroups.get(tagName);
+		if (!group) {
+			group = { opens: [], closes: [] };
+			tagGroups.set(tagName, group);
+		}
+		(isClose ? group.closes : group.opens).push({ from, to, isClose });
+	}
+
+	const paired: HtmlTagMatch[] = [];
+	for (const group of tagGroups.values()) {
+		const pairCount = Math.min(group.opens.length, group.closes.length);
+		for (let i = 0; i < pairCount; i++) {
+			paired.push(group.opens[i]!, group.closes[i]!);
+		}
+	}
+	return paired.sort((a, b) => a.from - b.from);
 }
 
 /** 区间数组是否已按 from 升序（O(n) 单遍检查） */
