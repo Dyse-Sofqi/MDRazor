@@ -23,7 +23,7 @@
  */
 
 import { EditorView, ViewPlugin } from '@codemirror/view';
-import type { Extension } from '@codemirror/state';
+import { EditorSelection, type Extension } from '@codemirror/state';
 import { formattingConfig } from './format-hider';
 
 /** 检查特定标签名是否当前启用了隐藏 */
@@ -225,7 +225,7 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	event.stopPropagation();
 
 	view.dispatch({
-		selection: { anchor: targetPos, head: targetPos },
+		selection: EditorSelection.cursor(targetPos, isAtEnd ? 1 : 0),
 		scrollIntoView: false,
 		userEvent: 'select.pointer',
 	});
@@ -272,4 +272,38 @@ export function createHtmlEmbedClickExtension(): Extension {
 			}
 		},
 	);
+}
+
+/**
+ * 拦截在隐藏闭标签末尾（</tag>|）的文本输入。
+ *
+ * 当光标停留在隐藏闭标签右侧末尾时，因为闭标签具有 display: none 样式，
+ * Chromium 的原生 Selection 常常会将插入点规范化到闭标签前面。
+ * 此时若发生 DOM 输入或输入法 composition，浏览器会错误地将字符插在闭标签前面。
+ *
+ * 通过 CM6 的 inputHandler，在输入派发前检测当前光标位置是否恰好位于隐藏闭标签末尾：
+ * 若是，且输入的改变区间被误算到了闭标签前面，直接将其重定向并插入到闭标签之后，
+ * 确保键入的文字始终忠实地追加在整个 HTML 标签之后。
+ */
+export function createClosingTagInputExtension(): Extension {
+	return EditorView.inputHandler.of((view, from, to, text) => {
+		const mainSel = view.state.selection.main;
+		if (!mainSel.empty) return false;
+
+		// 如果状态光标停在 pos 处，但输入的 from 被误定在前方的闭标签起始处或内部
+		const head = mainSel.head;
+		if (from < head && head <= view.state.doc.length) {
+			const slice = view.state.doc.sliceString(from, head);
+			// 检查 [from, head) 是否正好是一个成对 HTML 闭标签（如 </font>、</span> 等）
+			if (/^<\/[a-zA-Z][a-zA-Z0-9-]*\s*>$/.test(slice)) {
+				view.dispatch({
+					changes: { from: head, to: head, insert: text },
+					selection: EditorSelection.cursor(head + text.length, 1),
+					userEvent: 'input.type',
+				});
+				return true;
+			}
+		}
+		return false;
+	});
 }
