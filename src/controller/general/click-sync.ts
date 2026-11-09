@@ -49,6 +49,7 @@
 
 import { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
+import { normalizeHtmlSelection } from '../format-hider/html-embed-click';
 
 /** 连续快速点击保护：仅纠正最后按下的一次（避免旧微任务覆盖新点击） */
 let pointerSeq = 0;
@@ -139,8 +140,9 @@ function dragCorrection(ctx: DragContext): void {
 		return; // 原生结果正确（含拖拽方向与列），零干预
 	}
 	// 保持用户的真实拖拽方向（ctx.startPos 为起点 anchor，cur 为终点 head）
+	const normalized = normalizeHtmlSelection(view, ctx.startPos, cur);
 	view.dispatch({
-		selection: { anchor: ctx.startPos, head: cur },
+		selection: { anchor: normalized.anchor, head: normalized.head },
 		scrollIntoView: false,
 		userEvent: 'select.pointer',
 	});

@@ -70,8 +70,9 @@ function ensureHtmlDragListeners(): void {
 
 					const headPos = resolveDocPosFromPoint(view, e.clientX, e.clientY);
 					if (headPos !== null && headPos >= 0 && headPos <= view.state.doc.length) {
+						const normalized = normalizeHtmlSelection(view, anchorPos, headPos);
 						view.dispatch({
-							selection: EditorSelection.range(anchorPos, headPos),
+							selection: EditorSelection.range(normalized.anchor, normalized.head),
 							scrollIntoView: false,
 							userEvent: 'select.pointer',
 						});
@@ -121,6 +122,75 @@ function isTagTypeHidden(tagName: string): boolean {
 	if (tag === 'u') return formattingConfig.hideHtmlUnderlineFormatting;
 	if (tag === 'span') return formattingConfig.hideHtmlSpanFormatting;
 	return formattingConfig.hideOtherHtmlTagFormatting;
+}
+
+/**
+ * 规范化选区，处理 HTML 成对标签的对称边界与纯文字边界吸附：
+ * 1. 若选区完整覆盖了某成对 HTML 的可见文字区间，自动向外扩展成对包含完整开闭标签；
+ * 2. 若选区仅在成对 HTML 内部选择部分文字，保留在纯文字区间内，不产生单边标签破坏；
+ * 3. 严格尊重用户的真实拖拽方向（保持 anchor 与 head 的正反向关系）。
+ */
+export function normalizeHtmlSelection(
+	view: EditorView,
+	anchor: number,
+	head: number,
+): { anchor: number; head: number } {
+	if (anchor === head) return { anchor, head };
+
+	const docText = view.state.doc.toString();
+	const forward = anchor <= head;
+	let from = Math.min(anchor, head);
+	let to = Math.max(anchor, head);
+
+	// 扫描视口或当前行内的所有成对 HTML 标签
+	const lineFrom = view.state.doc.lineAt(from);
+	const lineTo = view.state.doc.lineAt(to);
+	const scanStart = lineFrom.from;
+	const scanEnd = lineTo.to;
+	const scanSlice = docText.slice(scanStart, scanEnd);
+
+	const openTagRe = /<([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/g;
+	let match: RegExpExecArray | null;
+	while ((match = openTagRe.exec(scanSlice)) !== null) {
+		const tagStart = scanStart + match.index;
+		const tagName = match[1]!;
+		if (!isTagTypeHidden(tagName)) continue;
+
+		const openTagLen = match[0].length;
+		const rest = docText.slice(tagStart);
+		const closeMatch = rest.match(new RegExp('</' + tagName + '\\s*>', 'i'));
+		if (!closeMatch || closeMatch.index === undefined) continue;
+
+		const textStart = tagStart + openTagLen;
+		const textEnd = tagStart + closeMatch.index;
+		const tagEnd = textEnd + closeMatch[0].length;
+
+		// 选区与该 HTML 块有交集
+		if (to > tagStart && from < tagEnd) {
+			// 情况 1：选区完整覆盖或超出了该 HTML 块的所有正文文本
+			// 只要选区起点到达了 textStart 且终点到达了 textEnd，自动成对包裹两端标签
+			const coversEntireText = from <= textStart && to >= textEnd;
+			if (coversEntireText) {
+				if (from > tagStart) from = tagStart;
+				if (to < tagEnd) to = tagEnd;
+			} else if (from >= textStart && to <= textEnd) {
+				// 情况 2：选区完全位于该 HTML 块的内部文字区间（纯文字划词选择）
+				// 保持原样，不向外扩展标签
+			} else if (from < textStart && to < textEnd && to > tagStart) {
+				// 情况 3：从外部划入，但终点停在内部文字中间
+				// 若从左往右划，起点在外部（< tagStart），终点在文字中间，保证开标签完整包入
+				if (from > tagStart) from = tagStart;
+			} else if (from > textStart && from < tagEnd && to > tagEnd) {
+				// 情况 4：从内部文字划出到外部，保证闭标签完整包入
+				if (to < tagEnd) to = tagEnd;
+			}
+		}
+	}
+
+	return {
+		anchor: forward ? from : to,
+		head: forward ? to : from,
+	};
 }
 
 /**
