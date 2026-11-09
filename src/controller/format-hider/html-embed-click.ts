@@ -62,8 +62,7 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	let embedEl = target.closest<HTMLElement>('.cm-html-embed');
 
 	// 若点击在 cm-line 边缘空白处（如行末折行后句号右侧，或者同一行的空白处），
-	// event.target 可能是 .cm-line，而原生 selectElement 会将整行或整个 embed 粗暴全选。
-	// 此时检查点击点是否处于某个成对 HTML embed 最后一个片段（行末）的右侧空白区。
+	// event.target 可能是 .cm-line，需分别处理未激活状态（cm-html-embed）与激活状态（展开DOM但标签隐藏）。
 	if (!embedEl) {
 		const lineEl = target.closest<HTMLElement>('.cm-line');
 		if (lineEl && view.contentDOM.contains(lineEl)) {
@@ -89,6 +88,57 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 						) {
 							embedEl = candidate;
 							break;
+						}
+					}
+				}
+			}
+
+			// 若不是未激活的 embed，检查当前激活行末尾是否有隐藏的 HTML 闭标签
+			// 场景：光标此前停留在 |</xxx>（在闭标签前面），行处于激活态；
+			// 用户点击该行后方空白处时，由于闭标签有 display: none 且末尾缺少承载节点，
+			// 浏览器原生机制无法跳过隐藏节点，导致光标死锁在 |</xxx> 无法移动到 </xxx>|。
+			// 此时由本模块主动接管，将光标定位至行末闭标签之后（</xxx>|）。
+			if (!embedEl) {
+				const lineStart = view.posAtDOM(lineEl, 0);
+				if (lineStart >= 0 && lineStart < view.state.doc.length) {
+					const line = view.state.doc.lineAt(lineStart);
+					const lineText = line.text;
+					const closeMatch = lineText.match(/<\/[a-zA-Z][a-zA-Z0-9-]*\s*>$/);
+					if (closeMatch && closeMatch.index !== undefined) {
+						const lineRect = lineEl.getBoundingClientRect();
+						let rightmostX = lineRect.left;
+						for (const child of Array.from(lineEl.childNodes)) {
+							if (child.nodeType === Node.ELEMENT_NODE) {
+								const el = child as HTMLElement;
+								if (el.classList.contains('mdrazor-html-tag-hidden')) continue;
+								const r = el.getBoundingClientRect();
+								if (r.width > 0 && r.height > 0) {
+									rightmostX = Math.max(rightmostX, r.right);
+								}
+							} else if (child.nodeType === Node.TEXT_NODE) {
+								const range = lineEl.ownerDocument.createRange();
+								range.selectNodeContents(child);
+								for (const r of Array.from(range.getClientRects())) {
+									rightmostX = Math.max(rightmostX, r.right);
+								}
+							}
+						}
+
+						if (
+							clickY >= lineRect.top - 4 &&
+							clickY <= lineRect.bottom + 4 &&
+							clickX >= rightmostX - 5
+						) {
+							const targetPos = line.to;
+							event.stopPropagation();
+							event.preventDefault();
+							view.dispatch({
+								selection: EditorSelection.cursor(targetPos, 1),
+								scrollIntoView: false,
+								userEvent: 'select.pointer',
+							});
+							view.focus();
+							return true;
 						}
 					}
 				}
