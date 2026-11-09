@@ -81,6 +81,8 @@ check('光标在区间右端点 2（不是内部）→ 不变', rangesOf(revealC
 check('长标记区间 [0,6)、光标 3（中间）→ 放开', rangesOf(revealCaretRanges([R(0, 6)], 3)), []);
 
 console.log('② 光标夹在两条相邻隐藏区间之间（空格式单元拆成两条标记）');
+check('HTML 标签接壤 </font><font>：光标 1 → 不放开（保持隐藏）', isCaretObscured([R(0, 1, { spec: { hideAsMark: true } }), R(1, 2, { spec: { hideAsMark: true } })], 1), false);
+check('HTML 标签接壤 </font><font>：光标 1 → 原样保留', rangesOf(revealCaretRanges([R(0, 1, { spec: { hideAsMark: true } }), R(1, 2, { spec: { hideAsMark: true } })], 1)), [[0, 1], [1, 2]]);
 check('isCaretObscured：`` 拆两条 [0,1)[1,2)、光标 1', isCaretObscured([R(0, 1), R(1, 2)], 1), true);
 check('`` 拆两条、光标 1 → 两条全部放开', rangesOf(revealCaretRanges([R(0, 1), R(1, 2)], 1)), []);
 check('空加粗 **** 两条 [0,2)[2,4)、光标 2 → 两条全部放开', rangesOf(revealCaretRanges([R(0, 2), R(2, 4)], 2)), []);
