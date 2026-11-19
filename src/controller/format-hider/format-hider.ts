@@ -337,6 +337,15 @@ function collectEntries(
 		},
 	});
 
+	// 排除区段（围栏 / HTML 渲染块 / 行内代码 / 数学）按需懒计算并复用于全部 4 类 HTML 标签隐藏。
+	let cachedExclusions: DocRange[] | null = null;
+	const getExclusions = (): readonly DocRange[] => {
+		if (cachedExclusions === null) {
+			cachedExclusions = collectSpanExclusions(view.state.doc, tree);
+		}
+		return cachedExclusions;
+	};
+
 	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
 	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
@@ -344,7 +353,8 @@ function collectEntries(
 	if (formattingConfig.hideHtmlColorTagFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (COLOR_TAG_RE.test(docStr)) {
-			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(COLOR_TAG_RE))) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(COLOR_TAG_RE), exclusions)) {
 				entries.push({
 					from,
 					to,
@@ -359,7 +369,8 @@ function collectEntries(
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (UNDERLINE_TAG_RE.test(docStr)) {
-			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(UNDERLINE_TAG_RE))) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(UNDERLINE_TAG_RE), exclusions)) {
 				entries.push({
 					from,
 					to,
@@ -373,19 +384,6 @@ function collectEntries(
 	// 与 <u> 一样不由 syntax tree 解析，需正则扫描。span 标签可能携带
 	// style 等任意属性，故开标签匹配 <span> 或 <span 属性...>。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
-	//
-	// 排除区段（围栏 / 行内代码 / 数学）只在**确有 span 标签**时才需要计算：
-	// 全文不含 `<span` / `</span` 时正则必然无匹配，此时省掉整趟围栏行扫描
-	// 与第二次全树遍历 —— 实测这是本模块原先最大的单项开销（12k 行文档
-	// 单次 3.6ms、21k 行 7.2ms，而绝大多数文档根本没有 span 标签）。
-	let cachedExclusions: DocRange[] | null = null;
-	const getExclusions = (): readonly DocRange[] => {
-		if (cachedExclusions === null) {
-			cachedExclusions = collectSpanExclusions(view.state.doc, tree);
-		}
-		return cachedExclusions;
-	};
-
 	if (formattingConfig.hideHtmlSpanFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (SPAN_TAG_RE.test(docStr)) {

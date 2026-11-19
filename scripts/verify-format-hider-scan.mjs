@@ -38,7 +38,7 @@ await esbuild.build({
 	logLevel: 'warning',
 });
 
-const { collectFenceRanges, collectPairedHtmlTags, collectPairedOtherHtmlTags } = await import(pathToFileURL(outfile).href);
+const { collectFenceRanges, collectHtmlBlockRanges, collectPairedHtmlTags, collectPairedOtherHtmlTags } = await import(pathToFileURL(outfile).href);
 
 // ── 参照实现（改写前的原样抄录，仅用于差分对照）─────────────────────────
 
@@ -340,6 +340,66 @@ console.log('⑤ collectPairedOtherHtmlTags 配对与排除语义');
 		{ from: 14, to: 17, isClose: false },
 		{ from: 19, to: 23, isClose: true },
 	]);
+}
+
+/* ═══ ⑥ collectHtmlBlockRanges HTML 渲染块排除语义 ═══ */
+
+console.log('⑥ collectHtmlBlockRanges HTML 渲染块排除语义');
+{
+	const FONT_RE = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
+	const U_RE = /<\/?u\s*>/gi;
+
+	const src = [
+		'正文里的<font color="#c00000">红字</font>与<u>下划线</u>',
+		'<span style="color:blue">整行内联span</span>',
+		'<br>',
+		'紧跟br后的<font color="#00aa00">绿字</font>',
+		'',
+		'<div class="card">',
+		'  <p>块内<span style="color:red">文字</span>和<font color="#c00000">色</font>和<u>下</u></p>',
+		'</div>',
+		'',
+		'<style>',
+		'.a { color: red; }',
+		'',
+		'.b { color: blue; }',
+		'</style>',
+		'',
+		'```html',
+		'<div>围栏内的不触发HTML块</div>',
+		'```',
+		'围栏后<b>正常内联</b>',
+	].join('\n');
+
+	const htmlBlocks = collectHtmlBlockRanges(doc(src));
+	const excludedTexts = htmlBlocks.map((r) => src.slice(r.from, r.to));
+	check('仅命中 <br>、<div> 块与 <style> 跨空行块', excludedTexts, [
+		'<br>',
+		'<div class="card">\n  <p>块内<span style="color:red">文字</span>和<font color="#c00000">色</font>和<u>下</u></p>\n</div>',
+		'<style>\n.a { color: red; }\n\n.b { color: blue; }\n</style>',
+	]);
+
+	const allExclusions = [...collectFenceRanges(doc(src)), ...htmlBlocks].sort((a, b) => a.from - b.from);
+	check(
+		'HTML 块内的 font 不隐藏，正文与 br 后的 font 正常隐藏',
+		collectPairedHtmlTags(src, FONT_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<font color="#c00000">', '</font>', '<font color="#00aa00">', '</font>'],
+	);
+	check(
+		'HTML 块内的 u 不隐藏，正文 u 正常隐藏',
+		collectPairedHtmlTags(src, U_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<u>', '</u>'],
+	);
+	check(
+		'HTML 块内的 span 不隐藏，整行内联 span 正常隐藏',
+		collectPairedHtmlTags(src, SPAN_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<span style="color:blue">', '</span>'],
+	);
+	check(
+		'HTML 块与围栏内的其他标签不隐藏，正文内联 b 正常隐藏',
+		collectPairedOtherHtmlTags(src, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<b>', '</b>'],
+	);
 }
 
 console.log(

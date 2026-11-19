@@ -577,8 +577,16 @@ export function createHtmlEmbedClickExtension(): Extension {
 			};
 
 			private readonly clickListener = (event: MouseEvent) => {
+				if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
+					return;
+				}
 				const target = event.target as HTMLElement | null;
-				if (target && typeof target.closest === 'function' && target.closest('.cm-html-embed')) {
+				const embed = target && typeof target.closest === 'function'
+					? target.closest('.cm-html-embed')
+					: null;
+				// 仅拦截行内 .cm-html-embed；块级 HTML 渲染块（.cm-embed-block）及其
+				// 展开按钮（.edit-block-button）和块内交互元素必须放行。
+				if (embed && this.view.contentDOM.contains(embed) && !embed.closest('.cm-embed-block')) {
 					event.stopPropagation();
 					event.preventDefault();
 				}
