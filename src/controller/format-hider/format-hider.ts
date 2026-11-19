@@ -527,7 +527,11 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	// 未遮盖时 revealCaretRanges 原样返回入参（同一数组引用），据此可安全
 	// 复用上一次的成品 —— 光标未落在标记上时结果只取决于缓存键三者。
 	const mainSel = view.state.selection.main;
-	const revealed = revealCaretRanges(cache.entries, mainSel.empty ? mainSel.head : null);
+	const revealed = revealCaretRanges(
+		cache.entries,
+		mainSel.empty ? mainSel.head : null,
+		mainSel.empty ? null : { from: mainSel.from, to: mainSel.to },
+	);
 
 	if (revealed === cache.entries) {
 		if (!cache.built) {

@@ -122,6 +122,50 @@ console.log('⑤ 泛型保留条目其余字段（spec 等）');
 	check('保留条目字段原样', kept.map((e) => e.spec), [{}, { hideAsMark: true }]);
 }
 
+console.log('⑥ HTML 标签展开后内部拖动框选保持展开（正文跨标签框选仍隐藏）');
+{
+	// 模拟 <span style="color:red">正文</span>：开标签 [0, 24)，闭标签 [26, 33)
+	const openTag = R(0, 24, { spec: { hideAsMark: true } });
+	const closeTag = R(26, 33, { spec: { hideAsMark: true } });
+	const pair = [openTag, closeTag];
+
+	check(
+		'在开标签内部框选 red（[19, 22)）→ 开标签保持展开，闭标签仍隐藏',
+		rangesOf(revealCaretRanges(pair, null, { from: 19, to: 22 })),
+		[[26, 33]],
+	);
+	check(
+		'从开标签内部拖到标签左边界（[0, 10)）→ 开标签保持展开',
+		rangesOf(revealCaretRanges(pair, null, { from: 0, to: 10 })),
+		[[26, 33]],
+	);
+	check(
+		'从开标签内部拖到标签右边界（[10, 24)）→ 开标签保持展开',
+		rangesOf(revealCaretRanges(pair, null, { from: 10, to: 24 })),
+		[[26, 33]],
+	);
+	check(
+		'恰好完整框选整个开标签（[0, 24)）→ 开标签保持展开',
+		rangesOf(revealCaretRanges(pair, null, { from: 0, to: 24 })),
+		[[26, 33]],
+	);
+	check(
+		'正文内部划词（[24, 26)）→ 两端标签保持隐藏且不产生分配',
+		revealCaretRanges(pair, null, { from: 24, to: 26 }) === pair,
+		true,
+	);
+	check(
+		'跨整个成对标签划词（[0, 33)）→ 两端标签保持隐藏且不产生分配',
+		revealCaretRanges(pair, null, { from: 0, to: 33 }) === pair,
+		true,
+	);
+	check(
+		'普通 Markdown 标记（非 hideAsMark）非折叠选区不展开',
+		rangesOf(revealCaretRanges([R(0, 2, { spec: {} })], null, { from: 0, to: 1 })),
+		[[0, 2]],
+	);
+}
+
 console.log(failures.length === 0
 	? '\n全部通过。'
 	: `\n${failures.length} 项失败：\n  - ${failures.join('\n  - ')}`);
