@@ -499,7 +499,7 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 							});
 							view.focus();
 							startDragTracking(view, targetPos, clickX, clickY);
-							return false;
+							return true;
 						}
 					}
 				}
@@ -556,7 +556,7 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 	view.focus();
 
 	startDragTracking(view, targetPos, clickX, clickY);
-	return false;
+	return true;
 }
 
 /**
@@ -570,13 +570,21 @@ function handleEmbedMouseDown(event: MouseEvent, view: EditorView): boolean {
 export function createHtmlEmbedClickExtension(): Extension {
 	return ViewPlugin.fromClass(
 		class {
+			private handledEmbedMouseDown = false;
+
 			private readonly mousedownListener = (event: MouseEvent) => {
-				if (handleEmbedMouseDown(event, this.view)) {
+				this.handledEmbedMouseDown = handleEmbedMouseDown(event, this.view);
+				if (this.handledEmbedMouseDown) {
 					event.preventDefault();
 				}
 			};
 
 			private readonly clickListener = (event: MouseEvent) => {
+				const handled = this.handledEmbedMouseDown;
+				this.handledEmbedMouseDown = false;
+				if (!handled) {
+					return;
+				}
 				if (event.button !== 0 || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) {
 					return;
 				}
@@ -584,8 +592,8 @@ export function createHtmlEmbedClickExtension(): Extension {
 				const embed = target && typeof target.closest === 'function'
 					? target.closest('.cm-html-embed')
 					: null;
-				// 仅拦截行内 .cm-html-embed；块级 HTML 渲染块（.cm-embed-block）及其
-				// 展开按钮（.edit-block-button）和块内交互元素必须放行。
+				// 仅拦截本次 mousedown 已接管的行内 .cm-html-embed；块级 HTML 渲染块（.cm-embed-block）
+				// 及其展开按钮（.edit-block-button）和未接管的 embed 必须放行。
 				if (embed && this.view.contentDOM.contains(embed) && !embed.closest('.cm-embed-block')) {
 					event.stopPropagation();
 					event.preventDefault();
