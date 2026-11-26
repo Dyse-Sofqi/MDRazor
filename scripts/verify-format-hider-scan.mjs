@@ -38,7 +38,7 @@ await esbuild.build({
 	logLevel: 'warning',
 });
 
-const { collectFenceRanges, collectPairedHtmlTags } = await import(pathToFileURL(outfile).href);
+const { collectFenceRanges, collectHtmlBlockRanges, collectPairedHtmlTags, collectPairedOtherHtmlTags } = await import(pathToFileURL(outfile).href);
 
 // ── 参照实现（改写前的原样抄录，仅用于差分对照）─────────────────────────
 
@@ -360,6 +360,118 @@ console.log('④ 线性度（固定标签数，放大排除区间数）');
 	// 旧实现是平方增长：规模 8× 时耗时应涨到数十倍。新实现应显著更平缓。
 	check('新实现增长倍数 < 旧实现的一半', newLarge / newSmall < (oldLarge / oldSmall) / 2, true);
 	check('大夹具下新实现 < 10ms', newLarge < 10, true);
+}
+
+/* ═══ ⑤ collectPairedOtherHtmlTags 配对与排除语义 ═══ */
+
+console.log('⑤ collectPairedOtherHtmlTags 配对与排除语义');
+{
+	const d1 = '<b>粗体</b><i>斜体</i>';
+	check('多类型标签各自配对成对隐藏', collectPairedOtherHtmlTags(d1), [
+		{ from: 0, to: 3, isClose: false },
+		{ from: 5, to: 9, isClose: true },
+		{ from: 9, to: 12, isClose: false },
+		{ from: 14, to: 18, isClose: true },
+	]);
+
+	const d2 = '<b><i>嵌套</i></b>';
+	check('嵌套标签正确成对隐藏', collectPairedOtherHtmlTags(d2), [
+		{ from: 0, to: 3, isClose: false },
+		{ from: 3, to: 6, isClose: false },
+		{ from: 8, to: 12, isClose: true },
+		{ from: 12, to: 16, isClose: true },
+	]);
+
+	const d3 = '<b>未闭合 <mark>高亮</mark>';
+	check('未闭合标签不隐藏，成对标签正常隐藏', collectPairedOtherHtmlTags(d3), [
+		{ from: 7, to: 13, isClose: false },
+		{ from: 15, to: 22, isClose: true },
+	]);
+
+	const d4 = '<font color="#fff">颜色</font><u>下划线</u><span>行</span><kbd>键</kbd>';
+	check('默认忽略 font、u、span 标签', collectPairedOtherHtmlTags(d4), [
+		{ from: 52, to: 57, isClose: false },
+		{ from: 58, to: 64, isClose: true },
+	]);
+
+	const d5 = '<br>换行<hr><img src="a.png" /><div class="box">盒子</div>';
+	check('void 标签与自闭合标签跳过，div 标签正常配对', collectPairedOtherHtmlTags(d5), [
+		{ from: 29, to: 46, isClose: false },
+		{ from: 48, to: 54, isClose: true },
+	]);
+
+	const d6 = '<KBD>按键</kbd>';
+	check('大小写不敏感匹配', collectPairedOtherHtmlTags(d6), [
+		{ from: 0, to: 5, isClose: false },
+		{ from: 7, to: 13, isClose: true },
+	]);
+
+	const d7 = '`<b>字面代码</b>` <p>段落</p>';
+	const exclusions = [{ from: 0, to: 12 }]; // 代码区间
+	check('排除区间内的标签跳过', collectPairedOtherHtmlTags(d7, exclusions), [
+		{ from: 14, to: 17, isClose: false },
+		{ from: 19, to: 23, isClose: true },
+	]);
+}
+
+/* ═══ ⑥ collectHtmlBlockRanges HTML 渲染块排除语义 ═══ */
+
+console.log('⑥ collectHtmlBlockRanges HTML 渲染块排除语义');
+{
+	const FONT_RE = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/g;
+	const U_RE = /<\/?u\s*>/gi;
+
+	const src = [
+		'正文里的<font color="#c00000">红字</font>与<u>下划线</u>',
+		'<span style="color:blue">整行内联span</span>',
+		'<br>',
+		'紧跟br后的<font color="#00aa00">绿字</font>',
+		'',
+		'<div class="card">',
+		'  <p>块内<span style="color:red">文字</span>和<font color="#c00000">色</font>和<u>下</u></p>',
+		'</div>',
+		'',
+		'<style>',
+		'.a { color: red; }',
+		'',
+		'.b { color: blue; }',
+		'</style>',
+		'',
+		'```html',
+		'<div>围栏内的不触发HTML块</div>',
+		'```',
+		'围栏后<b>正常内联</b>',
+	].join('\n');
+
+	const htmlBlocks = collectHtmlBlockRanges(doc(src));
+	const excludedTexts = htmlBlocks.map((r) => src.slice(r.from, r.to));
+	check('仅命中 <br>、<div> 块与 <style> 跨空行块', excludedTexts, [
+		'<br>',
+		'<div class="card">\n  <p>块内<span style="color:red">文字</span>和<font color="#c00000">色</font>和<u>下</u></p>\n</div>',
+		'<style>\n.a { color: red; }\n\n.b { color: blue; }\n</style>',
+	]);
+
+	const allExclusions = [...collectFenceRanges(doc(src)), ...htmlBlocks].sort((a, b) => a.from - b.from);
+	check(
+		'HTML 块内的 font 不隐藏，正文与 br 后的 font 正常隐藏',
+		collectPairedHtmlTags(src, FONT_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<font color="#c00000">', '</font>', '<font color="#00aa00">', '</font>'],
+	);
+	check(
+		'HTML 块内的 u 不隐藏，正文 u 正常隐藏',
+		collectPairedHtmlTags(src, U_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<u>', '</u>'],
+	);
+	check(
+		'HTML 块内的 span 不隐藏，整行内联 span 正常隐藏',
+		collectPairedHtmlTags(src, SPAN_RE, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<span style="color:blue">', '</span>'],
+	);
+	check(
+		'HTML 块与围栏内的其他标签不隐藏，正文内联 b 正常隐藏',
+		collectPairedOtherHtmlTags(src, allExclusions).map((r) => src.slice(r.from, r.to)),
+		['<b>', '</b>'],
+	);
 }
 
 console.log(

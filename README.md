@@ -85,7 +85,8 @@ MDRazor is an Obsidian plugin dedicated to honing your Markdown editing experien
 - **隐藏 HTML 颜色标签** — 在实时预览中隐藏 `<font color="#c00000">` 和 `</font>` 等 Hex 颜色标签对
 - **隐藏 HTML 下划线符号** — 在实时预览中隐藏 `<u>` 和 `</u>` 下划线 HTML 标签对
 - **隐藏 HTML 行标签** — 在实时预览中隐藏 `<span>` 和 `</span>` HTML 标签对，涵盖带任意属性（如 `style="color:var(--color-yellow)"`、`style="color:#b58900"`、`style="background-color:rgba(...)"`、`style="text-decoration:underline"`）的开标签。围栏代码块、行内代码及数学公式内的 `<span>` 视为字面文本，自动跳过不隐藏
-- **HTML 标签成对隐藏** — `<font>`/`<u>`/`<span>` 三类标签仅当开标签与闭标签成对出现时才隐藏；只检测到单边（如 `<u>` 后缺 `</u>`，或孤立 `</u>`）时该标签不隐藏，原文保持可见，便于发现未闭合标签
+- **隐藏其他 HTML 标签** — 在实时预览中隐藏除上述标签外的其他成对 HTML 标签（如 `<b>`、`<i>`、`<s>`、`<sub>`、`<sup>`、`<mark>`、`<kbd>`、`<small>`、`<del>`、`<ins>`、`<p>`、`<div>` 等）。按标签名成对配对，单边标签不隐藏；代码块与数学公式内自动跳过
+- **HTML 标签成对隐藏** — HTML 标签仅当开标签与闭标签成对出现时才隐藏；只检测到单边（如 `<u>` 后缺 `</u>`，或孤立 `</u>`）时该标签不隐藏，原文保持可见，便于发现未闭合标签
 
 所有隐藏格式共享以下特性：
 
@@ -274,7 +275,7 @@ Features are organized into the eight settings-panel areas; every item has its o
 
 #### ✂️ Hidden Styling
 
-Hide Markdown mark symbols: marks stay invisible by default — including while you edit inside a formatted span, where the boundary tooltip below shows the hidden marks at the caret — and reveal only where a hidden range **covers or pinches** the caret. Cleaner Live Preview, zero distraction. Independent toggles for: bold `**`, italic `*`, highlight `==`, strikethrough `~~`, inline code `` ` ``, escape `\`, heading `#` (H1–H6, hidden only when followed by a space), wikilink `[[ ]]`, HTML hex color tags, HTML underline `<u>`, and HTML line tags `<span>` (any attributes; literal inside code blocks/math). **Paired hiding**: `<font>`/`<u>`/`<span>` hide only when their closing tag exists — unclosed tags stay visible so you can spot them. Shared robustness: inline content mixing math (`$..$`) with formatting never crashes the editor, and math bodies are never hidden as marks.
+Hide Markdown mark symbols: marks stay invisible by default — including while you edit inside a formatted span, where the boundary tooltip below shows the hidden marks at the caret — and reveal only where a hidden range **covers or pinches** the caret. Cleaner Live Preview, zero distraction. Independent toggles for: bold `**`, italic `*`, highlight `==`, strikethrough `~~`, inline code `` ` ``, escape `\`, heading `#` (H1–H6, hidden only when followed by a space), wikilink `[[ ]]`, HTML hex color tags, HTML underline `<u>`, HTML line tags `<span>` (any attributes; literal inside code blocks/math), and other paired HTML tags (`<b>`, `<i>`, `<s>`, `<sub>`, `<sup>`, `<mark>`, `<kbd>`, `<p>`, `<div>`, etc.). **Paired hiding**: HTML tags hide only when their closing tag exists — unclosed tags stay visible so you can spot them. Shared robustness: inline content mixing math (`$..$`) with formatting never crashes the editor, and math bodies are never hidden as marks.
 
 - 👁️ **Whitespace visualization** — spaces shown as translucent `·`, view-range based, near-zero cost; also hides spaces inside already-hidden HTML tags.
 - 🎯 **Caret visibility guard** (2.6.9) — when the caret sits inside a hidden range or is pinched between two adjacent hidden ranges (an empty inline code span, an empty bold pair — positions with no text on either side of the caret), the marks at the caret reveal so the insertion point always lands on real text: typing never comes out reversed or outside the marks (pressing `` ` `` at the start of a line auto-pairs into an empty pair with the caret in the middle, which used to trigger exactly this). The marks hide again as soon as the first character is typed, and the boundary tooltip simply does not appear where nothing is hidden.
@@ -334,7 +335,7 @@ Hide Markdown mark symbols: marks stay invisible by default — including while 
 
 ### Settings
 
-Configure in Obsidian → Settings → Community plugins → MDRazor. The eight modules appear as tabs (active tab remembered for the plugin's lifetime): General (3 toggles + 1 slider), Hidden Styling (13), List Enhancement (13 toggles + 1 slider), Tabs (9 toggles + 1 slider), Status Bar (4), Left Ribbon (1), Context Menu (3), Lazy Loading (1 master + per-plugin delays).
+Configure in Obsidian → Settings → Community plugins → MDRazor. The eight modules appear as tabs (active tab remembered for the plugin's lifetime): General (3 toggles + 1 slider), Hidden Styling (14), List Enhancement (13 toggles + 1 slider), Tabs (9 toggles + 1 slider), Status Bar (4), Left Ribbon (1), Context Menu (3), Lazy Loading (1 master + per-plugin delays).
 
 ### Data storage
 

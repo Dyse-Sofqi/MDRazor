@@ -1,5 +1,9 @@
 ### Changelog
 
+**Added**
+
+- **Hidden Styling adds "Hide Other HTML Tags" (on by default)** — Hides paired HTML tags in Live Preview other than `<font>`, `<u>`, and `<span>` (covers `<b>`, `<i>`, `<s>`, `<sub>`, `<sup>`, `<mark>`, `<kbd>`, `<small>`, `<del>`, `<ins>`, `<p>`, `<div>`, and any other valid paired HTML tags). Tags are paired per tag name; unclosed or single-sided tags stay visible; literal tags in fenced code blocks, inline code, and math expressions are automatically skipped; controlled together by the status-bar format toggle button and command.
+
 **2.7.4** (2026-10-26) — General adds **Code Block Language Label** (on by default): the native language label at the top-right of code blocks in Live Preview now supports Chinese and other non-ASCII language names — Obsidian extracts the fence language with an ASCII-only charset, so a pure-Chinese name extracts as empty (the label degrades into a copy icon) while a mixed name truncates at the first non-ASCII character (py中文 shows as just py); the plugin re-extracts the first token of the fence info string with Unicode support and fills it back into the native label, with the same appearance and click-to-copy behavior as pure-English names
 
 **Added**

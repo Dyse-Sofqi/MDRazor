@@ -269,13 +269,18 @@ div.nav-folder-title {
  * 用 mark 装饰 + 此样式隐藏标签文本，而非 replace 装饰：
  * replace 会与 Obsidian 内联 HTML 渲染 widget（cm-html-embed）在同一起点
  * 冲突并遮蔽 widget，导致标签对内的渲染文本在光标经过后消失。
- * 采用与 Obsidian 原生隐藏标记相同的字体技巧，保持光标映射稳定。
+ *
+ * 此处采用 display: none 彻底消除隐藏标签在 DOM 中的几何占位：
+ * 若采用 1px/transparent 等占位字体方案，隐藏标签生成的若干零宽 span
+ * 矩形会导致 CodeMirror 6 内部 posAndSideAtCoords / scanTile 二分查找错位，
+ * 使得用户在激活行点击正文文字时光标错误跳入前置标签首个 < 之后。
+ * display: none 确保 clientRects 为空，光标能够 100% 精准定位到正文字间；
+ * 配合 :has(> .mdrazor-html-tag-hidden) 同时消除父级 span 的空占位。
+ * 光标移入标签代码内部时由 revealCaretRanges 动态撤销该装饰，源码正常呈现。
  */
-.markdown-source-view.mod-cm6 .mdrazor-html-tag-hidden {
-	font-size: 1px !important;
-	letter-spacing: -1ch;
-	font-family: monospace;
-	color: transparent;
+.markdown-source-view.mod-cm6 .mdrazor-html-tag-hidden,
+.markdown-source-view.mod-cm6 span:has(> .mdrazor-html-tag-hidden) {
+	display: none !important;
 }
 
 /* ── 符号边界提示 ── */

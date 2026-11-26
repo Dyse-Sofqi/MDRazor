@@ -504,6 +504,16 @@ export class MDRazorSettingTab extends PluginSettingTab {
 			'hideHtmlSpanFormatting',
 		);
 
+		this.addHideToggle(
+			panel,
+			tr('隐藏其他 HTML 标签', 'Hide Other HTML Tags'),
+			tr(
+				'在实时预览中隐藏除颜色、下划线、行标签外的其他成对 HTML 标签（如 <b>, <i>, <s>, <sub>, <sup>, <mark>, <kbd>, <small>, <del>, <ins>, <p>, <div> 等）',
+				'Hide other paired HTML tag pairs (such as <b>, <i>, <s>, <sub>, <sup>, <mark>, <kbd>, <small>, <del>, <ins>, <p>, <div>, etc.) in Live Preview',
+			),
+			'hideOtherHtmlTagFormatting',
+		);
+
 		new Setting(panel)
 			.setName(tr('空格可视化', 'Show Whitespace'))
 			.setDesc(tr('以半透明 · 标记显示空格位置', 'Display space positions with translucent · markers'))

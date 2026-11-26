@@ -41,6 +41,7 @@ import { MDRazorSettings, DEFAULT_SETTINGS } from '../../model/settings';
 import { revealCaretRanges } from './caret-reveal';
 import {
 	collectPairedHtmlTags,
+	collectPairedOtherHtmlTags,
 	collectSpanExclusions,
 	type DocRange,
 } from './html-tag-scan';
@@ -158,6 +159,7 @@ function configKey(): string {
 		c.hideHtmlColorTagFormatting,
 		c.hideHtmlUnderlineFormatting,
 		c.hideHtmlSpanFormatting,
+		c.hideOtherHtmlTagFormatting,
 	].map((on) => (on ? '1' : '0')).join('');
 }
 
@@ -172,6 +174,7 @@ function configKey(): string {
 const COLOR_TAG_RE = /<font\s+color="#[a-fA-F0-9]{3,8}"[^>]*>|<\/font\s*>/;
 const UNDERLINE_TAG_RE = /<\/?u\s*>/i;
 const SPAN_TAG_RE = /<span(?:\s[^>]*)?>|<\/span\s*>/i;
+const OTHER_TAG_PRECHECK_RE = /<\/(?!(?:font|u|span)\b)[a-zA-Z]/i;
 
 /** 由预检正则派生扫描用正则（补上 g 标志；已有则原样返回） */
 function toGlobal(re: RegExp): RegExp {
@@ -334,6 +337,15 @@ function collectEntries(
 		},
 	});
 
+	// 排除区段（围栏 / HTML 渲染块 / 行内代码 / 数学）按需懒计算并复用于全部 4 类 HTML 标签隐藏。
+	let cachedExclusions: DocRange[] | null = null;
+	const getExclusions = (): readonly DocRange[] => {
+		if (cachedExclusions === null) {
+			cachedExclusions = collectSpanExclusions(view.state.doc, tree);
+		}
+		return cachedExclusions;
+	};
+
 	// ── HTML 颜色标签（如 <font color="#c00000">、</font>）──
 	// 此类标签不由 CM6 syntax tree 解析，需正则扫描。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
@@ -341,7 +353,8 @@ function collectEntries(
 	if (formattingConfig.hideHtmlColorTagFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (COLOR_TAG_RE.test(docStr)) {
-			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(COLOR_TAG_RE))) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(COLOR_TAG_RE), exclusions)) {
 				entries.push({
 					from,
 					to,
@@ -356,7 +369,8 @@ function collectEntries(
 	if (formattingConfig.hideHtmlUnderlineFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (UNDERLINE_TAG_RE.test(docStr)) {
-			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(UNDERLINE_TAG_RE))) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(UNDERLINE_TAG_RE), exclusions)) {
 				entries.push({
 					from,
 					to,
@@ -370,16 +384,27 @@ function collectEntries(
 	// 与 <u> 一样不由 syntax tree 解析，需正则扫描。span 标签可能携带
 	// style 等任意属性，故开标签匹配 <span> 或 <span 属性...>。
 	// 用 mark 装饰隐藏（hideAsMark），避免遮蔽 Obsidian 的 HTML 渲染 widget。
-	//
-	// 排除区段（围栏 / 行内代码 / 数学）只在**确有 span 标签**时才需要计算：
-	// 全文不含 `<span` / `</span` 时正则必然无匹配，此时省掉整趟围栏行扫描
-	// 与第二次全树遍历 —— 实测这是本模块原先最大的单项开销（12k 行文档
-	// 单次 3.6ms、21k 行 7.2ms，而绝大多数文档根本没有 span 标签）。
 	if (formattingConfig.hideHtmlSpanFormatting) {
 		const docStr = documentText(view.state.doc);
 		if (SPAN_TAG_RE.test(docStr)) {
-			const exclusions = collectSpanExclusions(view.state.doc, tree);
+			const exclusions = getExclusions();
 			for (const { from, to } of collectPairedHtmlTags(docStr, toGlobal(SPAN_TAG_RE), exclusions)) {
+				entries.push({
+					from,
+					to,
+					spec: { hideAsMark: true },
+				});
+			}
+		}
+	}
+
+	// ── 其他 HTML 标签（如 <b>、<i>、<s>、<sub>、<sup>、<mark>、<kbd>、<p>、<div> 等）──
+	// 成对出现时隐藏，单边或未闭合标签保持可见。排除 font、u、span（由各自独立开关控制）。
+	if (formattingConfig.hideOtherHtmlTagFormatting) {
+		const docStr = documentText(view.state.doc);
+		if (OTHER_TAG_PRECHECK_RE.test(docStr)) {
+			const exclusions = getExclusions();
+			for (const { from, to } of collectPairedOtherHtmlTags(docStr, exclusions)) {
 				entries.push({
 					from,
 					to,
@@ -502,7 +527,11 @@ export function buildDecorations(view: EditorView): DecorationSet {
 	// 未遮盖时 revealCaretRanges 原样返回入参（同一数组引用），据此可安全
 	// 复用上一次的成品 —— 光标未落在标记上时结果只取决于缓存键三者。
 	const mainSel = view.state.selection.main;
-	const revealed = revealCaretRanges(cache.entries, mainSel.empty ? mainSel.head : null);
+	const revealed = revealCaretRanges(
+		cache.entries,
+		mainSel.empty ? mainSel.head : null,
+		mainSel.empty ? null : { from: mainSel.from, to: mainSel.to },
+	);
 
 	if (revealed === cache.entries) {
 		if (!cache.built) {

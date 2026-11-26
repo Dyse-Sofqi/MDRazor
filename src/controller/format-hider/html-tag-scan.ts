@@ -5,6 +5,7 @@
  *   - `collectFenceRanges`     围栏代码块区间（`<span>` 在代码块内是字面文本）
  *   - `collectSpanExclusions`  围栏 + 行内代码 + 数学的排除区段
  *   - `collectPairedHtmlTags`  按出现顺序配对开/闭标签（正则扫描全文）
+ *   - `collectPairedOtherHtmlTags` 按标签名分别配对其他 HTML 标签
  *
  * ── 为什么单独成模块 ──
  *
@@ -41,8 +42,154 @@ export interface HtmlTagMatch extends DocRange {
 	isClose: boolean;
 }
 
+/**
+ * 常见 HTML void（自闭合且规范上无闭标签）元素集合。
+ * 此类标签本身无闭标签，绝不应参与成对隐藏。
+ */
+const HTML_VOID_TAGS = new Set([
+	'area',
+	'base',
+	'br',
+	'col',
+	'embed',
+	'hr',
+	'img',
+	'input',
+	'link',
+	'meta',
+	'param',
+	'source',
+	'track',
+	'wbr',
+]);
+
+/** 默认被独立开关托管的 HTML 标签（不纳入「其他 HTML 标签」处理） */
+const DEFAULT_IGNORED_TAGS = new Set(['font', 'u', 'span']);
+
+const ANY_HTML_TAG_RE = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/g;
+
 /** 围栏代码块起始行（``` / ~~~，允许行首空白） */
 const FENCE_RE = /^\s*(?:```+|~~~+)/;
+
+/** CommonMark HTML 块判定正则（Type 1–7） */
+const HTML_BLOCK_TYPE1_RE = /^[ \t]{0,3}<(pre|script|style|textarea)(?:[\s>]|$)/i;
+const HTML_BLOCK_TYPE2_RE = /^[ \t]{0,3}<!--/;
+const HTML_BLOCK_TYPE3_RE = /^[ \t]{0,3}<\?/;
+const HTML_BLOCK_TYPE4_RE = /^[ \t]{0,3}<![A-Z]/;
+const HTML_BLOCK_TYPE5_RE = /^[ \t]{0,3}<!\[CDATA\[/;
+const HTML_BLOCK_TYPE6_RE = /^[ \t]{0,3}<\/?(?:address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul|svg)(?:[\s>/]|$)/i;
+const HTML_BLOCK_TYPE7_RE = /^[ \t]{0,3}(?:<[a-zA-Z][a-zA-Z0-9-]*(?:\s+[^<>]*)?\/?>|<\/[a-zA-Z][a-zA-Z0-9-]*\s*>)[ \t]*$/;
+const HTML_STANDALONE_OPEN_TAG_RE = /^[ \t]{0,3}<([a-zA-Z][a-zA-Z0-9-]*)(?:\s+[^<>]*)?\/?>[ \t]*$/;
+const BLANK_LINE_RE = /^[ \t]*$/;
+
+/**
+ * 收集文档中的连续 HTML 渲染块区间（CommonMark Type 1–7，跳过围栏代码块内部）。
+ *
+ * 隐藏 HTML 标签仅面向正文中的行内样式（如单行 `<font>`、`<u>`、`<span>` 等），
+ * 不应作用于连续的块级 HTML 渲染块（如 `<div>`、`<table>`、`<details>`、`<style>` 等），
+ * 否则在实时预览中展开 HTML 代码块编辑源码时，块内标签会被隐藏。
+ *
+ * 单独成行的 void / 自闭合标签（如 `<br>`、`<hr>`、`<img ...>`）仅排除当前行，
+ * 避免误吞紧随其后的普通正文行。
+ *
+ * @param doc 当前文档
+ * @returns   HTML 块区间（升序）
+ */
+export function collectHtmlBlockRanges(doc: Text): DocRange[] {
+	const ranges: DocRange[] = [];
+	let inFence = false;
+	// 0: 非 HTML 块；1: Type 1–5（遇结束正则终止）；2: Type 6–7（遇空行终止）
+	let blockMode: 0 | 1 | 2 = 0;
+	let blockFrom = 0;
+	let blockEndRe: RegExp | null = null;
+	let lastLineEnd = 0;
+	let offset = 0;
+
+	for (const text of doc.iterLines()) {
+		const lineEnd = offset + text.length;
+		if (inFence) {
+			if (FENCE_RE.test(text)) {
+				inFence = false;
+			}
+		} else if (blockMode === 1) {
+			if (blockEndRe!.test(text)) {
+				ranges.push({ from: blockFrom, to: lineEnd });
+				blockMode = 0;
+				blockEndRe = null;
+			}
+		} else if (blockMode === 2) {
+			if (BLANK_LINE_RE.test(text)) {
+				ranges.push({ from: blockFrom, to: lastLineEnd });
+				blockMode = 0;
+			}
+		} else if (FENCE_RE.test(text)) {
+			inFence = true;
+		} else {
+			const m1 = HTML_BLOCK_TYPE1_RE.exec(text);
+			if (m1) {
+				const endRe = new RegExp(`</${m1[1]}\\s*>`, 'i');
+				if (endRe.test(text)) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 1;
+					blockFrom = offset;
+					blockEndRe = endRe;
+				}
+			} else if (HTML_BLOCK_TYPE2_RE.test(text)) {
+				if (/-->/.test(text)) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 1;
+					blockFrom = offset;
+					blockEndRe = /-->/;
+				}
+			} else if (HTML_BLOCK_TYPE3_RE.test(text)) {
+				if (/\?>/.test(text)) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 1;
+					blockFrom = offset;
+					blockEndRe = /\?>/;
+				}
+			} else if (HTML_BLOCK_TYPE4_RE.test(text)) {
+				if (/>/.test(text)) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 1;
+					blockFrom = offset;
+					blockEndRe = />/;
+				}
+			} else if (HTML_BLOCK_TYPE5_RE.test(text)) {
+				if (/\]\]>/.test(text)) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 1;
+					blockFrom = offset;
+					blockEndRe = /\]\]>/;
+				}
+			} else if (HTML_BLOCK_TYPE6_RE.test(text) || HTML_BLOCK_TYPE7_RE.test(text)) {
+				const standalone = HTML_STANDALONE_OPEN_TAG_RE.exec(text);
+				if (
+					standalone &&
+					(HTML_VOID_TAGS.has(standalone[1]!.toLowerCase()) || /\/\s*>[ \t]*$/.test(text))
+				) {
+					ranges.push({ from: offset, to: lineEnd });
+				} else {
+					blockMode = 2;
+					blockFrom = offset;
+				}
+			}
+		}
+
+		lastLineEnd = lineEnd;
+		offset = lastLineEnd + 1;
+	}
+
+	if (blockMode !== 0) {
+		ranges.push({ from: blockFrom, to: lastLineEnd });
+	}
+	return ranges;
+}
 
 /**
  * 围栏代码块区间：行扫描 ``` / ~~~，成对给出 [起始行首, 结束行尾]；
@@ -100,7 +247,7 @@ export function collectFenceRanges(doc: Text): DocRange[] {
  * @returns    排除区间（**已按 from 升序**，collectPairedHtmlTags 依赖此序）
  */
 export function collectSpanExclusions(doc: Text, tree: Tree): DocRange[] {
-	const ranges: DocRange[] = collectFenceRanges(doc);
+	const ranges: DocRange[] = [...collectFenceRanges(doc), ...collectHtmlBlockRanges(doc)];
 
 	// ── 2 + 3. 语法树：元素节点 + 行内代码标记 ──
 	const inlineMarkers: DocRange[] = [];
@@ -207,6 +354,63 @@ export function collectPairedHtmlTags(
 
 	paired.sort((a, b) => a.from - b.from);
 	return paired;
+}
+
+/**
+ * 收集除指定排除标签外的其他成对 HTML 标签（按标签名分组配对）。
+ *
+ * 扫描全文中的 HTML 开/闭标签，按标签名（小写）分组后，将每组内的
+ * 开标签与闭标签按出现顺序一一配对。无法配成对的多余标签保持可见。
+ *
+ * @param docStr      全文
+ * @param exclusions  需跳过的区段（如代码块、行内代码、数学公式）；已按 from 升序
+ * @param ignoredTags 忽略的标签名集合（如 'font', 'u', 'span'，转小写匹配）
+ * @returns           应隐藏的标签区间列表（已按 from 升序）
+ */
+export function collectPairedOtherHtmlTags(
+	docStr: string,
+	exclusions: readonly DocRange[] = [],
+	ignoredTags: ReadonlySet<string> = DEFAULT_IGNORED_TAGS,
+): HtmlTagMatch[] {
+	if (exclusions.length > 1 && !isSortedByFrom(exclusions)) {
+		exclusions = [...exclusions].sort((a, b) => a.from - b.from);
+	}
+
+	const tagGroups = new Map<string, { opens: HtmlTagMatch[]; closes: HtmlTagMatch[] }>();
+
+	ANY_HTML_TAG_RE.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	let cursor = 0;
+	while ((m = ANY_HTML_TAG_RE.exec(docStr)) !== null) {
+		const text = m[0];
+		// 跳过自闭合标签（如 <hr />、<img ... />）
+		if (/\/\s*>$/.test(text)) continue;
+
+		const tagName = m[1]!.toLowerCase();
+		if (ignoredTags.has(tagName) || HTML_VOID_TAGS.has(tagName)) continue;
+
+		const from = m.index;
+		const to = from + text.length;
+		while (cursor < exclusions.length && exclusions[cursor]!.to <= from) cursor++;
+		if (overlapsFrom(exclusions, cursor, from, to)) continue;
+
+		const isClose = text.charAt(1) === '/';
+		let group = tagGroups.get(tagName);
+		if (!group) {
+			group = { opens: [], closes: [] };
+			tagGroups.set(tagName, group);
+		}
+		(isClose ? group.closes : group.opens).push({ from, to, isClose });
+	}
+
+	const paired: HtmlTagMatch[] = [];
+	for (const group of tagGroups.values()) {
+		const pairCount = Math.min(group.opens.length, group.closes.length);
+		for (let i = 0; i < pairCount; i++) {
+			paired.push(group.opens[i]!, group.closes[i]!);
+		}
+	}
+	return paired.sort((a, b) => a.from - b.from);
 }
 
 /** 区间数组是否已按 from 升序（O(n) 单遍检查） */

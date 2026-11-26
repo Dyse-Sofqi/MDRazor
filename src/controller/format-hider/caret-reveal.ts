@@ -42,6 +42,10 @@
 export interface CaretRange {
 	from: number;
 	to: number;
+	spec?: {
+		hideAsMark?: boolean;
+		[key: string]: unknown;
+	};
 }
 
 /**
@@ -55,21 +59,65 @@ export function isCaretObscured(ranges: readonly CaretRange[], caret: number | n
 	if (caret === null) return false;
 	let endsAt = false;
 	let startsAt = false;
+	let endsAtMark = false;
+	let startsAtMark = false;
 	for (const r of ranges) {
 		if (r.from < caret && caret < r.to) return true; // 区间内部
-		if (r.to === caret) endsAt = true;
-		if (r.from === caret) startsAt = true;
+		if (r.to === caret) {
+			endsAt = true;
+			if (r.spec?.hideAsMark) endsAtMark = true;
+		}
+		if (r.from === caret) {
+			startsAt = true;
+			if (r.spec?.hideAsMark) startsAtMark = true;
+		}
+	}
+	// 若两端恰好都是 HTML mark 隐藏标签（如 </xxx><xxx>），
+	// 它们是两个独立富文本块之间的合法边界，中间通过提示气泡展示，
+	// 不属于空 Markdown 格式单元的夹缝，不应错误展开裸标签。
+	if (endsAtMark && startsAtMark) {
+		return false;
 	}
 	return endsAt && startsAt; // 两条区间之间的夹缝
 }
 
 /**
- * 光标被遮盖时，返回去掉全部「盖住 / 夹住光标」区间（`from <= 光标 <= to`）
- * 的副本；否则原样返回入参（无遮盖时不产生分配）。
+ * 非折叠选区是否正在某个 HTML mark 隐藏标签内部进行框选（起点或终点严格落于标签内部，
+ * 或恰好完整选中该标签本身）。
+ *
+ * 典型场景：标签已展开后，用户在 `<span style="color:red">` 内部拖选 `red` 或整段标签。
+ * 若非折叠选区一律收回隐藏装饰，标签会在拖拽刚起步时瞬间消失。
+ * 而正文跨标签划词（选区起止点均在标签外、或完全位于正文内容区）不命中此条件，
+ * 仍保持标签隐藏。
+ */
+function isSelectingInsideHtmlMark(r: CaretRange, selFrom: number, selTo: number): boolean {
+	if (!r.spec?.hideAsMark) return false;
+	return (
+		(r.from < selFrom && selFrom < r.to) ||
+		(r.from < selTo && selTo < r.to) ||
+		(selFrom === r.from && selTo === r.to)
+	);
+}
+
+/**
+ * 光标被遮盖（或非折叠选区正在 HTML 标签内部框选）时，返回去掉对应隐藏区间的副本；
+ * 否则原样返回入参（无遮盖时不产生分配）。
  *
  * 泛型保留条目自带的其余字段（如 format-hider 的 `spec`）。
  */
-export function revealCaretRanges<T extends CaretRange>(ranges: T[], caret: number | null): T[] {
-	if (caret === null || !isCaretObscured(ranges, caret)) return ranges;
-	return ranges.filter((r) => !(r.from <= caret && caret <= r.to));
+export function revealCaretRanges<T extends CaretRange>(
+	ranges: T[],
+	caret: number | null,
+	selection: { from: number; to: number } | null = null,
+): T[] {
+	if (caret !== null) {
+		if (!isCaretObscured(ranges, caret)) return ranges;
+		return ranges.filter((r) => !(r.from <= caret && caret <= r.to));
+	}
+	if (selection && selection.from < selection.to) {
+		const { from, to } = selection;
+		if (!ranges.some((r) => isSelectingInsideHtmlMark(r, from, to))) return ranges;
+		return ranges.filter((r) => !isSelectingInsideHtmlMark(r, from, to));
+	}
+	return ranges;
 }

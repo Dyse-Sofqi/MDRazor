@@ -49,6 +49,7 @@
 
 import { EditorView } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
+import { normalizeHtmlSelection } from '../format-hider/html-embed-click';
 
 /** 连续快速点击保护：仅纠正最后按下的一次（避免旧微任务覆盖新点击） */
 let pointerSeq = 0;
@@ -138,10 +139,10 @@ function dragCorrection(ctx: DragContext): void {
 	if (anchorLine === startLine && headLine === curLine) {
 		return; // 原生结果正确（含拖拽方向与列），零干预
 	}
-	const from = Math.min(ctx.startPos, cur);
-	const to = Math.max(ctx.startPos, cur);
+	// 保持用户的真实拖拽方向（ctx.startPos 为起点 anchor，cur 为终点 head）
+	const normalized = normalizeHtmlSelection(view, ctx.startPos, cur);
 	view.dispatch({
-		selection: { anchor: from, head: to },
+		selection: { anchor: normalized.anchor, head: normalized.head },
 		scrollIntoView: false,
 		userEvent: 'select.pointer',
 	});
@@ -183,6 +184,11 @@ function handleMouseDown(event: MouseEvent, view: EditorView): void {
 	}
 	// 折叠指示器/折叠切换：原生点击是「toggle 折叠」，不搬光标
 	if (target.closest('.collapse-indicator, .list-collapse-indicator, .cm-foldToggle')) {
+		return;
+	}
+	// 不可编辑的内联/块级 widget（如 .cm-html-embed、[contenteditable="false"]）：
+	// CM6 posAtDOM 对此类不可编辑节点无法精确定位，会退化返回 widget 起点，跳过
+	if (target.closest('.cm-html-embed, .cm-embed-block, [contenteditable="false"]')) {
 		return;
 	}
 	const lineEl = target.closest<HTMLElement>('.cm-line');
@@ -303,6 +309,62 @@ interface LegacyCaretDocument {
 function caretPosAt(view: EditorView, x: number, y: number): number | null {
 	const doc = view.dom.ownerDocument;
 	try {
+		const el = doc.elementFromPoint(x, y) as HTMLElement | null;
+		const embed = el?.closest<HTMLElement>('.cm-html-embed');
+		if (embed && view.contentDOM.contains(embed) && !embed.classList.contains('cm-embed-block')) {
+			// 命中 HTML embed，利用字符几何计算精准位置
+			const widgetStart = view.posAtDOM(embed, 0);
+			const docText = view.state.doc.toString();
+			if (widgetStart >= 0 && widgetStart < docText.length) {
+				const openMatch = docText.slice(widgetStart).match(/^<([a-zA-Z][a-zA-Z0-9-]*)(?:\s[^>]*)?>/);
+				if (openMatch) {
+					const tagName = openMatch[1]!;
+					const openLen = openMatch[0].length;
+					const closeMatch = docText.slice(widgetStart).match(new RegExp('</' + tagName + '\\s*>', 'i'));
+					const walker = doc.createTreeWalker(embed, NodeFilter.SHOW_TEXT);
+					const textNodes: Node[] = [];
+					for (let n = walker.nextNode(); n; n = walker.nextNode()) textNodes.push(n);
+					const metrics: { offset: number; left: number; right: number; midX: number; top: number; bottom: number }[] = [];
+					let offset = 0;
+					for (const tn of textNodes) {
+						const val = tn.nodeValue || '';
+						for (let i = 0; i < val.length; i++) {
+							const r = doc.createRange();
+							r.setStart(tn, i);
+							r.setEnd(tn, i + 1);
+							const b = r.getBoundingClientRect();
+							metrics.push({ offset: offset + i, left: b.left, right: b.right, midX: (b.left + b.right) / 2, top: b.top, bottom: b.bottom });
+						}
+						offset += val.length;
+					}
+					if (metrics.length > 0) {
+						const row = metrics.filter(m => y >= m.top - 3 && y <= m.bottom + 3);
+						const active = row.length > 0 ? row : metrics;
+						const last = active[active.length - 1]!;
+						const first = active[0]!;
+						if (x >= last.midX) {
+							if (last.offset === metrics.length - 1 && closeMatch && closeMatch.index !== undefined) {
+								return widgetStart + closeMatch.index + closeMatch[0].length;
+							}
+							return widgetStart + openLen + last.offset + 1;
+						} else if (x <= first.midX) {
+							if (first.offset === 0) return widgetStart;
+							return widgetStart + openLen + first.offset;
+						} else {
+							for (let i = 0; i < active.length; i++) {
+								const m = active[i]!;
+								if (x >= m.left && x <= m.right) {
+									return widgetStart + openLen + (x >= m.midX ? m.offset + 1 : m.offset);
+								} else if (i < active.length - 1 && x > m.right && x < active[i + 1]!.left) {
+									return widgetStart + openLen + m.offset + 1;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		if (doc.caretPositionFromPoint) {
 			const cp = doc.caretPositionFromPoint(x, y);
 			if (cp && cp.offsetNode && view.contentDOM.contains(cp.offsetNode)) {
