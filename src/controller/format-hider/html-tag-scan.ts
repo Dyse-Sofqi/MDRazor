@@ -357,10 +357,11 @@ export function collectPairedHtmlTags(
 }
 
 /**
- * 收集除指定排除标签外的其他成对 HTML 标签（按标签名分组配对）。
+ * 收集除指定排除标签外的其他成对 HTML 标签（按标签名栈式配对）。
  *
- * 扫描全文中的 HTML 开/闭标签，按标签名（小写）分组后，将每组内的
- * 开标签与闭标签按出现顺序一一配对。无法配成对的多余标签保持可见。
+ * 扫描全文中的 HTML 开/闭标签，按标签名（小写）各建一条开标签栈：
+ * 闭标签与同名前一个尚未配对的开标签（栈顶）配对；孤立闭标签与未闭合
+ * 的开标签都保持可见。
  *
  * @param docStr      全文
  * @param exclusions  需跳过的区段（如代码块、行内代码、数学公式）；已按 from 升序
@@ -376,7 +377,11 @@ export function collectPairedOtherHtmlTags(
 		exclusions = [...exclusions].sort((a, b) => a.from - b.from);
 	}
 
-	const tagGroups = new Map<string, { opens: HtmlTagMatch[]; closes: HtmlTagMatch[] }>();
+	// 每个标签名一条开标签栈（LIFO）：闭标签配同名前一个尚未配对的开标签；
+	// 栈空 = 孤立闭标签，保持可见。不用组内 opens[i]↔closes[i] 按序配对 ——
+	// 那会把文档前部的孤立闭标签与后面的开标签错配，令真正的那一对配不上。
+	const openStacks = new Map<string, HtmlTagMatch[]>();
+	const paired: HtmlTagMatch[] = [];
 
 	ANY_HTML_TAG_RE.lastIndex = 0;
 	let m: RegExpExecArray | null;
@@ -394,22 +399,19 @@ export function collectPairedOtherHtmlTags(
 		while (cursor < exclusions.length && exclusions[cursor]!.to <= from) cursor++;
 		if (overlapsFrom(exclusions, cursor, from, to)) continue;
 
-		const isClose = text.charAt(1) === '/';
-		let group = tagGroups.get(tagName);
-		if (!group) {
-			group = { opens: [], closes: [] };
-			tagGroups.set(tagName, group);
+		let stack = openStacks.get(tagName);
+		if (!stack) {
+			stack = [];
+			openStacks.set(tagName, stack);
 		}
-		(isClose ? group.closes : group.opens).push({ from, to, isClose });
-	}
-
-	const paired: HtmlTagMatch[] = [];
-	for (const group of tagGroups.values()) {
-		const pairCount = Math.min(group.opens.length, group.closes.length);
-		for (let i = 0; i < pairCount; i++) {
-			paired.push(group.opens[i]!, group.closes[i]!);
+		if (text.charAt(1) === '/') {
+			const open = stack.pop();
+			if (open) paired.push(open, { from, to, isClose: true });
+		} else {
+			stack.push({ from, to, isClose: false });
 		}
 	}
+	// 栈里剩余的开标签未闭合，保持可见（不进入 paired）
 	return paired.sort((a, b) => a.from - b.from);
 }
 

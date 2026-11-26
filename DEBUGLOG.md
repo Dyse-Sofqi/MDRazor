@@ -4,7 +4,7 @@
 
 ---
 
-## 未发布
+## 2.8.0 (2026-11-27)
 
 ### 垂直标签页视图「点击标签页有时没反应、要点第二下」（用户报告）
 
@@ -42,10 +42,21 @@
 
 1. **跳过自闭合匹配。** `collectPairedHtmlTags` 扫描循环里 `if (/\/\s*>$/.test(m[0])) continue;`，与 PR 新函数对齐；对格式良好的文档零行为变化（差分夹具无自闭合标签，400+200 轮随机差分仍逐条一致）。
 2. **顺序配对改栈式配对（方案 B，同类根因一并修）。** 旧配对是 `opens[i] ↔ closes[i]` 按序配，不判断前后关系：文档前部的**孤立闭标签**（还没写开标签就先出现 `</span>`）会与后面的开标签配成一对，令真正的那一对反而配不上；嵌套场景还会把外层开标签与内层闭标签错配。改为**栈式（LIFO）**：开标签入栈，闭标签配栈顶（同名前一个未配对的开标签），栈空遇到的闭标签是孤立的、保持可见，扫描结束后栈里剩余的开标签同样保持可见。实测 `</span>文字<span>甲</span>` 旧逻辑隐藏 `</span>`@0 与 `<span>`@9、行尾真正的 `</span>` 反而露着；新逻辑只隐藏真正那一对。
-   - PR 新增的 `collectPairedOtherHtmlTags` 有同样的组内顺序配对缺陷，在测试构建树里同步打了栈式补丁（**本地补丁，合入 PR 后需重新应用或反馈给 PR 作者**）。
-   - 回归脚本的参照实现同步到新配对语义（差分测试守护的是排除判定的性能重构——单游标 vs `exclusions.some()`，不再是配对规则；配对规则改由语义断言覆盖）。③ 区新增 7 条语义断言：自闭合 3 条（不占名额 / 自身不隐藏 / 仅剩自闭合时无隐藏）+ 孤立闭标签不偷配、嵌套配最近的开标签、多余闭标签可见、完整两对升序；⑤ 区给 `collectPairedOtherHtmlTags` 补 1 条孤立闭标签断言。离线复跑全部通过。
+   - PR #27 新增的 `collectPairedOtherHtmlTags` 有同样的组内顺序配对缺陷。PR 以 squash 合入（e142def → 因提交信息误用临时文件路径 amend 为 3739d6c）后，补丁已在主分支应用，并补 ⑤ 区孤立闭标签断言；此前只在测试构建树里打过（见下方「发布过程」）。
+   - 回归脚本的参照实现同步到新配对语义（差分测试守护的是排除判定的性能重构——单游标 vs `exclusions.some()`，不再是配对规则；配对规则改由语义断言覆盖）。③ 区语义断言共 15 条：自闭合 3 条 + 孤立闭标签不偷配、嵌套配最近的开标签、多余闭标签可见、完整两对升序等；离线复跑全部通过。
 
 **避坑：** 排查时先用「模块本体 + 文档全文」离线复现（esbuild 打包 html-tag-scan.ts 到 CJS 直接驱动），比在 Obsidian 里反复试高效得多；注意行内代码/围栏里的字面标签要被排除区段滤掉，否则诊断出来的配对与真实运行不一致。测试文档第 3 节的自闭合示例已改用 `<b data-x="1"/>`（自闭合 span 会干扰第 7 节用例），并在文档里留了注记。
+
+### 2.8.0 发布过程（网络受限下的合并 + 发版）
+
+**环境事实：** 本机 `git fetch/push` 到 github.com:443 被阻断（TLS connect error，GFW 特征），无代理；但 **SSH（git@github.com）可用**（`ssh -T git@github.com` 认证成功），`gh api`（api.github.com）可用。故本次全程：`git push/pull` 走 SSH URL（`git@github.com:Dyse-Sofqi/MDRazor.git`，不改 origin 配置），PR 合并走 `gh pr merge`，发版走 `npm run release:py`。
+
+**顺序（关键）：** ① 先提交本地修复并推送 main（源码 + 回归 + DEBUGLOG，**不含 main.js/styles.css**——这两个构建产物若进提交，PR 合并时 main.js 必冲突，GitHub 会判 CONFLICTING）；② `gh pr merge 27 --squash`（仓库历史 0 个 merge commit，全线性的，故 squash；PR 的 19 个提交并为 1 个，作者信息保留为 imAndyrr）；③ `git pull --ff-only` 拿回合并结果（html-tag-scan.ts / 回归脚本的三方合并自动完成，无冲突）；④ 对合并后的 `collectPairedOtherHtmlTags` 应用栈式补丁 + 补 ⑤ 区断言；⑤ 回归 / tsc / lint / build；⑥ `npm version 2.8.0 --no-git-tag-version`（**必须加 --no-git-tag-version**，否则 npm 会自带建 tag 和 commit，违反「tag 由 release API 创建、无 v 前缀」的约定）；⑦ 写 CHANGELOG 中英（PR 在 CHANGELOG 里留的是一段**无版本号**的「新增功能」，发版时把它并入 2.8.0 正式条目）；⑧ 提交 release 2.8.0 并 SSH 推送；⑨ `npm run release:py -- 2.8.0 --push`（GITEE_TOKEN 不存在，自动跳过 Gitee 镜像）。
+
+**避坑：**
+- `gh pr merge --subject/--body` 收的是**字符串**，不是文件——传文件路径会把临时文件名当成提交信息（本次 squash 出来的 commit 标题变成了 `C:\...\tmp45FB.tmp`）。修正：`git commit --amend -F <file>` 后 `git push --force-with-lease=<ref>:<期望SHA>`（先把 `refs/remotes/origin/main` update-ref 到远端真实 SHA，lease 才拿得到正确期望值）。提交仅数分钟、由本人创建、分支无保护，强推风险可控；强推后远端与本地一致。
+- `git pull <URL>` 不更新 `refs/remotes/origin/<branch>`，需要手动 `git update-ref`，否则后续 `--force-with-lease`（无参形式）与发版脚本的「远端 == 本地 HEAD」预检会读到陈旧值。
+- 工作区是 CRLF（core.autocrlf），用脚本打补丁时若补丁串用 LF 会静默不匹配——先归一化再替换、写回前还原行尾。
 
 ---
 

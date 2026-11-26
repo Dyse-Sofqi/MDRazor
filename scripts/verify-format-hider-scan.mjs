@@ -412,6 +412,14 @@ console.log('⑤ collectPairedOtherHtmlTags 配对与排除语义');
 		{ from: 14, to: 17, isClose: false },
 		{ from: 19, to: 23, isClose: true },
 	]);
+
+	// 孤立闭标签不得偷配后面的开标签（组内按序 opens[i]↔closes[i] 的缺陷：
+	// 会把 </mark>@0 与 <mark>@9 配成一对，行尾真正的 </mark> 反而露着）
+	const d8 = '</mark>文字<mark>高亮</mark>';
+	check('文档前部的孤立闭标签不偷配（真正的那一对隐藏）', collectPairedOtherHtmlTags(d8), [
+		{ from: 9, to: 15, isClose: false },
+		{ from: 17, to: 24, isClose: true },
+	]);
 }
 
 /* ═══ ⑥ collectHtmlBlockRanges HTML 渲染块排除语义 ═══ */
