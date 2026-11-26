@@ -73,8 +73,16 @@ export function registerVerticalTabs(
 	const customFolderPaths = new Set<string>();
 	let leafChangeTimer: number | null = null;
 	let captureHandler: ((e: MouseEvent) => void) | null = null;
+	/** 捕获处理器实际挂载的宿主（install 时记录，remove 时按它摘除） */
+	let captureHostEl: HTMLElement | null = null;
 	let lastActiveFilePath: string | null = null;
 	let closeBtnObserver: MutationObserver | null = null;
+	/** 当前渲染出来的「打开的标签页集合」签名，用于免重建快路径 */
+	let lastOpenPathsKey: string | null = null;
+	/** 指针按住期间为 true —— 此时绝不重建列表（详见 runRebuild 注释） */
+	let pointerInFlight = false;
+	/** 重建请求在指针按住期间被推迟，抬起后补跑 */
+	let pendingRebuild = false;
 
 	/* ---- locate file-explorer container ---- */
 
@@ -97,6 +105,9 @@ export function registerVerticalTabs(
 		});
 		return paths;
 	};
+
+	/** 打开的标签页集合签名（与顺序无关）——集合没变就不必重建 DOM。 */
+	const openPathsKey = (paths: Set<string>): string => [...paths].sort().join('\n');
 
 	const getAncestorPaths = (openPaths: Set<string>): Set<string> => {
 		const paths = new Set<string>();
@@ -201,12 +212,12 @@ export function registerVerticalTabs(
 
 	/* ---- B: close buttons on native file-list entries ---- */
 
-	const refreshCloseButtons = (): void => {
+	const refreshCloseButtons = (precomputedOpenPaths?: Set<string>): void => {
 		if (!containerEl || !enabled()) return;
 		// Only touch the real (non-VT) file list
 		const realList = containerEl.querySelector<HTMLElement>('.nav-files-container:not(.mdr-vt-custom-list)');
 		if (!realList) return;
-		const openPaths = getOpenFilePaths();
+		const openPaths = precomputedOpenPaths ?? getOpenFilePaths();
 		realList.querySelectorAll<HTMLElement>('.nav-file-title').forEach((title) => {
 			let path = title.getAttribute('data-path');
 			if (!path) {
@@ -420,6 +431,18 @@ export function registerVerticalTabs(
 		(menu as unknown as { showAtMouseEvent(e: MouseEvent): void }).showAtMouseEvent(e);
 	};
 
+	/* ---- pointer-in-flight guard ---- */
+
+	const onPointerDown = (): void => {
+		pointerInFlight = true;
+	};
+
+	const onPointerUp = (): void => {
+		if (!pointerInFlight) return;
+		pointerInFlight = false;
+		flushPendingRebuild();
+	};
+
 	/* ---- delegated interaction ---- */
 
 	const installCaptureHandler = (): void => {
@@ -493,24 +516,81 @@ export function registerVerticalTabs(
 
 		const hostEl = containerEl.parentElement;
 		if (!hostEl) return;
+		captureHostEl = hostEl;
 		hostEl.addEventListener('click', captureHandler, true);
 		hostEl.addEventListener('contextmenu', captureHandler, true);
+		// 指针起落跟踪：重建请求在按住期间推迟（见 runRebuild）。宿主级即可
+		// 收到 pointerup —— 鼠标/触摸/触控笔在按下期间被浏览器隐式捕获到
+		// mousedown 目标，抬起必然派发回宿主；pointercancel 兜底。
+		hostEl.addEventListener('pointerdown', onPointerDown, true);
+		hostEl.addEventListener('pointerup', onPointerUp, true);
+		hostEl.addEventListener('pointercancel', onPointerUp, true);
 	};
 
 	const removeCaptureHandler = (): void => {
-		if (!captureHandler) return;
-		const hostEl = containerEl?.parentElement;
-		if (hostEl) {
-			hostEl.removeEventListener('click', captureHandler, true);
-			hostEl.removeEventListener('contextmenu', captureHandler, true);
+		if (captureHandler && captureHostEl) {
+			captureHostEl.removeEventListener('click', captureHandler, true);
+			captureHostEl.removeEventListener('contextmenu', captureHandler, true);
+			captureHostEl.removeEventListener('pointerdown', onPointerDown, true);
+			captureHostEl.removeEventListener('pointerup', onPointerUp, true);
+			captureHostEl.removeEventListener('pointercancel', onPointerUp, true);
 		}
 		captureHandler = null;
+		captureHostEl = null;
+	};
+
+	/* ---- scroll anchor (survive full rebuilds) ---- */
+
+	interface ScrollAnchor {
+		/** 滚动视窗顶部第一个完整露出的树项路径 */
+		path: string | null;
+		/** 锚点项找不到时的像素兜底 */
+		fallbackTop: number;
+	}
+
+	/**
+	 * 记录当前滚动锚点。整表重建会换掉所有 DOM 节点（新元素 scrollTop=0），
+	 * 不救位置的话每次重建列表都跳回顶部 —— 标签页一多，点一个tab就回顶部，
+	 * 下一个得重新滚下去找。按「路径」而不是像素还原：重建前后若有条目
+	 * 增减（开/关标签页），像素位置对应的已是另一个条目。
+	 */
+	const captureScrollAnchor = (): ScrollAnchor | null => {
+		if (!customListEl) return null;
+		const list = customListEl;
+		const top = list.scrollTop;
+		const listTop = list.getBoundingClientRect().top;
+		let path: string | null = null;
+		for (const el of Array.from(list.querySelectorAll<HTMLElement>('.nav-file, .nav-folder'))) {
+			const rect = el.getBoundingClientRect();
+			if (rect.height === 0) continue; // 折叠目录的子项（display:none）
+			const elTop = rect.top - listTop + top;
+			if (elTop <= top + 1) path = el.getAttribute('data-path');
+			else break;
+		}
+		return { path, fallbackTop: top };
+	};
+
+	const restoreScrollAnchor = (anchor: ScrollAnchor | null): void => {
+		if (!anchor || !customListEl) return;
+		if (anchor.path) {
+			const el = customListEl.querySelector<HTMLElement>(
+				`.nav-file[data-path="${CSS.escape(anchor.path)}"], .nav-folder[data-path="${CSS.escape(anchor.path)}"]`,
+			);
+			if (el) {
+				customListEl.scrollTop =
+					el.getBoundingClientRect().top - customListEl.getBoundingClientRect().top + customListEl.scrollTop;
+				return;
+			}
+		}
+		customListEl.scrollTop = anchor.fallbackTop;
 	};
 
 	/* ---- custom list lifecycle ---- */
 
 	const renderCustomList = (tree: TreeNode[], activePath: string | null): void => {
 		if (!containerEl) return;
+		// 先取滚动锚点再拆旧列表（拆完就读不到了）
+		const scrollAnchor = captureScrollAnchor();
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 
 		// Record all folder paths in VT tree (for sync on exit)
@@ -533,6 +613,7 @@ export function registerVerticalTabs(
 		if (realList) realList.after(wrapper); else containerEl.appendChild(wrapper);
 
 		customListEl = wrapper;
+		restoreScrollAnchor(scrollAnchor);
 		installCaptureHandler();
 	};
 
@@ -540,6 +621,7 @@ export function registerVerticalTabs(
 		removeCaptureHandler();
 		if (customListEl) { customListEl.remove(); customListEl = null; }
 		customCollapsed.clear();
+		pendingRebuild = false;
 	};
 
 	/**
@@ -602,6 +684,7 @@ export function registerVerticalTabs(
 
 		containerEl.classList.add('mdr-vertical-tabs-view');
 		const openPaths = getOpenFilePaths();
+		lastOpenPathsKey = openPathsKey(openPaths);
 		if (openPaths.size === 0) { renderCustomList([], null); return; }
 
 		let activePath = getActiveFilePath();
@@ -613,19 +696,63 @@ export function registerVerticalTabs(
 		renderCustomList(buildFilteredTree(openPaths, ancestorPaths), activePath);
 	};
 
+	/* ---- rebuild scheduling ----
+	 *
+	 * 曾经的写法：每次 active-leaf-change 都在 100ms 后把整个 VT 列表
+	 * destroy + rebuild（renderCustomList 换掉所有树项节点）。这直接导致
+	 * 「点击标签页有时没反应、要点第二下」：
+	 *   点击 tab → setActiveLeaf → active-leaf-change → 100ms 后整表重建。
+	 *   若用户紧接着再点一个 tab，mousedown 落在旧节点上、mouseup 时旧节点
+	 *   已被 detach —— 按 DOM 规范 click 改派到 mousedown/mouseup 目标的
+	 *   最近公共祖先（Chrome 更是直接不派发），委派处理器再也匹配不到
+	 *   .nav-file-title，该次点击被静默吞掉。点第二下时 DOM 已稳定，才正常。
+	 * 现在：集合没变只更新高亮、不碰 DOM；真要重建也避开按住期间。
+	 */
+
+	/**
+	 * 执行一次整表重建。指针按住期间推迟到 pointerup：mousedown 与 mouseup
+	 * 之间若换掉 DOM，浏览器不再把 click 派发到被换掉的元素上，该次点击
+	 * 就丢了（用户看到「没反应」）。抬起后由 onPointerUp → flushPendingRebuild 补跑。
+	 */
+	const runRebuild = (): void => {
+		if (pointerInFlight) {
+			pendingRebuild = true;
+			return;
+		}
+		applyViewState();
+	};
+
+	/** 防抖请求重建（100ms，合并连续事件；抬起期间被推迟的由 flush 补跑）。 */
+	const requestRefresh = (): void => {
+		if (leafChangeTimer !== null) window.clearTimeout(leafChangeTimer);
+		leafChangeTimer = window.setTimeout(() => {
+			leafChangeTimer = null;
+			if (containerEl && isViewActive()) runRebuild();
+		}, 100);
+	};
+
+	const flushPendingRebuild = (): void => {
+		if (!pendingRebuild) return;
+		pendingRebuild = false;
+		if (containerEl && isViewActive()) applyViewState();
+	};
+
 	/* ---- leaf change (debounced) ---- */
 
 	const onLeafChange = (): void => {
 		if (!containerEl || !enabled()) return;
-		refreshCloseButtons();
+		const openPaths = getOpenFilePaths();
+		refreshCloseButtons(openPaths);
 		if (!isViewActive()) return;
-		if (leafChangeTimer !== null) window.clearTimeout(leafChangeTimer);
-		leafChangeTimer = window.setTimeout(() => {
-			leafChangeTimer = null;
-			if (containerEl && isViewActive()) {
-				applyViewState();
-			}
-		}, 100);
+		// 「打开的标签页集合」没变（只是在标签页间切换活动项、或焦点落到侧栏）
+		// 时只更新高亮，不重建 DOM —— 整表重建除了丢点击（见上），还会让滚动
+		// 位置跳回顶部、白屏闪烁，纯属浪费。
+		const key = openPathsKey(openPaths);
+		if (key === lastOpenPathsKey && customListEl) {
+			setFileHighlight(getActiveFilePath());
+			return;
+		}
+		requestRefresh();
 	};
 
 	/* ---- observer for virtual-scrolled close buttons ---- */
@@ -687,6 +814,15 @@ export function registerVerticalTabs(
 	}));
 
 	plugin.registerEvent(app.workspace.on('active-leaf-change', () => onLeafChange()));
+
+	// 目录改名不改变「打开的标签页集合」（快路径不重建），但会让 VT 树里的
+	// 祖先目录名过期 —— 显式请求一次重建（防抖 + 按住期间延后，同一条路）。
+	// 文件改名会改路径、集合签名随之变化，本来就会重建。
+	plugin.registerEvent(
+		app.vault.on('rename', () => {
+			if (enabled() && containerEl && isViewActive()) requestRefresh();
+		}),
+	);
 
 	plugin.register(() => detach());
 

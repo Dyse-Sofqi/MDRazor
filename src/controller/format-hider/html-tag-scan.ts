@@ -147,22 +147,34 @@ export function collectSpanExclusions(doc: Text, tree: Tree): DocRange[] {
 /**
  * 配对 HTML 标签对：仅返回能配成对的标签区间，不成对的单边标签不返回。
  *
- * 扫描全文，按出现顺序将开标签与闭标签一一配对，保留配成对的部分，
- * 多余的（多出的开标签或闭标签）保持可见 —— 例如 `<u>` 后缺失 `</u>`，
- * 或孤立的 `</u>`，不再被单独隐藏。
+ * 配对规则（**栈式，LIFO**）：开标签入栈；闭标签与栈顶（同名前一个尚未
+ * 配对的开标签）配对；栈空时遇到的闭标签是**孤立闭标签**，保持可见；
+ * 扫描结束后栈里剩余的开标签没有闭标签，同样保持可见。
+ *
+ * 为什么不用「opens[i] ↔ closes[i]」按序配对：那种配法会把**文档前部的
+ * 孤立闭标签**（还没写开标签就先出现 `</span>`）与后面的开标签配成一
+ * 对，令真正的那一对反而配不上；嵌套场景还会把外层开标签与内层闭标签
+ * 错配。实测案例：`</span>文字<span>甲</span>` 旧逻辑隐藏了 `</span>`@0
+ * 与 `<span>`@9，行尾真正的 `</span>` 反而露着。
+ *
+ * 自闭合写法（`<span ... />`、`<br />` 等）没有闭标签，直接跳过、不占用
+ * 配对名额：否则它会排在同名开标签之前，把后面真正的闭标签配走，令真正的
+ * 开标签配不上对而保持可见 —— 表现为「文档里别的处有个自闭合标签，这边
+ * 的标签隐藏就失败了」。
  *
  * @param docStr      全文
  * @param tagPattern  匹配开/闭标签的正则（须含 g 标志）
  * @param exclusions  需跳过的区段（如代码区内的字面标签）；默认不跳过
- * @returns           应隐藏的标签区间列表（仅成对部分）
+ * @returns           应隐藏的标签区间列表（按 from 升序，仅成对部分）
  */
 export function collectPairedHtmlTags(
 	docStr: string,
 	tagPattern: RegExp,
 	exclusions: readonly DocRange[] = [],
 ): HtmlTagMatch[] {
-	const opens: HtmlTagMatch[] = [];
-	const closes: HtmlTagMatch[] = [];
+	const paired: HtmlTagMatch[] = [];
+	/** 尚未配对的开标签栈（LIFO：闭标签配最近的那个） */
+	const openStack: HtmlTagMatch[] = [];
 
 	// 排除区间必须按 from 升序才能用单游标推进（collectSpanExclusions 已保证）；
 	// 传入未排序数组时（外部误用）先规范化，代价 O(n)，远小于 O(匹配数 × n)
@@ -176,24 +188,24 @@ export function collectPairedHtmlTags(
 	// 天然升序，故游标只前进不回退 —— 整体 O(匹配数 + 排除数)。
 	let cursor = 0;
 	while ((m = tagPattern.exec(docStr)) !== null) {
+		// 自闭合写法无闭标签，跳过（不占用配对名额）
+		if (/\/\s*>$/.test(m[0])) continue;
 		const from = m.index;
 		const to = from + m[0].length;
 		// 已整体结束于本条匹配之前的区间（to <= from）不可能再相交
 		while (cursor < exclusions.length && exclusions[cursor]!.to <= from) cursor++;
 		if (overlapsFrom(exclusions, cursor, from, to)) continue;
-		(m[0].charAt(1) === '/' ? closes : opens).push({
-			from,
-			to,
-			isClose: m[0].charAt(1) === '/',
-		});
+		if (m[0].charAt(1) === '/') {
+			// 闭标签：与栈顶配对；栈空 = 孤立闭标签，保持可见
+			const open = openStack.pop();
+			if (open) paired.push(open, { from, to, isClose: true });
+		} else {
+			openStack.push({ from, to, isClose: false });
+		}
 	}
+	// 栈里剩余的开标签没有闭标签可配，保持可见（不进入 paired）
 
-	// 开/闭标签按出现顺序一一配对；无法配成对的多余标签不隐藏
-	const paired: HtmlTagMatch[] = [];
-	const pairCount = Math.min(opens.length, closes.length);
-	for (let i = 0; i < pairCount; i++) {
-		paired.push(opens[i]!, closes[i]!);
-	}
+	paired.sort((a, b) => a.from - b.from);
 	return paired;
 }
 

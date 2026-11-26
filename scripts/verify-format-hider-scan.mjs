@@ -64,26 +64,35 @@ function oldFenceRanges(doc) {
 	return ranges;
 }
 
+/**
+ * 参照实现（仅用于差分对照）。
+ *
+ * 排除判定保留**改写前**的 `exclusions.some()`（O(匹配数 × 排除数)）——
+ * 差分测试要守的正是这条性能重构（单游标推进）不改变输出。
+ *
+ * 配对语义在「栈式配对」修复后与线上一致：此处参照同样用栈式，否则随机
+ * 夹具里的孤立闭标签 / 交叉配对会让两侧语义不同而误报。配对规则本身由
+ * ③ 区的语义断言专门覆盖（与实现无关）。
+ */
 function oldCollectPairedHtmlTags(docStr, tagPattern, exclusions = []) {
-	const opens = [];
-	const closes = [];
 	tagPattern.lastIndex = 0;
 	let m;
+	const paired = [];
+	const openStack = [];
 	while ((m = tagPattern.exec(docStr)) !== null) {
+		if (/\/\s*>$/.test(m[0])) continue; // 自闭合写法无闭标签
 		const from = m.index;
 		const to = from + m[0].length;
 		const inExcluded = exclusions.some((r) => from < r.to && to > r.from);
 		if (inExcluded) continue;
-		(m[0].charAt(1) === '/' ? closes : opens).push({
-			from,
-			to,
-			isClose: m[0].charAt(1) === '/',
-		});
+		if (m[0].charAt(1) === '/') {
+			const open = openStack.pop();
+			if (open) paired.push(open, { from, to, isClose: true });
+		} else {
+			openStack.push({ from, to, isClose: false });
+		}
 	}
-	const paired = [];
-	const pairCount = Math.min(opens.length, closes.length);
-	for (let i = 0; i < pairCount; i++) paired.push(opens[i], closes[i]);
-	return paired;
+	return paired.sort((a, b) => a.from - b.from);
 }
 
 // ── 断言框架 ─────────────────────────────────────────────────────────────
@@ -226,6 +235,69 @@ console.log('③ 配对语义');
 		[],
 	);
 	check('空排除数组：行为等同不排除', collectPairedHtmlTags('<span>', SPAN_RE), []);
+
+	// 自闭合写法没有闭标签，不应占用配对名额：否则它会排在同名开标签前面、
+	// 把后面真正的闭标签配走，令真正的开标签配不上对而保持可见 —— 表现为
+	// 「文档别处有个自闭合标签，这边的标签隐藏就失败了」（实测案例：测试文档
+	// 第 3 节 <span data-x="1"/> 偷配了第 7 节唯一的 </span>）。
+	const d5 = '<span data-x="1"/>正文<span style="color:red">文字</span>';
+	const r5 = collectPairedHtmlTags(d5, SPAN_RE);
+	check(
+		'自闭合标签不占名额：后面真正的对照样隐藏',
+		r5.map((r) => d5.slice(r.from, r.to)),
+		['<span style="color:red">', '</span>'],
+	);
+	check('自闭合标签自身不被隐藏', r5.some((r) => d5.slice(r.from, r.to).includes('data-x')), false);
+	check(
+		'仅剩自闭合标签时无任何隐藏',
+		collectPairedHtmlTags('<span a="1" />和<span/>', SPAN_RE),
+		[],
+	);
+
+	// ── 栈式配对：孤立闭标签不得偷配后面的开标签 ──
+	// 旧实现按序 opens[i]↔closes[i]：会把 </span>@0 与 <span>@9 配成一对，
+	// 行尾真正的 </span> 反而露着。
+	const s1 = '</span>文字<span>甲</span>';
+	check(
+		'文档前部的孤立闭标签不偷配（真正的那一对隐藏）',
+		collectPairedHtmlTags(s1, SPAN_RE),
+		[
+			{ from: 9, to: 15, isClose: false },
+			{ from: 16, to: 23, isClose: true },
+		],
+	);
+	// 嵌套：闭标签配最近的开标签（内层），外层开标签未闭合 → 保持可见
+	const s2 = '<span>甲<span>乙</span>';
+	check(
+		'嵌套时闭标签配最近的开标签，未闭合的外层保持可见',
+		collectPairedHtmlTags(s2, SPAN_RE),
+		[
+			{ from: 7, to: 13, isClose: false },
+			{ from: 14, to: 21, isClose: true },
+		],
+	);
+	// 多出的闭标签：只配第一对，多余的保持可见
+	const s3 = '<span>甲</span></span>';
+	check(
+		'多余的闭标签保持可见，只隐藏配成对的部分',
+		collectPairedHtmlTags(s3, SPAN_RE),
+		[
+			{ from: 0, to: 6, isClose: false },
+			{ from: 7, to: 14, isClose: true },
+		],
+	);
+	// 完整两对：顺序与旧实现一致（回归保护）
+	const s4 = '<span>甲</span><span>乙</span>';
+	check(
+		'完整两对按 from 升序全部隐藏',
+		collectPairedHtmlTags(s4, SPAN_RE),
+		[
+			{ from: 0, to: 6, isClose: false },
+			{ from: 7, to: 14, isClose: true },
+			{ from: 14, to: 20, isClose: false },
+			{ from: 21, to: 28, isClose: true },
+		],
+	);
 }
 
 /* ═══ ④ 线性度：排除区间数量放大后成本不得按乘法增长 ═══ */
